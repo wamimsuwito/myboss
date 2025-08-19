@@ -143,6 +143,7 @@ export interface ProductionData {
     nomorMobil?: string;
     nomorLambung?: string;
     slump?: string;
+    'CP/M'?: string;
     jobMix: JobMix;
     nomorRitasi?: number;
     totalVolumeTerkirim?: number;
@@ -252,6 +253,7 @@ export interface RencanaPemasukan {
     inspection?: QCInspectionData;
     completedActivities?: CementActivity[];
     bongkarSelesaiAt?: string;
+    createdAt?: any;
 }
 
 export interface QCInspectionData {
