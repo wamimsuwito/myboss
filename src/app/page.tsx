@@ -18,10 +18,6 @@ import { printElement } from '@/lib/utils';
 import ScheduleTable from '@/components/schedule-table';
 import BpSelectionDialog from '@/components/location-selection-dialog';
 import UnitSelectionDialog from '@/components/unit-selection-dialog';
-import { Sidebar, SidebarProvider, SidebarInset, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
-import LoadingOrderDialog from '@/components/loading-order-dialog';
-import MixerSettingsDialog from '@/components/mixer-settings-dialog';
-import MoistureControlDialog from '@/components/moisture-control-dialog';
 import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, runTransaction, query, where, Timestamp, getDoc } from '@/lib/firebase';
 
 const initialScales: Scale[] = [
@@ -609,11 +605,22 @@ export default function DashboardPage() {
             sikaVz: 0, sikaNn: 0, visco: 0,
         };
         
+        // This query must be run *outside* the transaction.
+        const productionsQuery = query(
+            collection(db, 'productions'),
+            where('jobId', '==', activeSchedule.NO),
+            where('lokasiProyek', '==', activeSchedule.LOKASI),
+            where('mutuBeton', '==', activeSchedule.GRADE),
+            where('namaPelanggan', '==', activeSchedule.NAMA)
+        );
+        const scheduleProductionsQuerySnapshot = await getDocs(productionsQuery);
+        const nomorRitasi = scheduleProductionsQuerySnapshot.docs.length + 1;
+        
         const scheduleDocRef = doc(db, 'schedules_today', activeSchedule.id as string);
         const aggregateStockRef = doc(db, `locations/${userInfo.lokasi}/stock`, 'aggregates');
         const cementStockRef = doc(db, `locations/${userInfo.lokasi}/stock_cement_silo_${userInfo.unitBp}`, 'main');
 
-        const newProductionData = await runTransaction(db, async (transaction) => {
+        await runTransaction(db, async (transaction) => {
             const scheduleDoc = await transaction.get(scheduleDocRef);
             if (!scheduleDoc.exists()) throw "Jadwal tidak ditemukan!";
             
@@ -655,28 +662,10 @@ export default function DashboardPage() {
                    throw new Error(`Silo ${data.selectedSilo} tidak aktif atau tidak ditemukan.`);
                 }
             }
-            
-            const productionsQuery = query(
-                collection(db, 'productions'),
-                where('jobId', '==', scheduleData.NO),
-                where('lokasiProyek', '==', scheduleData.LOKASI),
-                where('mutuBeton', '==', scheduleData.GRADE),
-                where('namaPelanggan', '==', scheduleData.NAMA)
-            );
-            const scheduleProductionsQuerySnapshot = await transaction.get(productionsQuery);
-            const nomorRitasi = scheduleProductionsQuerySnapshot.docs.length + 1;
-
-            return {
-                nomorRitasi,
-                totalVolumeTerkirim: totalTerkirim,
-                updatedSchedule: {
-                    ...scheduleData,
-                    'TERKIRIM M³': String(totalTerkirim),
-                    'SISA M³': String(sisaBaru),
-                    STATUS: newStatus,
-                }
-            };
         });
+
+        const updatedScheduleDoc = await getDoc(scheduleDocRef);
+        const updatedScheduleData = updatedScheduleDoc.data() as ScheduleRow;
         
         const productionEntry: ProductionData = {
             id: `${activeSchedule.NO}-${new Date().getTime()}`,
@@ -695,8 +684,8 @@ export default function DashboardPage() {
             nomorMobil: nomorMobil,
             nomorLambung: nomorLambung,
             jobMix: activeJobMix,
-            nomorRitasi: newProductionData.nomorRitasi,
-            totalVolumeTerkirim: newProductionData.totalVolumeTerkirim,
+            nomorRitasi: nomorRitasi,
+            totalVolumeTerkirim: parseFloat(updatedScheduleData['TERKIRIM M³']),
             lokasiProduksi: userInfo.lokasi,
             unitBp: userInfo.unitBp,
             materialUsage: usage,
@@ -707,13 +696,13 @@ export default function DashboardPage() {
             ...data, 
             schedule: {
                 ...activeSchedule,
-                ...newProductionData.updatedSchedule,
+                ...updatedScheduleData,
                 'NAMA SOPIR': namaSopir,
                 'NOMOR MOBIL': nomorMobil,
                 'NOMOR LAMBUNG': nomorLambung,
             },
-            nomorRitasi: newProductionData.nomorRitasi,
-            totalVolumeTerkirim: newProductionData.totalVolumeTerkirim,
+            nomorRitasi: nomorRitasi,
+            totalVolumeTerkirim: parseFloat(updatedScheduleData['TERKIRIM M³']),
             unitBp: userInfo.unitBp
         };
         setProductionDataForPrint(dataForPrint);
@@ -922,4 +911,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
