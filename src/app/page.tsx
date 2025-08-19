@@ -19,7 +19,7 @@ import ScheduleTable from '@/components/schedule-table';
 import BpSelectionDialog from '@/components/location-selection-dialog';
 import UnitSelectionDialog from '@/components/unit-selection-dialog';
 import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, runTransaction, query, where, Timestamp, getDoc } from '@/lib/firebase';
-import { Sidebar, SidebarProvider, SidebarInset, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import LoadingOrderDialog from '@/components/loading-order-dialog';
 import MixerSettingsDialog from '@/components/mixer-settings-dialog';
 import MoistureControlDialog from '@/components/moisture-control-dialog';
@@ -566,8 +566,8 @@ export default function DashboardPage() {
     setNomorMobil('');
     setNomorLambung('');
     setSelectedSilo('');
-    onSetActiveSchedule(null);
-    onSetActiveJobMix(null);
+    setActiveSchedule(null);
+    setActiveJobMix(null);
   }
 
   const handleStop = async (data?: PrintData & { selectedSilo?: string }, options: { isAborted?: boolean, mode: OperationMode } = { isAborted: true, mode: 'auto' }) => {
@@ -609,8 +609,10 @@ export default function DashboardPage() {
             sikaVz: 0, sikaNn: 0, visco: 0,
         };
         
-        let nomorRitasi = 1;
-        // This must be run outside transaction
+        const scheduleDocRef = doc(db, 'schedules_today', activeSchedule.id as string);
+        const aggregateStockRef = doc(db, `locations/${userInfo.lokasi}/stock`, 'aggregates');
+        const cementStockRef = doc(db, `locations/${userInfo.lokasi}/stock_cement_silo_${userInfo.unitBp}`, 'main');
+        
         const productionsQuery = query(
             collection(db, 'productions'),
             where('jobId', '==', activeSchedule.NO),
@@ -619,11 +621,7 @@ export default function DashboardPage() {
             where('namaPelanggan', '==', activeSchedule.NAMA)
         );
         const scheduleProductionsQuerySnapshot = await getDocs(productionsQuery);
-        nomorRitasi = scheduleProductionsQuerySnapshot.docs.length + 1;
-        
-        const scheduleDocRef = doc(db, 'schedules_today', activeSchedule.id as string);
-        const aggregateStockRef = doc(db, `locations/${userInfo.lokasi}/stock`, 'aggregates');
-        const cementStockRef = doc(db, `locations/${userInfo.lokasi}/stock_cement_silo_${userInfo.unitBp}`, 'main');
+        const nomorRitasi = scheduleProductionsQuerySnapshot.docs.length + 1;
 
         await runTransaction(db, async (transaction) => {
             const scheduleDoc = await transaction.get(scheduleDocRef);
@@ -656,13 +654,16 @@ export default function DashboardPage() {
             if (cementStockDoc.exists() && data.selectedSilo) {
                 const currentCementStock = cementStockDoc.data() as CementSiloStock;
                 const siloKey = `silo-${data.selectedSilo}`;
-                const currentSiloStockData = currentCementStock.silos[siloKey];
+                const currentSilos = currentCementStock.silos || {};
+                const currentSiloStockData = currentSilos[siloKey];
                 
                 if (currentSiloStockData && currentSiloStockData.status === 'aktif') {
                     const newStock = (currentSiloStockData.stock || 0) - usage.semen;
-                    transaction.update(cementStockRef, {
-                        [`silos.${siloKey}.stock`]: newStock
-                    });
+                    const updatedSiloData = { ...currentSiloStockData, stock: newStock };
+                    const updatedSilos = { ...currentSilos, [siloKey]: updatedSiloData };
+                    
+                    transaction.update(cementStockRef, { silos: updatedSilos });
+
                 } else {
                    throw new Error(`Silo ${data.selectedSilo} tidak aktif atau tidak ditemukan.`);
                 }
