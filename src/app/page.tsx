@@ -656,8 +656,14 @@ export default function DashboardPage() {
                 }
             }
             
-            const productionsQuery = query(collection(db, 'productions'), where('jobId', '==', scheduleData.NO));
-            const scheduleProductionsQuerySnapshot = await getDocs(productionsQuery);
+            const productionsQuery = query(
+                collection(db, 'productions'),
+                where('jobId', '==', scheduleData.NO),
+                where('lokasiProyek', '==', scheduleData.LOKASI),
+                where('mutuBeton', '==', scheduleData.GRADE),
+                where('namaPelanggan', '==', scheduleData.NAMA)
+            );
+            const scheduleProductionsQuerySnapshot = await transaction.get(productionsQuery);
             const nomorRitasi = scheduleProductionsQuerySnapshot.docs.length + 1;
 
             return {
@@ -796,7 +802,7 @@ export default function DashboardPage() {
                 </Button>
             </DialogClose>
           </DialogHeader>
-          <div className="p-6 max-h-[70vh] overflow-y-auto print:max-h-none print:overflow-visible">
+          <div className="p-6 max-h-[50vh] overflow-y-auto print:max-h-none print:overflow-visible">
             {productionDataForPrint && <PrintTicketLayout data={productionDataForPrint} />}
           </div>
           <div className="flex justify-end gap-2 p-4 border-t bg-muted/50 no-print">
@@ -916,3 +922,4 @@ export default function DashboardPage() {
     </>
   );
 }
+
