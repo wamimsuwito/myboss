@@ -111,23 +111,23 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
 
         <div className="mt-2">
             <h3 className="text-[10px] font-bold text-center py-0.5 mb-1">Aktual penimbangan (Kg)</h3>
-            <div className="border-y border-black/50">
-              <table className="w-full text-[10px]">
+            <div className="border-t border-b border-black/50">
+              <table className="w-full text-[10px] border-collapse">
                 <thead>
                   <tr>
-                    <th className="font-bold text-left h-4">Material</th>
-                    <th className="font-bold text-right h-4">Target</th>
-                    <th className="font-bold text-right h-4">Realisasi</th>
-                    <th className="font-bold text-right h-4">Deviasi</th>
+                    <th className="font-bold text-left h-4 border border-black px-1">Material</th>
+                    <th className="font-bold text-right h-4 border border-black px-1">Target</th>
+                    <th className="font-bold text-right h-4 border border-black px-1">Realisasi</th>
+                    <th className="font-bold text-right h-4 border border-black px-1">Deviasi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {materials.map(mat => (
                     <tr key={mat.name}>
-                        <td className="py-0">{mat.name}</td>
-                        <td className="text-right py-0">{formatNumber(mat.target)}</td>
-                        <td className="text-right py-0">{formatNumber(mat.realisasi)}</td>
-                        <td className="text-right py-0">{formatNumber(mat.deviasi)}</td>
+                        <td className="py-0 border border-black px-1">{mat.name}</td>
+                        <td className="text-right py-0 border border-black px-1">{formatNumber(mat.target)}</td>
+                        <td className="text-right py-0 border border-black px-1">{formatNumber(mat.realisasi)}</td>
+                        <td className="text-right py-0 border border-black px-1">{formatNumber(mat.deviasi)}</td>
                     </tr>
                   ))}
                 </tbody>
