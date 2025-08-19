@@ -28,9 +28,9 @@ const materialConfig = [
 ];
 
 const unitBPs = ['BP-1', 'BP-2', 'BP-3'];
-const MAIN_SILO_COUNT = 6; 
 const BUFFER_SILO_COUNT = 12;
 const BUFFER_TANK_COUNT = 30;
+
 const DEFAULT_CAPACITY = {
     'BP-1': 90000,
     'BP-2': 90000,
@@ -224,7 +224,6 @@ export default function StokMaterialLogistikPage() {
             for (const group of Object.keys(cementOpnameInputs)) {
                 let stockRefPath: string;
                 let dataToSet: { silos?: { [key: string]: SiloData }, tanks?: { [key: string]: SiloData } };
-                let isTank = group === 'Buffer Tangki';
 
                 if (unitBPs.includes(group)) {
                     stockRefPath = `locations/${selectedLocation}/stock_cement_silo_${group}/main`;
@@ -265,7 +264,7 @@ export default function StokMaterialLogistikPage() {
       if (selectedLocation.toUpperCase().includes('BAUNG') && groupKey === 'BP-1') {
           return 4;
       }
-      if (unitBPs.includes(groupKey)) return MAIN_SILO_COUNT;
+      if (unitBPs.includes(groupKey)) return 6; // MAIN_SILO_COUNT
       if (groupKey === 'Buffer Silo') return BUFFER_SILO_COUNT;
       if (groupKey === 'Buffer Tangki') return BUFFER_TANK_COUNT;
       return 0;
@@ -314,7 +313,7 @@ export default function StokMaterialLogistikPage() {
         if (selectedLocation.toUpperCase().includes('BAUNG') && unit === 'BP-1') {
             return 4;
         }
-        return MAIN_SILO_COUNT;
+        return 6; // MAIN_SILO_COUNT
     }, [selectedLocation]);
 
     const renderStockTable = (title: string, stockData: CementSiloStock | null, count: number, prefix: string) => {
