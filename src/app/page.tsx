@@ -111,6 +111,18 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (isPreviewing) {
+      document.body.classList.add('print-active');
+    } else {
+      document.body.classList.remove('print-active');
+    }
+    // Cleanup on component unmount
+    return () => {
+      document.body.classList.remove('print-active');
+    };
+  }, [isPreviewing]);
+
+  useEffect(() => {
     const userString = localStorage.getItem('user');
     if (!userString) {
       router.push('/login');
@@ -775,8 +787,8 @@ export default function DashboardPage() {
         onUnitSelect={handleUnitSelect}
       />
       <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
-        <DialogContent className="max-w-3xl p-0">
-          <DialogHeader className="p-4 border-b">
+        <DialogContent className="max-w-3xl p-0" id="printable-ticket">
+          <DialogHeader className="p-4 border-b no-print">
             <DialogTitle>Pratinjau Cetak</DialogTitle>
              <DialogClose asChild>
                 <Button variant="ghost" size="icon" className="absolute right-4 top-3">
@@ -784,10 +796,10 @@ export default function DashboardPage() {
                 </Button>
             </DialogClose>
           </DialogHeader>
-          <div className="p-6 max-h-[70vh] overflow-y-auto" id="printable-ticket">
+          <div className="p-6 max-h-[70vh] overflow-y-auto print:max-h-none print:overflow-visible">
             {productionDataForPrint && <PrintTicketLayout data={productionDataForPrint} />}
           </div>
-          <div className="flex justify-end gap-2 p-4 border-t bg-muted/50">
+          <div className="flex justify-end gap-2 p-4 border-t bg-muted/50 no-print">
              <Button variant="outline" onClick={() => setIsPreviewing(false)}>Tutup</Button>
              <Button onClick={handlePrint}>Cetak</Button>
           </div>
@@ -904,4 +916,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
