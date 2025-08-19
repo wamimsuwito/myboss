@@ -239,6 +239,7 @@ export interface TransferLogEntry {
 export interface RencanaPemasukan {
     id: string;
     namaKapal: string;
+    namaSuplier?: string;
     jenisMaterial: string;
     estimasiMuatan: number;
     eta: any;
