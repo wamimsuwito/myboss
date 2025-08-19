@@ -1,0 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 20 12% 13%; /* Warm Dark Gray */
+    --foreground: 20 5% 95%;
+
+    --card: 20 12% 16%;
+    --card-foreground: 20 5% 95%;
+
+    --popover: 20 12% 13%;
+    --popover-foreground: 20 5% 95%;
+
+    --primary: 30 95% 55%; /* Amber/Orange */
+    --primary-foreground: 20 12% 13%;
+    
+    --secondary: 20 12% 25%;
+    --secondary-foreground: 20 5% 80%;
+    
+    --muted: 20 12% 25%;
+    --muted-foreground: 20 5% 60%;
+    
+    --accent: 45 95% 55%; /* Yellow */
+    --accent-foreground: 20 12% 13%;
+    
+    --destructive: 0 72% 51%; /* Warm Red */
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 20 12% 28%;
+    --input: 20 12% 28%;
+    --ring: 30 95% 55%;
+    
+    --radius: 0.75rem;
+
+    --chart-1: 30 95% 55%; /* Amber */
+    --chart-2: 45 95% 55%; /* Yellow */
+    --chart-3: 15 95% 60%; /* Orange */
+    --chart-4: 0 72% 51%;  /* Red */
+    --chart-5: 35 85% 65%; /* Light Orange */
+    
+    --sidebar-background: 20 12% 10%;
+    --sidebar-foreground: 20 5% 95%;
+    --sidebar-accent: 20 12% 20%;
+    --sidebar-accent-foreground: 30 95% 55%;
+    --sidebar-border: 20 12% 20%;
+    --sidebar-ring: 30 95% 55%;
+  }
+ 
+  .dark {
+    --background: 20 12% 13%;
+    --foreground: 20 5% 95%;
+    
+    --card: 20 12% 16%;
+    --card-foreground: 20 5% 95%;
+    
+    --popover: 20 12% 13%;
+    --popover-foreground: 20 5% 95%;
+    
+    --primary: 30 95% 55%;
+    --primary-foreground: 20 12% 13%;
+    
+    --secondary: 20 12% 25%;
+    --secondary-foreground: 20 5% 95%;
+    
+    --muted: 20 12% 25%;
+    --muted-foreground: 20 5% 60%;
+    
+    --accent: 45 95% 55%;
+    --accent-foreground: 20 12% 13%;
+    
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 20 12% 28%;
+    --input: 20 12% 28%;
+    --ring: 30 95% 55%;
+    
+    --chart-1: 30 95% 55%;
+    --chart-2: 45 95% 55%;
+    --chart-3: 15 95% 60%;
+    --chart-4: 0 72% 51%;
+    --chart-5: 35 85% 65%;
+
+    --sidebar-background: 20 12% 10%;
+    --sidebar-foreground: 20 5% 95%;
+    --sidebar-accent: 20 12% 20%;
+    --sidebar-accent-foreground: 30 95% 55%;
+    --sidebar-border: 20 12% 20%;
+    --sidebar-ring: 30 95% 55%;
+  }
+}
+ 
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@media print {
+    @page {
+        size: A4;
+        margin: 0.5in;
+    }
+    body, html {
+        visibility: hidden;
+        background: white !important;
+        font-size: 10pt;
+    }
+    .printable-area, .printable-area * {
+        visibility: visible;
+        color: black !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .printable-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: auto;
+        padding: 0;
+        margin: 0;
+        box-shadow: none;
+        border: none;
+    }
+    .no-print, .no-print * {
+        display: none !important;
+    }
+    .print-header {
+        margin-bottom: 1rem;
+    }
+    .print-logo {
+        height: 80px !important;
+        width: auto;
+    }
+    .watermark {
+        position: fixed;
+        top: 45%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-45deg);
+        font-size: 4.5rem;
+        color: black !important;
+        opacity: 0.05;
+        z-index: 1000;
+        font-weight: bold;
+        pointer-events: none;
+        word-wrap: break-word;
+        text-align: center;
+        width: 100%;
+    }
+    .info-table {
+        width: 100%;
+        margin-bottom: 1rem;
+        font-size: 9pt;
+    }
+    .info-table td {
+        padding: 2px 4px;
+    }
+    .info-table .label {
+        font-weight: 600;
+        width: 100px;
+    }
+    .material-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 9pt;
+    }
+    .material-table th, .material-table td {
+        border: 1px solid black;
+        padding: 4px 6px;
+        text-align: center;
+    }
+    .material-table th {
+        background-color: #e2e8f0 !important;
+    }
+    .material-table td.text-left {
+        text-align: left;
+    }
+    .material-table td.text-right {
+        text-align: right;
+    }
+    .summary-table {
+        width: 60%;
+        font-size: 9pt;
+        border-collapse: collapse;
+    }
+    .summary-table td {
+        border: 1px solid black;
+        padding: 4px 6px;
+    }
+    .signature-section {
+        margin-top: 2rem;
+        display: flex;
+        justify-content: space-around;
+        font-size: 10pt;
+        page-break-inside: avoid;
+    }
+    .signature-box {
+        height: 60px;
+        width: 150px;
+        margin-top: 5px;
+    }
+}
