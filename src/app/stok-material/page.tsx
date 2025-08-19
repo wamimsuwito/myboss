@@ -79,7 +79,7 @@ const AggregateStock = ({ name, levelInKg, density, capacityInM3, colorClass, un
         <svg width="192" height="96" viewBox="0 0 192 96" className="absolute bottom-0 left-0">
           <defs><clipPath id={clipId}><rect x="0" y={96 - (96 * (displayLevel / 100))} width="192" height={96 * (displayLevel / 100)} /></clipPath></defs>
           <polygon points="0,96 192,96 96,0" className="fill-current text-muted/50" />
-          <polygon points="0,96 192,96 96,0" className={`fill-current ${colorClass}`} clipPath={`url(#${clipId})`} />
+          <polygon points="0,96 192,96 96,0" className={`fill-current ${colorClass} transition-all duration-500`} clipPath={`url(#${clipId})`} />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center -mt-4">
           <span className="text-2xl font-bold text-white drop-shadow-lg">{displayLevel}%</span>
@@ -237,7 +237,7 @@ export default function StokMaterialPage() {
                       const siloId = `silo-${i + 1}`;
                       return {
                           id: siloId,
-                          data: stock.silos[siloId] || { stock: 0, status: 'non-aktif' }
+                          data: stock.silos[siloId] || { stock: 0, status: 'non-aktif', capacity: 90000 }
                       };
                   });
                   
