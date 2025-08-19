@@ -66,7 +66,7 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
   return (
     <div className="bg-white text-black p-4 font-mono printable-area">
         <div className="watermark">PT FARIKA RIAU PERKASA</div>
-        <header className="print-header flex items-start justify-between mb-2">
+        <header className="print-header flex items-start justify-start gap-4 mb-2">
             <img src="https://i.imgur.com/CxaNLPj.png" alt="Logo" className="print-logo h-16 w-auto" data-ai-hint="logo company"/>
             <div className="text-left text-[8px] leading-tight">
                 <h1 className="text-lg font-bold text-red-600">PT. FARIKA RIAU PERKASA</h1>
