@@ -21,7 +21,7 @@ import { id as localeID } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription as AlertDialogDescriptionComponent } from '@/components/ui/alert-dialog';
 import LaporanPemasukanPrintLayout from '@/components/laporan-pemasukan-print-layout';
 import { printElement } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
@@ -492,7 +492,7 @@ export default function AdminLogistikPage() {
     <>
        <AlertDialog open={isConfirmArrivalOpen} onOpenChange={setIsConfirmArrivalOpen}>
             <AlertDialogContent>
-                <AlertDialogHeader><AlertDialogTitle>Konfirmasi Kedatangan: {selectedRencana?.namaKapal}</AlertDialogTitle><AlertDialogDescription>Pastikan kendaraan sudah tiba di lokasi sebelum melanjutkan.</AlertDialogDescription></AlertDialogHeader>
+                <AlertDialogHeader><AlertDialogTitle>Konfirmasi Kedatangan: {selectedRencana?.namaKapal}</AlertDialogTitle><AlertDialogDescriptionComponent>Pastikan kendaraan sudah tiba di lokasi sebelum melanjutkan.</AlertDialogDescriptionComponent></AlertDialogHeader>
                 <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={() => selectedRencana && handleConfirmArrival(selectedRencana.id)}>Ya, Sudah Tiba</AlertDialogAction></AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
@@ -588,9 +588,9 @@ export default function AdminLogistikPage() {
             <DialogContent>
                 <DialogHeader>
                     <AlertDialogTitle>Konfirmasi Mutasi Alat: {mutasiTarget?.nomorLambung}</AlertDialogTitle>
-                    <AlertDialogDescription>
+                    <AlertDialogDescriptionComponent>
                         Pindahkan alat dari lokasi <strong>{mutasiTarget?.lokasi}</strong> ke lokasi baru. Pastikan Anda yakin sebelum melanjutkan.
-                    </AlertDialogDescription>
+                    </AlertDialogDescriptionComponent>
                 </DialogHeader>
                 <div className="py-4">
                     <Label htmlFor="mutasi-location">Pilih Lokasi Tujuan</Label>
@@ -616,9 +616,9 @@ export default function AdminLogistikPage() {
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>Konfirmasi Karantina</AlertDialogTitle>
-                    <AlertDialogDescription>
+                    <AlertDialogDescriptionComponent>
                         Anda yakin ingin memindahkan kendaraan <strong>{quarantineTarget?.nomorLambung}</strong> ke daftar "Alat Rusak Berat" (Karantina)?
-                    </AlertDialogDescription>
+                    </AlertDialogDescriptionComponent>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel>Batal</AlertDialogCancel>
@@ -830,3 +830,5 @@ export default function AdminLogistikPage() {
     </>
   );
 }
+
+    
