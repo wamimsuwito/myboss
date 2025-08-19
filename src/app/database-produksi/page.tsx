@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import ProductionHistoryPrintLayout from '@/components/production-history-print-
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '@/components/ui/dialog';
 import PrintTicketLayout from '@/components/print-ticket-layout';
 import { Input } from '@/components/ui/input';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 export default function DatabaseProduksiPage() {
   const router = useRouter();
@@ -158,6 +159,17 @@ export default function DatabaseProduksiPage() {
     window.print();
   };
 
+  const groupedHistory = useMemo(() => {
+    return filteredHistory.reduce((acc, item) => {
+      const dateKey = format(new Date(item.tanggal), 'yyyy-MM-dd');
+      if (!acc[dateKey]) {
+        acc[dateKey] = [];
+      }
+      acc[dateKey].push(item);
+      return acc;
+    }, {} as Record<string, ProductionData[]>);
+  }, [filteredHistory]);
+
   return (
     <>
     <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
@@ -194,7 +206,7 @@ export default function DatabaseProduksiPage() {
       </header>
 
       <main className='no-print'>
-        <Card>
+        <Card className="mb-6">
           <CardHeader>
             <CardTitle>Filter Riwayat Produksi</CardTitle>
             <CardDescription>Cari data produksi berdasarkan rentang tanggal dan lokasi.</CardDescription>
@@ -229,32 +241,40 @@ export default function DatabaseProduksiPage() {
           </CardContent>
         </Card>
 
-        <Card className="mt-6">
-            <CardContent className="p-0">
-                 <div className="overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Tanggal</TableHead>
-                                <TableHead>Jam Kirim</TableHead>
-                                <TableHead>Pelanggan</TableHead>
-                                <TableHead>Lokasi</TableHead>
-                                <TableHead>Mutu</TableHead>
-                                <TableHead className="text-right">Volume (M³)</TableHead>
-                                <TableHead>Sopir</TableHead>
-                                <TableHead>No. Polisi</TableHead>
-                                <TableHead className="text-right no-print">Detail</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (
+        {isLoading ? (
+          <div className="flex justify-center items-center h-48">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : Object.keys(groupedHistory).length > 0 ? (
+          <Accordion type="single" collapsible className="w-full">
+            {Object.entries(groupedHistory).map(([dateKey, items]) => {
+              const totalVolume = items.reduce((acc, item) => acc + item.targetVolume, 0);
+              return (
+                <AccordionItem value={dateKey} key={dateKey}>
+                  <AccordionTrigger>
+                    <div className="flex justify-between w-full pr-4">
+                        <span className="font-semibold">{format(new Date(dateKey), 'EEEE, dd MMMM yyyy', { locale: localeID })}</span>
+                        <span className="text-muted-foreground">Total Produksi: <span className="font-bold text-primary">{totalVolume.toFixed(2)} M³</span></span>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                     <div className="overflow-x-auto border rounded-lg">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={9} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" /></TableCell>
+                                    <TableHead>Jam Kirim</TableHead>
+                                    <TableHead>Pelanggan</TableHead>
+                                    <TableHead>Lokasi</TableHead>
+                                    <TableHead>Mutu</TableHead>
+                                    <TableHead className="text-right">Volume (M³)</TableHead>
+                                    <TableHead>Sopir</TableHead>
+                                    <TableHead>No. Polisi</TableHead>
+                                    <TableHead className="text-right no-print">Detail</TableHead>
                                 </TableRow>
-                            ) : filteredHistory.length > 0 ? (
-                                filteredHistory.map((item) => (
+                            </TableHeader>
+                            <TableBody>
+                                {items.map((item) => (
                                     <TableRow key={item.id}>
-                                        <TableCell>{format(new Date(item.tanggal), 'dd MMM yyyy', { locale: localeID })}</TableCell>
                                         <TableCell>{format(new Date(item.jamSelesai), 'HH:mm:ss', { locale: localeID })}</TableCell>
                                         <TableCell>{item.namaPelanggan}</TableCell>
                                         <TableCell>{item.lokasiProyek}</TableCell>
@@ -268,17 +288,24 @@ export default function DatabaseProduksiPage() {
                                             </Button>
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">Tidak ada data produksi yang ditemukan.</TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                 </div>
-            </CardContent>
-        </Card>
+                                ))}
+                            </TableBody>
+                        </Table>
+                     </div>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
+          </Accordion>
+        ) : (
+            <Card>
+                <CardContent className="p-10 text-center">
+                    <h3 className="text-lg font-semibold">Tidak Ada Data</h3>
+                    <p className="text-muted-foreground">Tidak ada data produksi yang ditemukan untuk filter yang Anda pilih.</p>
+                </CardContent>
+            </Card>
+        )}
+
       </main>
     </div>
     <div className="print-only" id="production-history-print-area">
