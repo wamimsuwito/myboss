@@ -26,11 +26,9 @@ const ALL_UNITS = ['BP-1', 'BP-2', 'BP-3'];
 const Silo = ({ name, data }: { name: string; data: SiloData; }) => {
   const level = data?.stock || 0;
   const status = data?.status || 'non-aktif';
-  const capacity = data?.capacity || 0;
+  const capacity = data?.capacity || 200000; // default capacity
   
-  const displayLevel = capacity > 0 ? Math.max(0, Math.min(100, Math.round((level / capacity) * 100))) : 0;
-  const clipId = `clip-${name.replace(/[^a-zA-Z0-9-]/g, '')}`;
-  
+  const percentage = capacity > 0 ? Math.min(100, Math.round((level / capacity) * 100)) : 0;
   const isSiloActive = status === 'aktif';
 
   return (
@@ -38,30 +36,30 @@ const Silo = ({ name, data }: { name: string; data: SiloData; }) => {
         "flex flex-col items-center gap-2 p-2 rounded-lg bg-card/60 backdrop-blur-sm flex-1 min-w-[120px] shadow-md transition-all",
         !isSiloActive && "opacity-50 bg-destructive/10"
     )}>
-      <div className="w-20 h-40 bg-muted/50 rounded-t-md relative overflow-hidden border-2 border-b-0 border-border/20">
-        {!isSiloActive && (
-             <div className="absolute inset-0 bg-destructive/30 z-10 flex items-center justify-center">
+        {/* Silo Visual */}
+        <div className="w-24 h-48 border-2 border-white/20 rounded-lg overflow-hidden relative bg-white/10">
+            {/* Fill Level with Animation */}
+            <div 
+                className="absolute bottom-0 left-0 w-full bg-primary/80 transition-[height] duration-1000 ease-in-out" 
+                style={{ height: `${percentage}%` }}
+            ></div>
+            {/* Percentage Text Overlay */}
+            <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-xl font-bold text-white drop-shadow-md">{percentage}%</span>
+            </div>
+             {!isSiloActive && (
+             <div className="absolute inset-0 bg-destructive/50 z-10 flex items-center justify-center">
                 <AlertTriangle className="h-8 w-8 text-destructive-foreground"/>
              </div>
-        )}
-        <div className="h-1.5 bg-gray-500/40"></div>
-        <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-primary/80 to-primary/50 transition-all duration-500" style={{ height: `${displayLevel}%` }}></div>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-xl font-bold text-white drop-shadow-lg">{displayLevel}%</span>
+            )}
         </div>
-      </div>
-      <div className="relative -mt-1">
-        <svg width="80" height="40" viewBox="0 0 80 40">
-          <defs><clipPath id={clipId}><rect x="0" y="0" width="80" height={(displayLevel / 100) * 40} /></clipPath></defs>
-          <polygon points="0,0 80,0 40,40" className="fill-current text-muted/50" stroke="hsl(var(--border))" strokeWidth="1" />
-          <polygon points="0,0 80,0 40,40" className="fill-current text-primary/60 transition-all duration-500" clipPath={`url(#${clipId})`} />
-        </svg>
-      </div>
-      <p className="font-semibold text-muted-foreground text-sm -mt-2">{name}</p>
-      <div className='text-center my-1'>
-        <p className='text-lg font-bold text-foreground'>{level.toLocaleString('id-ID')} kg</p>
-        <p className='text-xs text-muted-foreground'>/ {capacity.toLocaleString('id-ID')} kg</p>
-      </div>
+        
+        {/* Label and Weight Info */}
+        <div className="text-center -mt-1">
+            <p className="font-semibold text-muted-foreground text-sm">{name}</p>
+            <p className='text-lg font-bold text-foreground'>{level.toLocaleString('id-ID')} kg</p>
+            <p className='text-xs text-muted-foreground'>/ {capacity.toLocaleString('id-ID')} kg</p>
+        </div>
     </div>
   );
 };
