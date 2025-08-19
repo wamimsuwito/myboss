@@ -224,7 +224,7 @@ export default function AdminLogistikPage() {
 
 
     setIsSubmittingRencana(true);
-    const dataToSave: Partial<RencanaPemasukan> = { ...newRencana, status: 'Dalam Perjalanan', createdAt: Timestamp.now() };
+    const dataToSave: Partial<RencanaPemasukan> = { ...newRencana, namaSuplier: newRencana.namaSuplier || '', status: 'Dalam Perjalanan', createdAt: Timestamp.now() };
 
     try {
       await addDoc(collection(db, "rencana_pemasukan"), dataToSave);
@@ -237,11 +237,12 @@ export default function AdminLogistikPage() {
     }
   };
 
-  const handleConfirmArrival = async (rencanaId: string) => {
-    const docRef = doc(db, 'rencana_pemasukan', rencanaId);
+  const handleConfirmArrival = async (rencana: RencanaPemasukan) => {
+    const docRef = doc(db, 'rencana_pemasukan', rencana.id);
+    const newStatus = rencana.jenisMaterial === 'SEMEN' ? 'Siap Untuk Dibongkar' : 'Menunggu Inspeksi QC';
     try {
         await updateDoc(docRef, {
-            status: 'Menunggu Inspeksi QC',
+            status: newStatus,
             arrivalConfirmedAt: new Date().toISOString()
         });
         toast({ title: "Kedatangan Dikonfirmasi" });
@@ -494,7 +495,7 @@ export default function AdminLogistikPage() {
        <AlertDialog open={isConfirmArrivalOpen} onOpenChange={setIsConfirmArrivalOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader><AlertDialogTitle>Konfirmasi Kedatangan: {selectedRencana?.namaKapal}</AlertDialogTitle><AlertDialogDescriptionComponent>Pastikan kendaraan sudah tiba di lokasi sebelum melanjutkan.</AlertDialogDescriptionComponent></AlertDialogHeader>
-                <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={() => selectedRencana && handleConfirmArrival(selectedRencana.id)}>Ya, Sudah Tiba</AlertDialogAction></AlertDialogFooter>
+                <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={() => selectedRencana && handleConfirmArrival(selectedRencana)}>Ya, Sudah Tiba</AlertDialogAction></AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
         <Dialog open={isArchiveDetailOpen} onOpenChange={setIsArchiveDetailOpen}>
