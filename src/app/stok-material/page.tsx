@@ -26,7 +26,7 @@ const ALL_UNITS = ['BP-1', 'BP-2', 'BP-3'];
 const Silo = ({ name, data }: { name: string; data: SiloData; }) => {
   const level = data?.stock || 0;
   const status = data?.status || 'non-aktif';
-  const capacity = data?.capacity || 200000; // default capacity
+  const capacity = data?.capacity || 90000; // default capacity
   
   const percentage = capacity > 0 ? Math.min(100, Math.round((level / capacity) * 100)) : 0;
   const isSiloActive = status === 'aktif';
@@ -40,7 +40,7 @@ const Silo = ({ name, data }: { name: string; data: SiloData; }) => {
         <div className="w-24 h-48 border-2 border-white/20 rounded-lg overflow-hidden relative bg-white/10">
             {/* Fill Level with Animation */}
             <div 
-                className="absolute bottom-0 left-0 w-full bg-primary/80 transition-[height] duration-1000 ease-in-out" 
+                className="absolute bottom-0 left-0 w-full bg-primary/80 transition-all duration-1000 ease-in-out" 
                 style={{ height: `${percentage}%` }}
             ></div>
             {/* Percentage Text Overlay */}
