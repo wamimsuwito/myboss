@@ -37,7 +37,7 @@ const DEFAULT_CAPACITY = {
     'BP-3': 120000,
     'Buffer Silo': 120000,
     'Buffer Tangki': 35000,
-}
+} as const;
 
 type StockValues = { [key: string]: string | number };
 type CementStockInput = { [key: string]: { [siloId: string]: SiloData } };
@@ -260,7 +260,7 @@ export default function StokMaterialLogistikPage() {
         }
     };
     
-    const getSiloCountForOpname = useCallback((groupKey: string) => {
+    const getSiloCountForOpname = useCallback((groupKey: keyof typeof DEFAULT_CAPACITY) => {
       if (selectedLocation.toUpperCase().includes('BAUNG') && groupKey === 'BP-1') {
           return 4;
       }
@@ -270,7 +270,7 @@ export default function StokMaterialLogistikPage() {
       return 0;
     }, [selectedLocation]);
 
-    const renderOpnameTable = (title: string, groupKey: string, siloPrefix: string) => {
+    const renderOpnameTable = (title: string, groupKey: keyof typeof DEFAULT_CAPACITY, siloPrefix: string) => {
         const siloCount = getSiloCountForOpname(groupKey);
         if (siloCount === 0) return null;
 
@@ -283,7 +283,7 @@ export default function StokMaterialLogistikPage() {
                         const siloDisplayNumber = i + 1;
                         const siloId = `${siloPrefix.toLowerCase()}-${siloDisplayNumber}`;
                         const siloData = cementOpnameInputs[groupKey]?.[siloId];
-                        const defaultCap = (DEFAULT_CAPACITY as any)[groupKey] || 120000;
+                        const defaultCap = DEFAULT_CAPACITY[groupKey] || 120000;
                         return (
                              <div key={siloId} className="grid grid-cols-3 items-center gap-2">
                                 <Label className="w-full capitalize font-normal">{`${siloPrefix} ${siloDisplayNumber}`}</Label>
@@ -400,7 +400,7 @@ export default function StokMaterialLogistikPage() {
                         <div className="pt-4 border-t">
                             <h4 className="font-semibold mb-2 text-muted-foreground">SEMEN PER SILO (KG)</h4>
                             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                                {unitBPs.map((unit) => renderOpnameTable(`Unit ${unit}`, unit, 'Silo'))}
+                                {unitBPs.map((unit) => renderOpnameTable(`Unit ${unit}`, unit as keyof typeof DEFAULT_CAPACITY, 'Silo'))}
                                 {renderOpnameTable('Buffer Silo', 'Buffer Silo', 'Silo')}
                                 {renderOpnameTable('Buffer Tangki', 'Buffer Tangki', 'Tangki')}
                             </div>
