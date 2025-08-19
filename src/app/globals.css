@@ -112,22 +112,6 @@
 
 
 @media print {
-    body > * {
-        display: none !important;
-    }
-    
-    .printable-area, .printable-area * {
-        display: block !important;
-        visibility: visible !important;
-    }
-
-    .printable-area {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-    }
-
     body, html {
         background: white !important;
         color: black !important;

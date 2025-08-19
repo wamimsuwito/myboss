@@ -151,7 +151,7 @@ export default function DatabaseProduksiPage() {
     <>
     <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
         <DialogContent className="max-w-3xl p-0">
-          <DialogHeader className="p-4 border-b">
+          <DialogHeader className="p-4 border-b no-print">
             <DialogTitle>Detail Produksi</DialogTitle>
              <DialogClose asChild>
                 <Button variant="ghost" size="icon" className="absolute right-4 top-3">
@@ -162,14 +162,14 @@ export default function DatabaseProduksiPage() {
           <div className="p-6 max-h-[70vh] overflow-y-auto" id="printable-detail-ticket">
             {selectedProduction && <PrintTicketLayout data={selectedProduction} />}
           </div>
-          <div className="flex justify-end gap-2 p-4 border-t bg-muted/50">
+          <div className="flex justify-end gap-2 p-4 border-t bg-muted/50 no-print">
              <Button variant="outline" onClick={() => setIsPreviewing(false)}>Tutup</Button>
              <Button onClick={handlePrintTicket}>Cetak</Button>
           </div>
         </DialogContent>
       </Dialog>
-    <div className="min-h-screen p-4 sm:p-6 md:p-8 no-print">
-      <header className="flex items-center gap-4 mb-8">
+    <div className="min-h-screen p-4 sm:p-6 md:p-8">
+      <header className="flex items-center gap-4 mb-8 no-print">
         <Button variant="outline" size="icon" onClick={() => router.back()}>
           <ArrowLeft />
         </Button>
@@ -182,7 +182,7 @@ export default function DatabaseProduksiPage() {
         </div>
       </header>
 
-      <main>
+      <main className='no-print'>
         <Card>
           <CardHeader>
             <CardTitle>Filter Riwayat Produksi</CardTitle>
