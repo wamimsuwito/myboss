@@ -332,6 +332,16 @@ const UjiTekanComponent = () => {
         fetchTestSchedule();
     }, [fetchTestSchedule]);
 
+    useEffect(() => {
+      if (isPrintPreviewOpen) {
+        document.body.classList.add('print-active');
+      } else {
+        document.body.classList.remove('print-active');
+      }
+      return () => {
+        document.body.classList.remove('print-active');
+      };
+    }, [isPrintPreviewOpen]);
 
     const handleUjiSekarang = (item: any) => {
         setActiveTestItem(item);
