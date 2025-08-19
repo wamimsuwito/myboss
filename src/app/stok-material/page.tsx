@@ -26,29 +26,66 @@ const ALL_UNITS = ['BP-1', 'BP-2', 'BP-3'];
 const Silo = ({ name, data }: { name: string; data: SiloData; }) => {
   const level = data?.stock || 0;
   const status = data?.status || 'non-aktif';
-  const capacity = data?.capacity || 90000; // default capacity
-  
-  const percentage = capacity > 0 ? Math.min(100, Math.round((level / capacity) * 100)) : 0;
+  const totalSiloCapacity = data?.capacity || 90000; // Total capacity for the whole silo
   const isSiloActive = status === 'aktif';
+
+  const totalCapacityCone = 8400; // Kapasitas kerucut
+  const totalCapacityCylinder = totalSiloCapacity - totalCapacityCone; // Kapasitas bagian silinder
+
+  // Calculate percentages based on the logic
+  let cylinderPercentage = 0;
+  let coneFillColor = `rgba(255, 165, 0, 0)`; // Default: empty cone
+  const totalPercentage = totalSiloCapacity > 0 ? (level / totalSiloCapacity) * 100 : 0;
+
+  if (level > totalCapacityCone) {
+    // Fill cone completely and then the cylinder
+    coneFillColor = '#f59e0b'; // Fully filled color from your theme (primary)
+    const cylinderWeight = level - totalCapacityCone;
+    cylinderPercentage = totalCapacityCylinder > 0 ? (cylinderWeight / totalCapacityCylinder) * 100 : 100;
+  } else if (level > 0) {
+    // Fill only the cone
+    const conePercentage = (level / totalCapacityCone) * 100;
+    coneFillColor = `rgba(245, 158, 11, ${conePercentage / 100})`; // Use primary color with opacity
+  }
+
+  // Hide text if empty
+  const showText = level > 0;
 
   return (
     <div className={cn(
         "flex flex-col items-center gap-2 p-2 rounded-lg bg-card/60 backdrop-blur-sm flex-1 min-w-[120px] shadow-md transition-all",
         !isSiloActive && "opacity-50 bg-destructive/10"
     )}>
-        {/* Silo Visual */}
-        <div className="w-24 h-48 border-2 border-white/20 rounded-lg overflow-hidden relative bg-white/10">
-            {/* Fill Level with Animation */}
-            <div 
-                className="absolute bottom-0 left-0 w-full bg-primary/80 transition-all duration-1000 ease-in-out" 
-                style={{ height: `${percentage}%` }}
-            ></div>
-            {/* Percentage Text Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-xl font-bold text-white drop-shadow-md">{percentage}%</span>
+        {/* Silo Visual Container */}
+        <div className="w-24 h-56 relative">
+            {/* Silo Body */}
+            <div className="w-full h-48 border-2 border-white/20 rounded-lg overflow-hidden relative bg-white/10">
+                {/* Fill Level with Animation */}
+                <div 
+                    className="absolute bottom-0 left-0 w-full bg-primary/80 transition-all duration-1000 ease-in-out" 
+                    style={{ height: `${cylinderPercentage}%` }}
+                ></div>
+                {/* Percentage Text Overlay */}
+                {showText && (
+                  <div className="absolute inset-0 flex items-center justify-center -mt-8">
+                      <span className="text-xl font-bold text-white drop-shadow-md">{Math.round(totalPercentage)}%</span>
+                  </div>
+                )}
             </div>
-             {!isSiloActive && (
-             <div className="absolute inset-0 bg-destructive/50 z-10 flex items-center justify-center">
+
+            {/* Cone */}
+            <div
+                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0"
+                style={{
+                    borderLeft: '50px solid transparent',
+                    borderRight: '50px solid transparent',
+                    borderTop: `40px solid ${level > 0 ? coneFillColor : 'rgba(255, 255, 255, 0.1)'}`,
+                    transition: 'border-top-color 1s ease-in-out',
+                }}
+            ></div>
+
+            {!isSiloActive && (
+             <div className="absolute inset-0 bg-destructive/50 z-10 flex items-center justify-center rounded-lg">
                 <AlertTriangle className="h-8 w-8 text-destructive-foreground"/>
              </div>
             )}
@@ -58,7 +95,7 @@ const Silo = ({ name, data }: { name: string; data: SiloData; }) => {
         <div className="text-center -mt-1">
             <p className="font-semibold text-muted-foreground text-sm">{name}</p>
             <p className='text-lg font-bold text-foreground'>{level.toLocaleString('id-ID')} kg</p>
-            <p className='text-xs text-muted-foreground'>/ {capacity.toLocaleString('id-ID')} kg</p>
+            <p className='text-xs text-muted-foreground'>/ {totalSiloCapacity.toLocaleString('id-ID')} kg</p>
         </div>
     </div>
   );
@@ -235,7 +272,7 @@ export default function StokMaterialPage() {
                       const siloId = `silo-${i + 1}`;
                       return {
                           id: siloId,
-                          data: stock.silos[siloId] || { stock: 0, status: 'non-aktif', capacity: 90000 }
+                          data: stock.silos[siloId] || { stock: 0, status: 'non-aktif', capacity: unit === 'BP-3' ? 120000 : 90000 }
                       };
                   });
                   
