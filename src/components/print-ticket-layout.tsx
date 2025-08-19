@@ -64,11 +64,11 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
 
 
   return (
-    <div className="bg-white text-black p-4 font-mono printable-area">
+    <div className="bg-white text-black p-4 font-mono printable-area max-h-[50vh]" style={{ pageBreakAfter: 'always' }}>
         <div className="watermark">PT FARIKA RIAU PERKASA</div>
-        <header className="print-header flex items-start justify-start gap-4 mb-2">
+        <header className="print-header flex items-start justify-start gap-2 mb-2">
             <img src="https://i.imgur.com/CxaNLPj.png" alt="Logo" className="print-logo h-16 w-auto" data-ai-hint="logo company"/>
-            <div className="text-left text-[8px] leading-tight">
+            <div className="text-left text-[8px] leading-tight mt-1">
                 <h1 className="text-lg font-bold text-red-600">PT. FARIKA RIAU PERKASA</h1>
                 <p className="font-semibold text-blue-600 italic">one stop concrete solution</p>
                 <p className="font-semibold text-blue-600">READYMIX & PRECAST CONCRETE</p>
@@ -83,6 +83,7 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
             <div>
               <p><span className="font-bold inline-block w-20">Job Order</span>: {schedule.NO}</p>
               <p><span className="font-bold inline-block w-20">Nomor PO</span>: {schedule['NO P.O'] || '-'}</p>
+              <p><span className="font-bold inline-block w-20">Unit Produksi</span>: {unitBp || '-'}</p>
               <p><span className="font-bold inline-block w-20">Tanggal</span>: {new Date(startTime).toLocaleDateString('id-ID')}</p>
             </div>
             <div className="text-right">
@@ -109,27 +110,29 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
         </div>
 
         <div className="mt-2">
-          <h3 className="text-[10px] font-bold text-center border-y border-black/50 py-0.5 mb-1">Aktual penimbangan (Kg)</h3>
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr>
-                <th className="font-bold text-left h-4">Material</th>
-                <th className="font-bold text-right h-4">Target</th>
-                <th className="font-bold text-right h-4">Realisasi</th>
-                <th className="font-bold text-right h-4">Deviasi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {materials.map(mat => (
-                <tr key={mat.name}>
-                    <td className="py-0">{mat.name}</td>
-                    <td className="text-right py-0">{formatNumber(mat.target)}</td>
-                    <td className="text-right py-0">{formatNumber(mat.realisasi)}</td>
-                    <td className="text-right py-0">{formatNumber(mat.deviasi)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            <h3 className="text-[10px] font-bold text-center py-0.5 mb-1">Aktual penimbangan (Kg)</h3>
+            <div className="border-y border-black/50">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr>
+                    <th className="font-bold text-left h-4">Material</th>
+                    <th className="font-bold text-right h-4">Target</th>
+                    <th className="font-bold text-right h-4">Realisasi</th>
+                    <th className="font-bold text-right h-4">Deviasi</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {materials.map(mat => (
+                    <tr key={mat.name}>
+                        <td className="py-0">{mat.name}</td>
+                        <td className="text-right py-0">{formatNumber(mat.target)}</td>
+                        <td className="text-right py-0">{formatNumber(mat.realisasi)}</td>
+                        <td className="text-right py-0">{formatNumber(mat.deviasi)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
         </div>
       </main>
 
