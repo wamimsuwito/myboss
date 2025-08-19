@@ -168,7 +168,7 @@ export default function DatabaseProduksiPage() {
           </div>
         </DialogContent>
       </Dialog>
-    <div className="min-h-screen p-4 sm:p-6 md:p-8">
+    <div className="min-h-screen p-4 sm:p-6 md:p-8 no-print">
       <header className="flex items-center gap-4 mb-8">
         <Button variant="outline" size="icon" onClick={() => router.back()}>
           <ArrowLeft />
@@ -218,7 +218,7 @@ export default function DatabaseProduksiPage() {
           </CardContent>
         </Card>
 
-        <Card className="mt-6 no-print">
+        <Card className="mt-6">
             <CardContent className="p-0">
                  <div className="overflow-x-auto">
                     <Table>
@@ -268,11 +268,10 @@ export default function DatabaseProduksiPage() {
                  </div>
             </CardContent>
         </Card>
-
-        <div className="print-only" id="production-history-print-area">
-            <ProductionHistoryPrintLayout data={filteredHistory} dateRange={date} />
-        </div>
       </main>
+    </div>
+    <div className="print-only" id="production-history-print-area">
+        <ProductionHistoryPrintLayout data={filteredHistory} dateRange={date} />
     </div>
     </>
   );
