@@ -118,7 +118,7 @@ export default function DatabaseProduksiPage() {
       'NOMOR LAMBUNG': item.nomorLambung,
       // Fill other fields with default values if needed
       'NO P.O': '',
-      'CP/M': '',
+      'CP/M': item['CP/M'] || '',
       'PENAMBAHAN VOL M³': '0',
       'TOTAL M³': String(item.totalVolumeTerkirim),
       'TERKIRIM M³': String(item.totalVolumeTerkirim),
@@ -269,7 +269,7 @@ export default function DatabaseProduksiPage() {
             </CardContent>
         </Card>
 
-        <div className="hidden">
+        <div className="print-only">
             <div id="production-history-print-area">
                 <ProductionHistoryPrintLayout data={filteredHistory} dateRange={date} />
             </div>

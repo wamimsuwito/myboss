@@ -104,22 +104,41 @@
   }
 }
 
+@media screen {
+    .print-only {
+        display: none;
+    }
+}
+
 @media print {
     @page {
         size: A4;
         margin: 0.5in;
     }
-    .no-print {
-        display: none !important;
+    body, html {
+        visibility: hidden;
+        background: white !important;
+        font-size: 10pt;
     }
     .printable-area, .printable-area * {
+        visibility: visible;
         color: black !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
     .printable-area {
-        background: white !important;
-        font-size: 10pt;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: auto;
+        padding: 0;
+        margin: 0;
+        box-shadow: none;
+        border: none;
+    }
+    .no-print, .no-print * {
+        display: none !important;
     }
     .print-header {
         margin-bottom: 1rem;
