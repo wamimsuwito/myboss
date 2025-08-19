@@ -43,7 +43,7 @@ export default function ProductionHistoryPrintLayout({ data, dateRange }: Produc
   }, {} as Record<string, number>);
 
   return (
-    <div className="bg-white text-black p-4 font-sans">
+    <div className="bg-white text-black p-4 font-sans printable-area">
       <header className="print-header text-center mb-8">
             <img src="https://i.imgur.com/CxaNLPj.png" alt="Logo" className="print-logo h-24 w-auto" data-ai-hint="logo company" style={{ float: 'left', marginRight: '20px' }}/>
             <div className="text-left" style={{ marginLeft: '110px' }}>
@@ -62,41 +62,41 @@ export default function ProductionHistoryPrintLayout({ data, dateRange }: Produc
         </p>
 
       <main>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Tanggal</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Jam Kirim</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Pelanggan</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Lokasi Proyek</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Mutu</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Volume (M³)</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Sopir</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">No. Mobil</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <table className="material-table w-full">
+          <thead>
+            <tr className="material-table">
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Tanggal</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Jam Kirim</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Pelanggan</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Lokasi Proyek</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Mutu</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Volume (M³)</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Sopir</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">No. Mobil</th>
+            </tr>
+          </thead>
+          <tbody>
             {data.map((entry, index) => (
-              <TableRow key={entry.id || index}>
-                <TableCell className="border border-black p-1 text-center text-xs">{format(new Date(entry.tanggal), 'dd/MM/yy')}</TableCell>
-                <TableCell className="border border-black p-1 text-center text-xs">{format(new Date(entry.jamSelesai), 'HH:mm')}</TableCell>
-                <TableCell className="border border-black p-1 text-left text-xs">{entry.namaPelanggan}</TableCell>
-                <TableCell className="border border-black p-1 text-left text-xs">{entry.lokasiProyek}</TableCell>
-                <TableCell className="border border-black p-1 text-center text-xs">{entry.mutuBeton}</TableCell>
-                <TableCell className="border border-black p-1 text-right text-xs">{entry.targetVolume.toFixed(2)}</TableCell>
-                <TableCell className="border border-black p-1 text-center text-xs">{entry.namaSopir}</TableCell>
-                <TableCell className="border border-black p-1 text-center text-xs">{entry.nomorMobil}</TableCell>
-              </TableRow>
+              <tr key={entry.id || index} className="material-table">
+                <td className="border border-black p-1 text-center text-xs">{format(new Date(entry.tanggal), 'dd/MM/yy')}</td>
+                <td className="border border-black p-1 text-center text-xs">{format(new Date(entry.jamSelesai), 'HH:mm')}</td>
+                <td className="border border-black p-1 text-left text-xs">{entry.namaPelanggan}</td>
+                <td className="border border-black p-1 text-left text-xs">{entry.lokasiProyek}</td>
+                <td className="border border-black p-1 text-center text-xs">{entry.mutuBeton}</td>
+                <td className="border border-black p-1 text-right text-xs">{entry.targetVolume.toFixed(2)}</td>
+                <td className="border border-black p-1 text-center text-xs">{entry.namaSopir}</td>
+                <td className="border border-black p-1 text-center text-xs">{entry.nomorMobil}</td>
+              </tr>
             ))}
-             <TableRow className="font-bold">
-                <TableCell colSpan={5} className="border border-black p-1 text-center text-xs">TOTAL VOLUME</TableCell>
-                <TableCell className="border border-black p-1 text-right text-xs">{totalVolume.toFixed(2)}</TableCell>
-                <TableCell colSpan={2} className="border border-black p-1 text-center text-xs"></TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+             <tr className="font-bold material-table">
+                <td colSpan={5} className="border border-black p-1 text-center text-xs">TOTAL VOLUME</td>
+                <td className="border border-black p-1 text-right text-xs">{totalVolume.toFixed(2)}</td>
+                <td colSpan={2} className="border border-black p-1 text-center text-xs"></td>
+            </tr>
+          </tbody>
+        </table>
         
-        <div className="mt-6 text-xs">
+        <div className="mt-6 text-xs" style={{ pageBreakInside: 'avoid' }}>
             <h3 className="text-sm font-bold text-center border-y border-black/50 py-1 mb-2">TOTAL PRODUKSI</h3>
             
             <div className="grid grid-cols-2 gap-x-8">

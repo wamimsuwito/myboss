@@ -116,13 +116,12 @@
         display: none !important;
     }
     
-    body > .print-only,
-    body > .print-only * {
+    .printable-area, .printable-area * {
         display: block !important;
         visibility: visible !important;
     }
 
-    .print-only {
+    .printable-area {
         position: absolute;
         left: 0;
         top: 0;
