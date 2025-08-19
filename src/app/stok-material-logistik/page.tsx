@@ -36,7 +36,7 @@ const DEFAULT_CAPACITY = {
     'BP-2': 90000,
     'BP-3': 120000,
     'Buffer Silo': 120000,
-    'Buffer Tangki': 120000,
+    'Buffer Tangki': 35000,
 }
 
 type StockValues = { [key: string]: string | number };
