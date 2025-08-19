@@ -112,6 +112,19 @@
 
 
 @media print {
+    @page { 
+        size: letter;
+        margin: 0;
+    }
+
+    html, body {
+        height: initial !important;
+        overflow: initial !important;
+        -webkit-print-color-adjust: exact;
+        background: white !important;
+        color: black !important;
+    }
+
     body.print-active > * {
         display: none !important;
     }
@@ -133,16 +146,6 @@
     
     .no-print, .no-print * {
         display: none !important;
-    }
-    
-    @page {
-        size: letter;
-        margin: 0.5in;
-    }
-
-    body {
-        background: white !important;
-        color: black !important;
     }
 
     .printable-area, .printable-area * {
