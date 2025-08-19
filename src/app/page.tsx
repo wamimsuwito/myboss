@@ -19,6 +19,10 @@ import ScheduleTable from '@/components/schedule-table';
 import BpSelectionDialog from '@/components/location-selection-dialog';
 import UnitSelectionDialog from '@/components/unit-selection-dialog';
 import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, runTransaction, query, where, Timestamp, getDoc } from '@/lib/firebase';
+import { Sidebar, SidebarProvider, SidebarInset, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
+import LoadingOrderDialog from '@/components/loading-order-dialog';
+import MixerSettingsDialog from '@/components/mixer-settings-dialog';
+import MoistureControlDialog from '@/components/moisture-control-dialog';
 
 const initialScales: Scale[] = [
   { id: 1, name: 'BATU', weight: 0, unit: 'kg', min: 0, max: 4000, target: 0 },
@@ -562,8 +566,8 @@ export default function DashboardPage() {
     setNomorMobil('');
     setNomorLambung('');
     setSelectedSilo('');
-    setActiveSchedule(null);
-    setActiveJobMix(null);
+    onSetActiveSchedule(null);
+    onSetActiveJobMix(null);
   }
 
   const handleStop = async (data?: PrintData & { selectedSilo?: string }, options: { isAborted?: boolean, mode: OperationMode } = { isAborted: true, mode: 'auto' }) => {
@@ -605,7 +609,8 @@ export default function DashboardPage() {
             sikaVz: 0, sikaNn: 0, visco: 0,
         };
         
-        // This query must be run *outside* the transaction.
+        let nomorRitasi = 1;
+        // This must be run outside transaction
         const productionsQuery = query(
             collection(db, 'productions'),
             where('jobId', '==', activeSchedule.NO),
@@ -614,7 +619,7 @@ export default function DashboardPage() {
             where('namaPelanggan', '==', activeSchedule.NAMA)
         );
         const scheduleProductionsQuerySnapshot = await getDocs(productionsQuery);
-        const nomorRitasi = scheduleProductionsQuerySnapshot.docs.length + 1;
+        nomorRitasi = scheduleProductionsQuerySnapshot.docs.length + 1;
         
         const scheduleDocRef = doc(db, 'schedules_today', activeSchedule.id as string);
         const aggregateStockRef = doc(db, `locations/${userInfo.lokasi}/stock`, 'aggregates');
