@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +24,8 @@ export default function WeightIndicator({ scale, isPouring }: WeightIndicatorPro
             <CardTitle className="text-foreground text-center text-base font-semibold tracking-wider">{name}</CardTitle>
         </CardHeader>
         <CardContent className="p-3 pt-0">
-            <div className="relative aspect-video bg-muted/50 rounded-md flex flex-col items-center justify-center mb-3">
+            <div className="relative aspect-video bg-muted/50 rounded-md flex flex-col items-center justify-center mb-3 overflow-hidden">
+                <Progress value={progressValue} className="absolute inset-0 h-full w-full rounded-none" indicatorClassName="bg-primary/80 transition-all duration-500" />
                 <div className="absolute inset-0 bg-gradient-to-t from-muted/30 via-muted/10 to-transparent"></div>
                 <span className={cn(
                     "text-4xl font-mono font-bold z-10 pt-4 transition-colors",
