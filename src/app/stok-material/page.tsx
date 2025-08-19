@@ -16,8 +16,8 @@ import { cn } from '@/lib/utils';
 // --- Constants ---
 const SAND_CAPACITY_M3 = 10000;
 const STONE_CAPACITY_M3 = 15000;
-const SAND_DENSITY_KG_PER_M3 = 1600;
-const STONE_DENSITY_KG_PER_M3 = 1550;
+const SAND_DENSITY_KG_PER_M3 = 1225;
+const STONE_DENSITY_KG_PER_M3 = 1400;
 
 const ALL_UNITS = ['BP-1', 'BP-2', 'BP-3'];
 
