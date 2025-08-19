@@ -45,7 +45,7 @@ const Silo = ({ name, data }: { name: string; data: SiloData; }) => {
              </div>
         )}
         <div className="h-1.5 bg-gray-500/40"></div>
-        <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-primary/80 to-primary/50" style={{ height: `${displayLevel}%` }}></div>
+        <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-primary/80 to-primary/50 transition-all duration-500" style={{ height: `${displayLevel}%` }}></div>
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-xl font-bold text-white drop-shadow-lg">{displayLevel}%</span>
         </div>
