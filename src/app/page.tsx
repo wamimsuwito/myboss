@@ -19,7 +19,7 @@ import ScheduleTable from '@/components/schedule-table';
 import BpSelectionDialog from '@/components/location-selection-dialog';
 import UnitSelectionDialog from '@/components/unit-selection-dialog';
 import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, runTransaction, query, where, Timestamp, getDoc } from '@/lib/firebase';
-import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
+import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from '@/components/ui/sidebar';
 import LoadingOrderDialog from '@/components/loading-order-dialog';
 import MixerSettingsDialog from '@/components/mixer-settings-dialog';
 import MoistureControlDialog from '@/components/moisture-control-dialog';
@@ -620,13 +620,14 @@ export default function DashboardPage() {
             where('mutuBeton', '==', activeSchedule.GRADE),
             where('namaPelanggan', '==', activeSchedule.NAMA)
         );
-        const scheduleProductionsQuerySnapshot = await getDocs(productionsQuery);
-        const nomorRitasi = scheduleProductionsQuerySnapshot.docs.length + 1;
 
         await runTransaction(db, async (transaction) => {
             const scheduleDoc = await transaction.get(scheduleDocRef);
             if (!scheduleDoc.exists()) throw "Jadwal tidak ditemukan!";
             
+            const scheduleProductionsQuerySnapshot = await getDocs(productionsQuery);
+            const nomorRitasi = scheduleProductionsQuerySnapshot.docs.length + 1;
+
             const aggregateStockDoc = await transaction.get(aggregateStockRef);
             const cementStockDoc = await transaction.get(cementStockRef);
 
@@ -654,16 +655,14 @@ export default function DashboardPage() {
             if (cementStockDoc.exists() && data.selectedSilo) {
                 const currentCementStock = cementStockDoc.data() as CementSiloStock;
                 const siloKey = `silo-${data.selectedSilo}`;
-                const currentSilos = currentCementStock.silos || {};
-                const currentSiloStockData = currentSilos[siloKey];
                 
-                if (currentSiloStockData && currentSiloStockData.status === 'aktif') {
-                    const newStock = (currentSiloStockData.stock || 0) - usage.semen;
-                    const updatedSiloData = { ...currentSiloStockData, stock: newStock };
-                    const updatedSilos = { ...currentSilos, [siloKey]: updatedSiloData };
-                    
-                    transaction.update(cementStockRef, { silos: updatedSilos });
+                const updatedSilos = { ...currentCementStock.silos };
+                const currentSiloData = updatedSilos[siloKey];
 
+                if (currentSiloData && currentSiloData.status === 'aktif') {
+                    const newStock = (currentSiloData.stock || 0) - usage.semen;
+                    updatedSilos[siloKey] = { ...currentSiloData, stock: newStock };
+                    transaction.update(cementStockRef, { silos: updatedSilos });
                 } else {
                    throw new Error(`Silo ${data.selectedSilo} tidak aktif atau tidak ditemukan.`);
                 }
@@ -672,6 +671,9 @@ export default function DashboardPage() {
 
         const updatedScheduleDoc = await getDoc(scheduleDocRef);
         const updatedScheduleData = updatedScheduleDoc.data() as ScheduleRow;
+
+        const scheduleProductionsAfterUpdate = await getDocs(productionsQuery);
+        const finalNomorRitasi = scheduleProductionsAfterUpdate.docs.length + 1;
         
         const productionEntry: ProductionData = {
             id: `${activeSchedule.NO}-${new Date().getTime()}`,
@@ -690,7 +692,7 @@ export default function DashboardPage() {
             nomorMobil: nomorMobil,
             nomorLambung: nomorLambung,
             jobMix: activeJobMix,
-            nomorRitasi: nomorRitasi,
+            nomorRitasi: finalNomorRitasi,
             totalVolumeTerkirim: parseFloat(updatedScheduleData['TERKIRIM M³']),
             lokasiProduksi: userInfo.lokasi,
             unitBp: userInfo.unitBp,
@@ -707,7 +709,7 @@ export default function DashboardPage() {
                 'NOMOR MOBIL': nomorMobil,
                 'NOMOR LAMBUNG': nomorLambung,
             },
-            nomorRitasi: nomorRitasi,
+            nomorRitasi: finalNomorRitasi,
             totalVolumeTerkirim: parseFloat(updatedScheduleData['TERKIRIM M³']),
             unitBp: userInfo.unitBp
         };
