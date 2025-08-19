@@ -25,6 +25,19 @@ export default function RiwayatUjiTekanPage() {
   const [selectedSession, setSelectedSession] = useState<any | null>(null);
 
   useEffect(() => {
+    if (isPreviewing) {
+      document.body.classList.add('print-active');
+    } else {
+      document.body.classList.remove('print-active');
+    }
+    // Cleanup on component unmount
+    return () => {
+      document.body.classList.remove('print-active');
+    };
+  }, [isPreviewing]);
+
+
+  useEffect(() => {
     const fetchHistory = async () => {
       setIsLoading(true);
       try {
@@ -55,20 +68,20 @@ export default function RiwayatUjiTekanPage() {
     <>
       <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
         <DialogContent className="max-w-4xl p-0">
-          <DialogHeader className="p-4 border-b">
+          <DialogHeader className="p-4 border-b no-print">
             <DialogTitle>Laporan Hasil Uji Tekan</DialogTitle>
             <DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X /></Button></DialogClose>
           </DialogHeader>
           <div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-test-report">
             {selectedSession && <TestReportPrintLayout sessionData={selectedSession} />}
           </div>
-          <DialogFooter className="p-4 border-t bg-muted/50">
+          <DialogFooter className="p-4 border-t bg-muted/50 no-print">
             <Button variant="outline" onClick={() => setIsPreviewing(false)}>Tutup</Button>
             <Button onClick={handlePrint}><Printer className="mr-2"/>Cetak Laporan</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="min-h-screen p-4 sm:p-6 md:p-8">
+      <div className="min-h-screen p-4 sm:p-6 md:p-8 no-print">
         <header className="flex items-center gap-4 mb-8">
           <Button variant="outline" size="icon" onClick={() => router.back()}><ArrowLeft /></Button>
           <div>
@@ -121,4 +134,3 @@ export default function RiwayatUjiTekanPage() {
     </>
   );
 }
-
