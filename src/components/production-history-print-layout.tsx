@@ -43,7 +43,7 @@ export default function ProductionHistoryPrintLayout({ data, dateRange }: Produc
   }, {} as Record<string, number>);
 
   return (
-    <div className="bg-white text-black p-4 font-sans printable-area">
+    <div className="bg-white text-black p-4 font-sans">
       <header className="print-header text-center mb-8">
             <img src="https://i.imgur.com/CxaNLPj.png" alt="Logo" className="print-logo h-24 w-auto" data-ai-hint="logo company" style={{ float: 'left', marginRight: '20px' }}/>
             <div className="text-left" style={{ marginLeft: '110px' }}>

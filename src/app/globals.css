@@ -106,39 +106,25 @@
 
 @media screen {
     .print-only {
-        display: none;
+        display: none !important;
     }
 }
 
+
 @media print {
+    body, html {
+        background: white !important;
+    }
+    .printable-area {
+        display: block !important;
+    }
+    .no-print {
+        display: none !important;
+    }
+    
     @page {
         size: A4;
         margin: 0.5in;
-    }
-    body, html {
-        visibility: hidden;
-        background: white !important;
-        font-size: 10pt;
-    }
-    .printable-area, .printable-area * {
-        visibility: visible;
-        color: black !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-    .printable-area {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: auto;
-        padding: 0;
-        margin: 0;
-        box-shadow: none;
-        border: none;
-    }
-    .no-print, .no-print * {
-        display: none !important;
     }
     .print-header {
         margin-bottom: 1rem;
@@ -186,6 +172,8 @@
     }
     .material-table th {
         background-color: #e2e8f0 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
     .material-table td.text-left {
         text-align: left;

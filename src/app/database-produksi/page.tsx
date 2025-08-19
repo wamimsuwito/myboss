@@ -269,10 +269,8 @@ export default function DatabaseProduksiPage() {
             </CardContent>
         </Card>
 
-        <div className="print-only">
-            <div id="production-history-print-area">
-                <ProductionHistoryPrintLayout data={filteredHistory} dateRange={date} />
-            </div>
+        <div className="print-only" id="production-history-print-area">
+            <ProductionHistoryPrintLayout data={filteredHistory} dateRange={date} />
         </div>
       </main>
     </div>
