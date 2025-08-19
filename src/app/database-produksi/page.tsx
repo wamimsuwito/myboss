@@ -32,6 +32,18 @@ export default function DatabaseProduksiPage() {
 
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [selectedProduction, setSelectedProduction] = useState<PrintData | null>(null);
+  
+  useEffect(() => {
+    if (isPreviewing) {
+      document.body.classList.add('print-active');
+    } else {
+      document.body.classList.remove('print-active');
+    }
+    // Cleanup on component unmount
+    return () => {
+      document.body.classList.remove('print-active');
+    };
+  }, [isPreviewing]);
 
   useEffect(() => {
     const fetchProductionData = async () => {
@@ -116,7 +128,6 @@ export default function DatabaseProduksiPage() {
       'NAMA SOPIR': item.namaSopir,
       'NOMOR MOBIL': item.nomorMobil,
       'NOMOR LAMBUNG': item.nomorLambung,
-      // Fill other fields with default values if needed
       'NO P.O': '',
       'CP/M': item['CP/M'] || '',
       'PENAMBAHAN VOL M³': '0',
@@ -144,13 +155,13 @@ export default function DatabaseProduksiPage() {
   };
 
   const handlePrintTicket = () => {
-    printElement('printable-detail-ticket');
+    window.print();
   };
 
   return (
     <>
     <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
-        <DialogContent className="max-w-3xl p-0">
+        <DialogContent className="max-w-3xl p-0" id="printable-detail-ticket">
           <DialogHeader className="p-4 border-b no-print">
             <DialogTitle>Detail Produksi</DialogTitle>
              <DialogClose asChild>
@@ -159,7 +170,7 @@ export default function DatabaseProduksiPage() {
                 </Button>
             </DialogClose>
           </DialogHeader>
-          <div className="p-6 max-h-[70vh] overflow-y-auto" id="printable-detail-ticket">
+          <div className="p-6 max-h-[70vh] overflow-y-auto print:max-h-none print:overflow-visible">
             {selectedProduction && <PrintTicketLayout data={selectedProduction} />}
           </div>
           <div className="flex justify-end gap-2 p-4 border-t bg-muted/50 no-print">
