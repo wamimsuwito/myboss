@@ -78,12 +78,14 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
         <hr className='border-t-2 border-black my-1' />
 
       <main className="my-2">
-         <h2 className="text-base font-bold uppercase text-center mb-1">BUKTI TIMBANG</h2>
+         <div className="flex justify-center items-baseline mb-1">
+            <h2 className="text-base font-bold uppercase">BUKTI TIMBANG</h2>
+            {unitBp && <span className="text-sm font-semibold ml-2">({unitBp})</span>}
+         </div>
          <div className="grid grid-cols-2 text-left text-[9px] mb-2">
             <div>
               <p><span className="font-bold inline-block w-20">Job Order</span>: {schedule.NO}</p>
               <p><span className="font-bold inline-block w-20">Nomor PO</span>: {schedule['NO P.O'] || '-'}</p>
-              <p><span className="font-bold inline-block w-20">Unit Produksi</span>: {unitBp || '-'}</p>
               <p><span className="font-bold inline-block w-20">Tanggal</span>: {new Date(startTime).toLocaleDateString('id-ID')}</p>
             </div>
             <div className="text-right">
@@ -111,23 +113,23 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
 
         <div className="mt-2">
             <h3 className="text-[10px] font-bold text-center py-0.5 mb-1">Aktual penimbangan (Kg)</h3>
-            <div className="border-t border-b border-black/50">
+            <div className="border-y border-black/50">
               <table className="w-full text-[10px] border-collapse">
                 <thead>
-                  <tr>
-                    <th className="font-bold text-left h-4 border border-black px-1">Material</th>
-                    <th className="font-bold text-right h-4 border border-black px-1">Target</th>
-                    <th className="font-bold text-right h-4 border border-black px-1">Realisasi</th>
-                    <th className="font-bold text-right h-4 border border-black px-1">Deviasi</th>
+                  <tr className="border-b border-black">
+                    <th className="font-bold text-left h-4 px-1 border-r border-black">Material</th>
+                    <th className="font-bold text-right h-4 px-1 border-r border-black">Target</th>
+                    <th className="font-bold text-right h-4 px-1 border-r border-black">Realisasi</th>
+                    <th className="font-bold text-right h-4 px-1">Deviasi</th>
                   </tr>
                 </thead>
                 <tbody>
                   {materials.map(mat => (
                     <tr key={mat.name}>
-                        <td className="py-0 border border-black px-1">{mat.name}</td>
-                        <td className="text-right py-0 border border-black px-1">{formatNumber(mat.target)}</td>
-                        <td className="text-right py-0 border border-black px-1">{formatNumber(mat.realisasi)}</td>
-                        <td className="text-right py-0 border border-black px-1">{formatNumber(mat.deviasi)}</td>
+                        <td className="py-0 px-1 border-r border-black">{mat.name}</td>
+                        <td className="text-right py-0 px-1 border-r border-black">{formatNumber(mat.target)}</td>
+                        <td className="text-right py-0 px-1 border-r border-black">{formatNumber(mat.realisasi)}</td>
+                        <td className="text-right py-0 px-1">{formatNumber(mat.deviasi)}</td>
                     </tr>
                   ))}
                 </tbody>
