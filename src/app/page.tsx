@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -553,8 +554,8 @@ export default function DashboardPage() {
     setNomorMobil('');
     setNomorLambung('');
     setSelectedSilo('');
-    onSetActiveSchedule(null);
-    onSetActiveJobMix(null);
+    setActiveSchedule(null);
+    setActiveJobMix(null);
   }
 
   const handleStop = async (data?: PrintData & { selectedSilo?: string }, options: { isAborted?: boolean, mode: OperationMode } = { isAborted: true, mode: 'auto' }) => {
@@ -666,6 +667,7 @@ export default function DashboardPage() {
             namaPelanggan: activeSchedule.NAMA,
             lokasiProyek: activeSchedule.LOKASI,
             mutuBeton: activeSchedule.GRADE,
+            'CP/M': activeSchedule['CP/M'],
             slump: activeSchedule['SLUMP (CM)'],
             targetVolume: currentVolume,
             jumlahMixing: data.jumlahMixing,
@@ -903,4 +905,3 @@ export default function DashboardPage() {
   );
 }
 
-    
