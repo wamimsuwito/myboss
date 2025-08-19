@@ -831,5 +831,3 @@ export default function AdminLogistikPage() {
     </>
   );
 }
-
-    
