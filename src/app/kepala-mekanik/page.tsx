@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -29,42 +28,42 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
-    LayoutDashboard,
-    ClipboardList,
-    History,
-    Users,
-    ShieldAlert,
-    LogOut,
-    Wrench,
-    Loader2,
-    Calendar as CalendarIcon,
-    Plus,
-    Copy,
-    CheckCircle,
-    XCircle,
-    AlertTriangle,
-    WrenchIcon,
-    UserX,
-    Pencil,
-    Trash2,
-    Save,
-    ArrowRightLeft,
-    PlusCircle,
-    Camera,
-    ActivitySquare,
-    Check,
-    Printer,
-    FilterX,
-    MessageSquareWarning,
-    Lightbulb,
-    Mail,
-    Truck,
-    Fingerprint,
-    Briefcase,
-    ShieldX,
-    Star,
-    FileText,
-    ClipboardCheck,
+  LayoutDashboard,
+  ClipboardList,
+  History,
+  Users,
+  ShieldAlert,
+  LogOut,
+  Wrench,
+  Loader2,
+  Calendar as CalendarIcon,
+  Plus,
+  Copy,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  WrenchIcon,
+  UserX,
+  Pencil,
+  Trash2,
+  Save,
+  ArrowRightLeft,
+  PlusCircle,
+  Camera,
+  ActivitySquare,
+  Check,
+  Printer,
+  FilterX,
+  MessageSquareWarning,
+  Lightbulb,
+  Mail,
+  Truck,
+  Fingerprint,
+  Briefcase,
+  ShieldX,
+  Star,
+  FileText,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { UserData, Report, LocationData, SopirBatanganData, AlatData, MechanicTask } from '@/lib/types';
@@ -848,9 +847,9 @@ export default function KepalaMekanikPage() {
         if (task.status === 'DELAYED' && newStatus === 'IN_PROGRESS') {
              const lastDelay = task.riwayatTunda?.[task.riwayatTunda.length - 1];
              if (lastDelay && !lastDelay.waktuSelesai) {
-                const updatedRiwayat = [...(task.riwayatTunda || [])];
-                updatedRiwayat[updatedRiwayat.length - 1] = { ...lastDelay, waktuSelesai: new Date() };
-                updateData.riwayatTunda = updatedRiwayat;
+                 const updatedRiwayat = [...(task.riwayatTunda || [])];
+                 updatedRiwayat[updatedRiwayat.length - 1] = { ...lastDelay, waktuSelesai: new Date() };
+                 updateData.riwayatTunda = updatedRiwayat;
              }
         }
 
@@ -1243,7 +1242,7 @@ export default function KepalaMekanikPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Workshop</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
@@ -1258,20 +1257,20 @@ export default function KepalaMekanikPage() {
                     </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-               <SidebarSeparator className="my-2" />
+                <SidebarSeparator className="my-2" />
                 {secondaryMenuItems.map((item) => (
                 <SidebarMenuItem key={item.name}>
                     <Link href={item.href} passHref>
                         <SidebarMenuButton className="h-9 relative" onClick={() => handleMenuClick(item.name as ActiveMenu)}>
-                             <item.icon className="h-4 w-4" />
-                            <span className="text-sm">{item.name}</span>
-                             {item.name === 'Pesan Masuk' && hasNewMessage && (
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
-                             )}
+                               <item.icon className="h-4 w-4" />
+                             <span className="text-sm">{item.name}</span>
+                               {item.name === 'Pesan Masuk' && hasNewMessage && (
+                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
+                               )}
                         </SidebarMenuButton>
                     </Link>
                 </SidebarMenuItem>
-              ))}
+                ))}
             </SidebarMenu>
             <SidebarFooter>
                 <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-muted-foreground">
@@ -1287,15 +1286,15 @@ export default function KepalaMekanikPage() {
                 <div className="flex items-center gap-4">
                     <SidebarTrigger/>
                     <div>
-                         <h1 className="text-3xl font-bold text-foreground">
-                            {activeMenu}
-                         </h1>
-                         <p className="text-sm text-muted-foreground flex items-center gap-4">
-                             <span>{userInfo.username}</span>
-                             <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
-                             <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
-                             <span>Lokasi: {userInfo.lokasi}</span>
-                         </p>
+                          <h1 className="text-3xl font-bold text-foreground">
+                             {activeMenu}
+                          </h1>
+                          <p className="text-sm text-muted-foreground flex items-center gap-4">
+                               <span>{userInfo.username}</span>
+                               <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
+                               <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
+                               <span>Lokasi: {userInfo.lokasi}</span>
+                          </p>
                     </div>
                 </div>
             </header>
@@ -1309,5 +1308,3 @@ export default function KepalaMekanikPage() {
     </>
   );
 }
-
-    
