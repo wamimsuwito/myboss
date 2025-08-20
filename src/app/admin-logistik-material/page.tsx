@@ -164,7 +164,7 @@ export default function AdminLogistikPage() {
         setArchivedCementJobs(cementArchiveSnap.docs.map(d => ({ ...d.data(), id: d.id }) as RencanaPemasukan));
         
         // Fetch all pemasukan history
-        const pemasukanHistorySnap = await getDocs(query(collection(db, 'arsip_pemasukan_material_semua'), where('lokasi', '==', userInfo.lokasi)));
+        const pemasukanHistorySnap = await getDocs(query(collection(db, 'arsip_pemasukan_material_semua')));
         const historyData = pemasukanHistorySnap.docs.map(d => ({id: d.id, ...d.data()}) as PemasukanLogEntry).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         setAllPemasukan(historyData);
         setFilteredPemasukan(historyData); // Initially show all
