@@ -91,6 +91,7 @@ import HistoryPrintLayout from '@/components/history-print-layout';
 
 type ActiveMenu = 
   | 'Dashboard' 
+  | 'Manajemen Work Order'
   | 'Histori Perbaikan Alat' 
   | 'Anggota Mekanik'
   | 'Absensi'
@@ -102,6 +103,7 @@ type ActiveMenu =
 
 const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
+    { name: 'Manajemen Work Order', icon: ClipboardList },
     { name: 'Histori Perbaikan Alat', icon: History },
     { name: 'Anggota Mekanik', icon: Users },
 ];
@@ -202,102 +204,102 @@ const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { 
                         Pilih mekanik dan tentukan target penyelesaian perbaikan.
                     </DialogDescription>
                 </DialogHeader>
-                 <Form {...form}>
-                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
-                     <FormField
-                      control={form.control}
-                      name="mechanics"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Pilih Mekanik</FormLabel>
-                           <Popover>
-                              <PopoverTrigger asChild>
-                                 <Button variant="outline" className="w-full justify-start">
-                                    <PlusCircle className="mr-2"/>
-                                    {field.value.length > 0 ? field.value.map(m => m.name).join(', ') : "Pilih mekanik"}
-                                 </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                  <Command>
-                                    <CommandInput placeholder="Cari mekanik..." />
-                                    <CommandList>
-                                        <CommandEmpty>Tidak ada mekanik.</CommandEmpty>
-                                        <CommandGroup>
-                                            {mechanics.filter(m => m.jabatan?.toUpperCase().includes('MEKANIK')).map((mechanic) => {
-                                                const isSelected = field.value.some(m => m.id === mechanic.id);
-                                                return (
-                                                    <CommandItem
-                                                        key={mechanic.id}
-                                                        onSelect={() => {
-                                                            const currentMechanics = field.value;
-                                                            if (isSelected) {
-                                                                form.setValue("mechanics", currentMechanics.filter(m => m.id !== mechanic.id));
-                                                            } else {
-                                                                form.setValue("mechanics", [...currentMechanics, { id: mechanic.id, name: mechanic.username }]);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
-                                                            <Check className="h-4 w-4" />
-                                                        </div>
-                                                        <span>{mechanic.username}</span>
-                                                    </CommandItem>
-                                                )
-                                            })}
-                                        </CommandGroup>
-                                    </CommandList>
-                                  </Command>
-                              </PopoverContent>
-                           </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                            control={form.control}
-                            name="targetDate"
-                            render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                                <FormLabel>Target Selesai</FormLabel>
-                                <Popover>
-                                <PopoverTrigger asChild>
-                                    <FormControl>
-                                    <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                        {field.value ? format(field.value, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
-                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                   <Form {...form}>
+                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
+                       <FormField
+                       control={form.control}
+                       name="mechanics"
+                       render={({ field }) => (
+                         <FormItem>
+                           <FormLabel>Pilih Mekanik</FormLabel>
+                             <Popover>
+                                 <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-start">
+                                       <PlusCircle className="mr-2"/>
+                                       {field.value.length > 0 ? field.value.map(m => m.name).join(', ') : "Pilih mekanik"}
                                     </Button>
-                                    </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                                </PopoverContent>
-                                </Popover>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="targetTime"
-                            render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                                <FormLabel>Waktu Target</FormLabel>
-                                <Input type="time" {...field} />
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Batal</Button></DialogClose>
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2" />}
-                             Buat Work Order
-                        </Button>
-                    </DialogFooter>
-                   </form>
-                 </Form>
+                                 </PopoverTrigger>
+                                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                     <Command>
+                                       <CommandInput placeholder="Cari mekanik..." />
+                                       <CommandList>
+                                         <CommandEmpty>Tidak ada mekanik.</CommandEmpty>
+                                         <CommandGroup>
+                                             {mechanics.filter(m => m.jabatan?.toUpperCase().includes('MEKANIK')).map((mechanic) => {
+                                                 const isSelected = field.value.some(m => m.id === mechanic.id);
+                                                 return (
+                                                     <CommandItem
+                                                         key={mechanic.id}
+                                                         onSelect={() => {
+                                                             const currentMechanics = field.value;
+                                                             if (isSelected) {
+                                                                 form.setValue("mechanics", currentMechanics.filter(m => m.id !== mechanic.id));
+                                                             } else {
+                                                                 form.setValue("mechanics", [...currentMechanics, { id: mechanic.id, name: mechanic.username }]);
+                                                             }
+                                                         }}
+                                                     >
+                                                         <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
+                                                             <Check className="h-4 w-4" />
+                                                         </div>
+                                                         <span>{mechanic.username}</span>
+                                                     </CommandItem>
+                                                 )
+                                             })}
+                                         </CommandGroup>
+                                       </CommandList>
+                                     </Command>
+                                 </PopoverContent>
+                             </Popover>
+                           <FormMessage />
+                         </FormItem>
+                       )}
+                       />
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <FormField
+                               control={form.control}
+                               name="targetDate"
+                               render={({ field }) => (
+                               <FormItem className="flex flex-col">
+                                   <FormLabel>Target Selesai</FormLabel>
+                                   <Popover>
+                                   <PopoverTrigger asChild>
+                                       <FormControl>
+                                       <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                           {field.value ? format(field.value, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
+                                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                       </Button>
+                                       </FormControl>
+                                   </PopoverTrigger>
+                                   <PopoverContent className="w-auto p-0" align="start">
+                                       <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                   </PopoverContent>
+                                   </Popover>
+                                   <FormMessage />
+                               </FormItem>
+                               )}
+                           />
+                             <FormField
+                               control={form.control}
+                               name="targetTime"
+                               render={({ field }) => (
+                               <FormItem className="flex flex-col">
+                                   <FormLabel>Waktu Target</FormLabel>
+                                   <Input type="time" {...field} />
+                                   <FormMessage />
+                               </FormItem>
+                               )}
+                           />
+                       </div>
+                       <DialogFooter>
+                           <DialogClose asChild><Button variant="outline">Batal</Button></DialogClose>
+                           <Button type="submit" disabled={isSubmitting}>
+                               {isSubmitting ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2" />}
+                                 Buat Work Order
+                           </Button>
+                       </DialogFooter>
+                     </form>
+                   </Form>
             </DialogContent>
         </Dialog>
     );
@@ -890,6 +892,56 @@ export default function KepalaMekanikPage() {
               </CardContent>
             </Card>
           )
+        case 'Manajemen Work Order':
+          return (
+             <Card>
+                  <CardHeader>
+                      <CardTitle>Daftar Work Order Aktif</CardTitle>
+                      <CardDescription>Pekerjaan yang sedang ditangani atau menunggu untuk ditangani oleh tim mekanik.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      <div className="overflow-x-auto border rounded-lg">
+                          <Table>
+                              <TableHeader>
+                                  <TableRow>
+                                      <TableHead>Kendaraan</TableHead>
+                                      <TableHead>Deskripsi</TableHead>
+                                      <TableHead>Mekanik</TableHead>
+                                      <TableHead>Status</TableHead>
+                                      <TableHead>Target</TableHead>
+                                      <TableHead className="text-right">Aksi</TableHead>
+                                  </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                  {isFetchingData ? <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                      : mechanicTasks.filter(t => t.status !== 'COMPLETED').length > 0 ? (mechanicTasks.filter(t => t.status !== 'COMPLETED').map(task => (
+                                          <TableRow key={task.id}>
+                                              <TableCell className="font-semibold">{task.vehicle.hullNumber}</TableCell>
+                                              <TableCell className="max-w-[200px] truncate">{task.mechanicRepairDescription || task.vehicle.repairDescription}</TableCell>
+                                              <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
+                                              <TableCell><Badge variant={task.status === 'PENDING' ? 'secondary' : task.status === 'DELAYED' ? 'destructive' : 'default'}>{task.status}</Badge></TableCell>
+                                              <TableCell>{format(new Date(task.vehicle.targetDate), 'dd MMM')} @ {task.vehicle.targetTime}</TableCell>
+                                              <TableCell className="text-right">
+                                                  <DropdownMenu>
+                                                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><Pencil className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                                      <DropdownMenuContent align="end">
+                                                          {task.status === 'PENDING' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task.id, 'IN_PROGRESS')}>Mulai Perbaikan</DropdownMenuItem>}
+                                                          {task.status === 'IN_PROGRESS' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task.id, 'DELAYED')}>Tunda Perbaikan</DropdownMenuItem>}
+                                                          {task.status === 'DELAYED' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task.id, 'IN_PROGRESS')}>Lanjutkan Perbaikan</DropdownMenuItem>}
+                                                          {task.status !== 'PENDING' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task.id, 'COMPLETED')}>Selesaikan Perbaikan</DropdownMenuItem>}
+                                                          <DropdownMenuSeparator />
+                                                          <DropdownMenuItem onSelect={() => setTaskToDescribe(task)}>Edit Deskripsi</DropdownMenuItem>
+                                                      </DropdownMenuContent>
+                                                  </DropdownMenu>
+                                              </TableCell>
+                                          </TableRow>
+                                      ))) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada work order yang aktif.</TableCell></TableRow>)}
+                              </TableBody>
+                          </Table>
+                      </div>
+                  </CardContent>
+              </Card>
+          );
         case 'Anggota Mekanik': {
           const mekanikUsers = users.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK") && u.lokasi === userInfo?.lokasi);
           return (
