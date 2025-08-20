@@ -4,12 +4,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { RencanaPemasukan, UserData, LocationData, Job, AlatData, TripLog, ArchivedJob, PemasukanLogEntry } from '@/lib/types';
 import { useRouter } from 'next/navigation';
-import { Loader2, X, FileClock, ListOrdered, Edit, Anchor, Archive, History, Package, PackagePlus, Truck, ActivitySquare, Ship, User, Fingerprint, Briefcase, ChevronDown, LogOut, Calendar as CalendarIconLucide, Search, FilterX, ArrowRightLeft, ShieldAlert, Play, Pause, Check, Printer, Info } from 'lucide-react';
+import { Loader2, X, FileClock, ListOrdered, Edit, Anchor, Archive, History, Package, PackagePlus, Truck, ActivitySquare, Ship, User, Fingerprint, Briefcase, ChevronDown, LogOut, Calendar as CalendarIconLucide, Search, FilterX, ArrowRightLeft, ShieldAlert, Play, Pause, Check, Printer, Info, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Sidebar, SidebarProvider, SidebarInset, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
-import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, query, where, Timestamp } from '@/lib/firebase';
+import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, query, where, Timestamp, getDoc, deleteDoc } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -119,7 +119,7 @@ export default function AdminLogistikPage() {
     }));
     
     // Listener for Jobs
-    const qJobs = query(collection(db, "available_jobs"), where('status', '!=', 'Selesai'));
+    const qJobs = query(collection(db, "available_jobs"));
     unsubscribers.push(onSnapshot(qJobs, (snapshot) => {
         const jobsData = snapshot.docs.map(d => ({ ...d.data(), id: d.id }) as Job);
         setJobs(jobsData);
@@ -155,7 +155,7 @@ export default function AdminLogistikPage() {
         const locsSnap = await getDocs(collection(db, 'locations'));
         setLocations(locsSnap.docs.map(d => ({...d.data(), id: d.id} as LocationData)));
         
-        const archiveSnap = await getDocs(query(collection(db, 'archived_jobs'), where("status", "==", "Selesai")));
+        const archiveSnap = await getDocs(query(collection(db, 'archived_jobs')));
         const archivedData = archiveSnap.docs.map(d => ({...d.data(), id: d.id} as ArchivedJob));
         setArchivedJobs(archivedData);
         setFilteredArchivedJobs(archivedData);
@@ -311,25 +311,33 @@ export default function AdminLogistikPage() {
         if (newStatus === 'Proses' && !jobData.jamMulai) {
             updateData.jamMulai = new Date().toISOString();
         } else if (newStatus === 'Selesai' && !jobData.jamSelesai) {
-            updateData.jamSelesai = new Date().toISOString();
-            
-            const rencanaDoc = await getDocs(query(collection(db, 'rencana_pemasukan'), where('__name__', '==', jobData.rencanaId || '')));
-            if (!rencanaDoc.empty) {
-                const rencanaData = rencanaDoc.docs[0].data() as RencanaPemasukan;
-                const logEntry: Omit<PemasukanLogEntry, 'id'> = {
-                    timestamp: new Date().toISOString(),
-                    material: jobData.material,
-                    noSpb: rencanaData.noSpb,
-                    namaKapal: jobData.namaKapal,
-                    namaSopir: rencanaData.namaSopir,
-                    jumlah: jobData.volumeTerbongkar,
-                    unit: 'M³',
-                    keterangan: `Selesai bongkar otomatis dari WO.`,
-                    lokasi: userInfo?.lokasi,
-                };
-                await addDoc(collection(db, 'arsip_pemasukan_material_semua'), logEntry);
-                await updateDoc(doc(db, 'rencana_pemasukan', rencanaDoc.docs[0].id), { status: 'Selesai Bongkar' });
-                toast({ title: "Pemasukan Material Dicatat", description: `${jobData.volumeTerbongkar} M³ ${jobData.material} telah dicatat.` });
+             const ritasiSelesai = (allTripHistories[jobId] || []).length;
+             const finalVolumeTerbongkar = ritasiSelesai * MUATAN_PER_RIT;
+             
+             updateData.volumeTerbongkar = finalVolumeTerbongkar;
+             updateData.sisaVolume = Math.max(0, jobData.totalVolume - finalVolumeTerbongkar);
+             updateData.jamSelesai = new Date().toISOString();
+
+            if (jobData.rencanaId) {
+                const rencanaDocRef = doc(db, 'rencana_pemasukan', jobData.rencanaId);
+                const rencanaDocSnap = await getDoc(rencanaDocRef);
+                if (rencanaDocSnap.exists()) {
+                    const rencanaData = rencanaDocSnap.data() as RencanaPemasukan;
+                    const logEntry: Omit<PemasukanLogEntry, 'id'> = {
+                        timestamp: new Date().toISOString(),
+                        material: jobData.material,
+                        noSpb: rencanaData.noSpb,
+                        namaKapal: jobData.namaKapal,
+                        namaSopir: rencanaData.namaSopir,
+                        jumlah: finalVolumeTerbongkar,
+                        unit: 'M³',
+                        keterangan: `Selesai bongkar otomatis dari WO.`,
+                        lokasi: userInfo?.lokasi,
+                    };
+                    await addDoc(collection(db, 'arsip_pemasukan_material_semua'), logEntry);
+                    await updateDoc(rencanaDocRef, { status: 'Selesai Bongkar' });
+                    toast({ title: "Pemasukan Material Dicatat", description: `${finalVolumeTerbongkar} M³ ${jobData.material} telah dicatat.` });
+                }
             }
 
         } else if (newStatus === 'Tunda') {
@@ -359,7 +367,7 @@ export default function AdminLogistikPage() {
                 tripLogs: allTripHistories[jobId] || [],
                 archivedAt: new Date().toISOString()
             });
-            await updateDoc(jobRef, { status: 'Diarsipkan' });
+            await deleteDoc(jobRef); // Delete from active jobs
         }
     };
     
@@ -815,7 +823,11 @@ export default function AdminLogistikPage() {
                                 const volumeTerbongkar = ritasiBerjalan * MUATAN_PER_RIT;
                                 const sisaVolume = Math.max(0, job.totalVolume - volumeTerbongkar);
                                 
-                                return (<TableRow key={job.id}><TableCell className="font-semibold">{job.namaKapal} <span className="text-muted-foreground">({job.material})</span>{job.riwayatTunda && job.riwayatTunda.length > 0 && (<ol className="text-xs text-orange-500 list-decimal list-inside mt-1 italic">{job.riwayatTunda.map((tunda, index) => <li key={index}>{tunda.alasan}</li>)}</ol>)}</TableCell><TableCell><Select value={job.status} onValueChange={(newStatus) => handleJobStatusChange(job.id, newStatus as Job['status'])} disabled={job.status === 'Selesai'}><SelectTrigger className='w-32'><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Menunggu"><Play className="inline-block mr-2 h-4 w-4 text-gray-500" />Menunggu</SelectItem><SelectItem value="Proses"><Play className="inline-block mr-2 h-4 w-4 text-blue-500" />Proses</SelectItem><SelectItem value="Tunda"><Pause className="inline-block mr-2 h-4 w-4 text-yellow-500" />Tunda</SelectItem><SelectItem value="Selesai"><Check className="inline-block mr-2 h-4 w-4 text-green-500" />Selesai</SelectItem></SelectContent></Select></TableCell><TableCell>{ritasiBerjalan}</TableCell><TableCell>{job.totalVolume} M³</TableCell><TableCell>{volumeTerbongkar} M³</TableCell><TableCell>{sisaVolume} M³</TableCell><TableCell>{safeFormatDate(job.jamMulai, 'dd MMM, HH:mm')}</TableCell><TableCell>{safeFormatDate(job.jamSelesai, 'dd MMM, HH:mm')}</TableCell><TableCell>{job.totalWaktuTunda ? formatDistanceStrict(0, job.totalWaktuTunda, { locale: localeID }) : '-'}</TableCell><TableCell>{calculateEffectiveTime(job)}</TableCell><TableCell className="text-right">Aksi</TableCell></TableRow>)}) : <TableRow><TableCell colSpan={11} className="text-center h-24 text-muted-foreground">Belum ada perintah bongkar yang diterbitkan.</TableCell></TableRow>}</TableBody></Table></div></CardContent>
+                                return (<TableRow key={job.id}><TableCell className="font-semibold">{job.namaKapal} <span className="text-muted-foreground">({job.material})</span>{job.riwayatTunda && job.riwayatTunda.length > 0 && (<ol className="text-xs text-orange-500 list-decimal list-inside mt-1 italic">{job.riwayatTunda.map((tunda, index) => <li key={index}>{tunda.alasan}</li>)}</ol>)}</TableCell><TableCell><Select value={job.status} onValueChange={(newStatus) => handleJobStatusChange(job.id, newStatus as Job['status'])} disabled={job.status === 'Selesai'}><SelectTrigger className='w-32'><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Menunggu"><Play className="inline-block mr-2 h-4 w-4 text-gray-500" />Menunggu</SelectItem><SelectItem value="Proses"><Play className="inline-block mr-2 h-4 w-4 text-blue-500" />Proses</SelectItem><SelectItem value="Tunda"><Pause className="inline-block mr-2 h-4 w-4 text-yellow-500" />Tunda</SelectItem><SelectItem value="Selesai"><Check className="inline-block mr-2 h-4 w-4 text-green-500" />Selesai</SelectItem></SelectContent></Select></TableCell><TableCell>{ritasiBerjalan}</TableCell><TableCell>{job.totalVolume} M³</TableCell><TableCell>{volumeTerbongkar} M³</TableCell><TableCell>{sisaVolume} M³</TableCell><TableCell>{safeFormatDate(job.jamMulai, 'dd MMM, HH:mm')}</TableCell><TableCell>{safeFormatDate(job.jamSelesai, 'dd MMM, HH:mm')}</TableCell><TableCell>{job.totalWaktuTunda ? formatDistanceStrict(0, job.totalWaktuTunda, { locale: localeID }) : '-'}</TableCell><TableCell>{calculateEffectiveTime(job)}</TableCell><TableCell className="text-right">
+                                    <Button variant="ghost" size="icon" onClick={() => deleteDoc(doc(db, 'available_jobs', job.id))}>
+                                        <Trash2 className="text-destructive" />
+                                    </Button>
+                                </TableCell></TableRow>)}) : <TableRow><TableCell colSpan={11} className="text-center h-24 text-muted-foreground">Belum ada perintah bongkar yang diterbitkan.</TableCell></TableRow>}</TableBody></Table></div></CardContent>
                         </Card>
                     </div>
                     )}
