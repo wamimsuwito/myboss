@@ -193,7 +193,7 @@ export interface CementSiloStock {
 
 export interface PemasukanLogEntry {
   id: string;
-  timestamp: string;
+  timestamp: string | any;
   material: string;
   noSpb: string;
   namaKapal: string;
@@ -202,6 +202,7 @@ export interface PemasukanLogEntry {
   unit: string;
   keterangan?: string;
   distribution?: { [siloName: string]: number };
+  lokasi?: string;
 }
 
 export interface PengirimanEntry {

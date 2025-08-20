@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format, startOfDay, endOfDay, isWithinInterval, formatDistanceStrict, isAfter, subDays } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval, formatDistanceStrict, isAfter, subDays, isSameDay } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -148,7 +148,7 @@ export default function AdminLogistikPage() {
     }));
 
     // Fetch static data
-    const fetchStatic = async () => {
+    const fetchStaticAndHistory = async () => {
         const alatSnap = await getDocs(collection(db, 'alat'));
         setAlat(alatSnap.docs.map(d => ({...d.data(), id: d.id} as AlatData)));
 
@@ -162,9 +162,24 @@ export default function AdminLogistikPage() {
 
         const cementArchiveSnap = await getDocs(query(collection(db, 'rencana_pemasukan'), where('status', '==', 'Selesai Bongkar')));
         setArchivedCementJobs(cementArchiveSnap.docs.map(d => ({ ...d.data(), id: d.id }) as RencanaPemasukan));
+        
+        // Fetch all pemasukan history
+        const pemasukanHistorySnap = await getDocs(query(collection(db, 'arsip_pemasukan_material_semua'), where('lokasi', '==', userInfo.lokasi)));
+        const historyData = pemasukanHistorySnap.docs.map(d => ({id: d.id, ...d.data()}) as PemasukanLogEntry).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        setAllPemasukan(historyData);
+        setFilteredPemasukan(historyData); // Initially show all
+        
+        // Populate daily log from the fetched history
+        const todayStart = startOfDay(new Date());
+        const todaysLog = historyData.filter(entry => {
+            const entryDate = new Date(entry.timestamp);
+            return isSameDay(entryDate, todayStart);
+        });
+        setDailyLog(todaysLog);
+
     };
 
-    fetchStatic();
+    fetchStaticAndHistory();
 
     return () => unsubscribers.forEach(unsub => unsub());
 
@@ -470,20 +485,23 @@ export default function AdminLogistikPage() {
   }
   
   const handleSearchHistory = async () => {
-    if (!dateRange?.from) return;
-    setIsFetchingHistory(true);
-    const startDate = startOfDay(dateRange.from);
-    const endDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
-    
-    const q = query(collection(db, 'arsip_pemasukan_material_semua'), 
-        where('timestamp', '>=', startDate.toISOString()),
-        where('timestamp', '<=', endDate.toISOString())
-    );
-    const querySnapshot = await getDocs(q);
-    const results = querySnapshot.docs.map(d => ({id: d.id, ...d.data()}) as PemasukanLogEntry);
-    setFilteredPemasukan(results);
-    setIsFetchingHistory(false);
-  };
+        if (!dateRange?.from) {
+            setFilteredPemasukan(allPemasukan);
+            return;
+        };
+
+        setIsFetchingHistory(true);
+        const fromDate = startOfDay(dateRange.from);
+        const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+        
+        const filtered = allPemasukan.filter(entry => {
+            const entryDate = new Date(entry.timestamp);
+            return isWithinInterval(entryDate, { start: fromDate, end: toDate });
+        });
+
+        setFilteredPemasukan(filtered);
+        setIsFetchingHistory(false);
+    };
 
 
   if (isLoading || !userInfo) {
