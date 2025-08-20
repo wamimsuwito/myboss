@@ -244,7 +244,7 @@ export interface RencanaPemasukan {
     jenisMaterial: string;
     estimasiMuatan: number;
     eta: any;
-    namaSopir: string;
+    namaSopir?: string;
     keterangan: string;
     status?: 'Dalam Perjalanan' | 'Telah Tiba' | 'Menunggu Inspeksi QC' | 'Sedang Dilakukan Inspeksi QC' | 'Memenuhi Syarat' | 'Ditolak' | 'Siap Untuk Dibongkar' | 'Selesai Bongkar' | 'Dibatalkan';
     noSpb: string;

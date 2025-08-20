@@ -146,8 +146,29 @@ export default function AdminLogistikPage() {
         }, {} as Record<string, any>);
         setCementUnloadingStates(states);
     }));
+    
+    // Listener for all material income history
+    const qPemasukan = query(collection(db, 'arsip_pemasukan_material_semua'), orderBy('timestamp', 'desc'));
+    unsubscribers.push(onSnapshot(qPemasukan, (snapshot) => {
+        const historyData = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as PemasukanLogEntry);
+        setAllPemasukan(historyData);
+        
+        // Populate daily log from the fetched history
+        const todayStart = startOfDay(new Date());
+        const todaysLog = historyData.filter(entry => {
+            const entryDate = new Date(entry.timestamp);
+            return isSameDay(entryDate, todayStart);
+        });
+        setDailyLog(todaysLog);
 
-    // Fetch static data
+        // Update filtered history if no date range is selected
+        if (!dateRange) {
+          setFilteredPemasukan(historyData);
+        }
+    }));
+
+
+    // Fetch static data once
     const fetchStaticAndHistory = async () => {
         const alatSnap = await getDocs(collection(db, 'alat'));
         setAlat(alatSnap.docs.map(d => ({...d.data(), id: d.id} as AlatData)));
@@ -162,28 +183,13 @@ export default function AdminLogistikPage() {
 
         const cementArchiveSnap = await getDocs(query(collection(db, 'rencana_pemasukan'), where('status', '==', 'Selesai Bongkar')));
         setArchivedCementJobs(cementArchiveSnap.docs.map(d => ({ ...d.data(), id: d.id }) as RencanaPemasukan));
-        
-        // Fetch all pemasukan history
-        const pemasukanHistorySnap = await getDocs(query(collection(db, 'arsip_pemasukan_material_semua')));
-        const historyData = pemasukanHistorySnap.docs.map(d => ({id: d.id, ...d.data()}) as PemasukanLogEntry).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        setAllPemasukan(historyData);
-        setFilteredPemasukan(historyData); // Initially show all
-        
-        // Populate daily log from the fetched history
-        const todayStart = startOfDay(new Date());
-        const todaysLog = historyData.filter(entry => {
-            const entryDate = new Date(entry.timestamp);
-            return isSameDay(entryDate, todayStart);
-        });
-        setDailyLog(todaysLog);
-
     };
 
     fetchStaticAndHistory();
 
     return () => unsubscribers.forEach(unsub => unsub());
 
-  }, [userInfo]);
+  }, [userInfo, dateRange]);
 
   const activeJobs = useMemo(() => jobs.filter(job => job.status === 'Proses' || job.status === 'Menunggu'), [jobs]);
 
@@ -328,7 +334,7 @@ export default function AdminLogistikPage() {
                         material: jobData.material,
                         noSpb: rencanaData.noSpb,
                         namaKapal: jobData.namaKapal,
-                        namaSopir: rencanaData.namaSopir,
+                        namaSopir: rencanaData.namaSopir || '',
                         jumlah: finalVolumeTerbongkar,
                         unit: 'M³',
                         keterangan: `Selesai bongkar otomatis dari WO.`,
@@ -511,7 +517,7 @@ export default function AdminLogistikPage() {
     setFilteredPemasukan(allPemasukan);
   }
   
-  const handleSearchHistory = async () => {
+  const handleSearchHistory = () => {
         if (!dateRange?.from) {
             setFilteredPemasukan(allPemasukan);
             return;
