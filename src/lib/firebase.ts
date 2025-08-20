@@ -1,6 +1,6 @@
 // This file is now configured for a real Firebase project.
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, collection, getDocs, getDoc, setDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, Timestamp, query, where, limit, orderBy, runTransaction } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, getDoc, setDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, Timestamp, query, where, limit, orderBy, runTransaction, FieldValue, increment } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyDQHD5hWDvY_Jp7kTsvOJ4Yei_fRYVgA3Y",
@@ -33,4 +33,6 @@ export {
     limit,
     orderBy,
     runTransaction,
+    FieldValue,
+    increment
 };

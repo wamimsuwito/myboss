@@ -18,7 +18,7 @@ import { printElement } from '@/lib/utils';
 import ScheduleTable from '@/components/schedule-table';
 import BpSelectionDialog from '@/components/location-selection-dialog';
 import UnitSelectionDialog from '@/components/unit-selection-dialog';
-import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, runTransaction, query, where, Timestamp, getDoc } from '@/lib/firebase';
+import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, runTransaction, query, where, Timestamp, getDoc, FieldValue, increment } from '@/lib/firebase';
 import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset } from '@/components/ui/sidebar';
 import LoadingOrderDialog from '@/components/loading-order-dialog';
 import MixerSettingsDialog from '@/components/mixer-settings-dialog';
@@ -613,24 +613,22 @@ export default function DashboardPage() {
         const aggregateStockRef = doc(db, `locations/${userInfo.lokasi}/stock`, 'aggregates');
         const cementStockRef = doc(db, `locations/${userInfo.lokasi}/stock_cement_silo_${userInfo.unitBp}`, 'main');
         
-        const productionsQuery = query(
-            collection(db, 'productions'),
+        const productionsQuery = query(collection(db, 'productions'), 
             where('jobId', '==', activeSchedule.NO),
             where('lokasiProyek', '==', activeSchedule.LOKASI),
             where('mutuBeton', '==', activeSchedule.GRADE),
             where('namaPelanggan', '==', activeSchedule.NAMA)
         );
+        const productionsSnapshot = await getDocs(productionsQuery);
+        const finalNomorRitasi = productionsSnapshot.docs.length + 1;
 
         await runTransaction(db, async (transaction) => {
             const scheduleDoc = await transaction.get(scheduleDocRef);
             if (!scheduleDoc.exists()) throw "Jadwal tidak ditemukan!";
-            
-            const scheduleProductionsQuerySnapshot = await getDocs(productionsQuery);
-            const nomorRitasi = scheduleProductionsQuerySnapshot.docs.length + 1;
 
             const aggregateStockDoc = await transaction.get(aggregateStockRef);
             const cementStockDoc = await transaction.get(cementStockRef);
-
+            
             const scheduleData = scheduleDoc.data() as ScheduleRow;
             const terkirimSebelumnya = parseFloat(scheduleData['TERKIRIM M³'] || '0');
             const totalTerkirim = terkirimSebelumnya + currentVolume;
@@ -645,36 +643,23 @@ export default function DashboardPage() {
             });
 
             if (aggregateStockDoc.exists()) {
-                const currentAggStock = aggregateStockDoc.data();
                 transaction.update(aggregateStockRef, {
-                    pasir: (currentAggStock.pasir || 0) - usage.pasir,
-                    batu: (currentAggStock.batu || 0) - usage.batu
+                    pasir: increment(-usage.pasir),
+                    batu: increment(-usage.batu)
                 });
             }
 
             if (cementStockDoc.exists() && data.selectedSilo) {
-                const currentCementStock = cementStockDoc.data() as CementSiloStock;
-                const siloKey = `silo-${data.selectedSilo}`;
-                
-                const updatedSilos = { ...currentCementStock.silos };
-                const currentSiloData = updatedSilos[siloKey];
-
-                if (currentSiloData && currentSiloData.status === 'aktif') {
-                    const newStock = (currentSiloData.stock || 0) - usage.semen;
-                    updatedSilos[siloKey] = { ...currentSiloData, stock: newStock };
-                    transaction.update(cementStockRef, { silos: updatedSilos });
-                } else {
-                   throw new Error(`Silo ${data.selectedSilo} tidak aktif atau tidak ditemukan.`);
-                }
+                const siloKey = `silos.silo-${data.selectedSilo}.stock`;
+                 transaction.update(cementStockRef, {
+                    [siloKey]: increment(-usage.semen)
+                });
             }
         });
 
         const updatedScheduleDoc = await getDoc(scheduleDocRef);
         const updatedScheduleData = updatedScheduleDoc.data() as ScheduleRow;
 
-        const scheduleProductionsAfterUpdate = await getDocs(productionsQuery);
-        const finalNomorRitasi = scheduleProductionsAfterUpdate.docs.length + 1;
-        
         const productionEntry: ProductionData = {
             id: `${activeSchedule.NO}-${new Date().getTime()}`,
             jobId: activeSchedule.NO,
