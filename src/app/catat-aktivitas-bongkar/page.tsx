@@ -13,10 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Textarea } from '@/components/ui/textarea';
 import { differenceInMilliseconds, format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { RencanaPemasukan, CementSiloStock, CementActivity, SiloData, UserData } from '@/lib/types';
+import type { RencanaPemasukan, CementSiloStock, CementActivity, SiloData, UserData, PemasukanLogEntry } from '@/lib/types';
 import { id as localeID } from 'date-fns/locale';
 import UnitSelectionDialog from '@/components/unit-selection-dialog';
-import { db, collection, doc, getDocs, setDoc, query, where, getDoc, updateDoc, onSnapshot, runTransaction, Timestamp } from '@/lib/firebase';
+import { db, collection, doc, getDocs, setDoc, query, where, getDoc, updateDoc, onSnapshot, runTransaction, Timestamp, addDoc } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 
 const BP_SILO_COUNT = 6;
@@ -65,7 +65,7 @@ export default function CatatAktivitasBongkarPage() {
   const [pauseReason, setPauseReason] = useState("");
   const [activityToPause, setActivityToPause] = useState<CementActivity | null>(null);
   
-  const [_, setTick] = useState(0); // For forcing re-render
+  const [_, setTick] = useState(0); // Forcing re-render
   
   const [activeSilosForUnits, setActiveSilosForUnits] = useState<Record<string, SiloData>>({});
   
@@ -358,18 +358,41 @@ export default function CatatAktivitasBongkarPage() {
   }, []);
 
   const handleFinishJob = async () => {
-      if (!activeJob) return;
-      const rencanaDocRef = doc(db, 'rencana_pemasukan', activeJob.id);
+      if (!activeJob || !userInfo) return;
       
-      await updateDoc(rencanaDocRef, { 
-          status: 'Selesai Bongkar',
-          completedActivities: completedActivities,
-          bongkarSelesaiAt: new Date().toISOString(),
-      });
+      const totalAmount = Object.values(activeJob.tankLoads || {}).reduce((sum, amount) => sum + amount, 0);
 
-      setActiveJob(null);
-      setActivities([]);
-      setCompletedActivities([]);
+      const logEntry: Omit<PemasukanLogEntry, 'id'> = {
+          timestamp: new Date().toISOString(),
+          material: activeJob.jenisMaterial,
+          noSpb: Object.values(activeJob.spbPerTank || {}).join(', '),
+          namaKapal: activeJob.namaKapal,
+          namaSopir: activeJob.namaSopir,
+          jumlah: totalAmount,
+          unit: 'KG',
+          keterangan: `Selesai bongkar otomatis dari ${selectedUnit}.`,
+          lokasi: userInfo.lokasi,
+      };
+
+      try {
+          await addDoc(collection(db, 'arsip_pemasukan_material_semua'), logEntry);
+          
+          const rencanaDocRef = doc(db, 'rencana_pemasukan', activeJob.id);
+          await updateDoc(rencanaDocRef, { 
+              status: 'Selesai Bongkar',
+              completedActivities: completedActivities,
+              bongkarSelesaiAt: new Date().toISOString(),
+          });
+          
+          toast({ title: "Pekerjaan Selesai & Dicatat", description: "Pemasukan material semen telah dicatat di arsip." });
+
+          setActiveJob(null);
+          setActivities([]);
+          setCompletedActivities([]);
+      } catch (error) {
+           console.error("Error finishing job:", error);
+           toast({ title: 'Gagal Menyelesaikan Pekerjaan', variant: 'destructive'});
+      }
   };
 
   const renderActivityCard = (activity: CementActivity) => {

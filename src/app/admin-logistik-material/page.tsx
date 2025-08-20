@@ -312,8 +312,27 @@ export default function AdminLogistikPage() {
             updateData.jamMulai = new Date().toISOString();
         } else if (newStatus === 'Selesai' && !jobData.jamSelesai) {
             updateData.jamSelesai = new Date().toISOString();
+            
+            const rencanaDoc = await getDocs(query(collection(db, 'rencana_pemasukan'), where('__name__', '==', jobData.rencanaId || '')));
+            if (!rencanaDoc.empty) {
+                const rencanaData = rencanaDoc.docs[0].data() as RencanaPemasukan;
+                const logEntry: Omit<PemasukanLogEntry, 'id'> = {
+                    timestamp: new Date().toISOString(),
+                    material: jobData.material,
+                    noSpb: rencanaData.noSpb,
+                    namaKapal: jobData.namaKapal,
+                    namaSopir: rencanaData.namaSopir,
+                    jumlah: jobData.volumeTerbongkar,
+                    unit: 'M³',
+                    keterangan: `Selesai bongkar otomatis dari WO.`,
+                    lokasi: userInfo?.lokasi,
+                };
+                await addDoc(collection(db, 'arsip_pemasukan_material_semua'), logEntry);
+                await updateDoc(doc(db, 'rencana_pemasukan', rencanaDoc.docs[0].id), { status: 'Selesai Bongkar' });
+                toast({ title: "Pemasukan Material Dicatat", description: `${jobData.volumeTerbongkar} M³ ${jobData.material} telah dicatat.` });
+            }
+
         } else if (newStatus === 'Tunda') {
-            // Logic for pausing
             const reason = prompt("Masukkan alasan menunda pekerjaan:");
             if (reason) {
                 updateData.riwayatTunda = [...(jobData.riwayatTunda || []), { alasan: reason, waktuMulai: new Date().toISOString() }];
