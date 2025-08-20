@@ -205,7 +205,7 @@ const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { 
                     </DialogDescription>
                 </DialogHeader>
                  <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
+                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
                      <FormField
                       control={form.control}
                       name="mechanics"
@@ -298,8 +298,8 @@ const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { 
                              Buat Work Order
                         </Button>
                     </DialogFooter>
-                  </form>
-                </Form>
+                   </form>
+                 </Form>
             </DialogContent>
         </Dialog>
     );
@@ -932,20 +932,26 @@ export default function KepalaMekanikPage() {
               </main>
             );
         case 'Manajemen Work Order': {
-          const reportsWithDamage = reports
-              .filter(r => {
-                const vehicleExists = alat.some(a => a.nomorLambung === r.vehicleId);
-                const hasActiveTask = mechanicTasks.some(t => t.vehicle?.triggeringReportId === r.id);
-                return r.overallStatus === 'rusak' && vehicleExists && !hasActiveTask;
-              })
-              .sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          const reportsWithIssues = alat.map(vehicle => {
+                const latestReport = getLatestReport(vehicle.nomorLambung, reports);
+                if (latestReport && (latestReport.overallStatus === 'rusak' || latestReport.overallStatus === 'perlu perhatian')) {
+                    const hasActiveTask = mechanicTasks.some(task => 
+                        task.vehicle?.triggeringReportId === latestReport.id && task.status !== 'COMPLETED'
+                    );
+                    if (!hasActiveTask) {
+                        return latestReport;
+                    }
+                }
+                return null;
+            }).filter((r): r is Report => r !== null)
+            .sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
           
           return (
             <main className="space-y-6">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Daftar Laporan Kerusakan</CardTitle>
-                        <CardDescription>Laporan checklist dengan status "Rusak" yang belum dibuatkan Work Order akan muncul di sini.</CardDescription>
+                        <CardTitle>Daftar Laporan Kerusakan & Perhatian</CardTitle>
+                        <CardDescription>Kendaraan dengan status "Rusak" atau "Perlu Perhatian" yang belum dibuatkan Work Order akan muncul di sini.</CardDescription>
                     </CardHeader>
                     <CardContent>
                          <div className="overflow-x-auto border rounded-lg">
@@ -955,14 +961,15 @@ export default function KepalaMekanikPage() {
                                         <TableHead>Waktu Laporan</TableHead>
                                         <TableHead>Kendaraan</TableHead>
                                         <TableHead>Pelapor</TableHead>
-                                        <TableHead>Deskripsi Kerusakan</TableHead>
+                                        <TableHead>Deskripsi</TableHead>
+                                        <TableHead>Status</TableHead>
                                         <TableHead>Foto</TableHead>
                                         <TableHead className="text-right">Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {isFetchingData ? <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin"/></TableCell></TableRow> 
-                                    : reportsWithDamage.length > 0 ? (reportsWithDamage.map(report => {
+                                    {isFetchingData ? <TableRow><TableCell colSpan={7} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin"/></TableCell></TableRow> 
+                                    : reportsWithIssues.length > 0 ? (reportsWithIssues.map(report => {
                                         const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
                                         const photos = Array.isArray(report.photo) ? report.photo : (report.photo ? [report.photo] : []);
                                         return (
@@ -971,13 +978,14 @@ export default function KepalaMekanikPage() {
                                                 <TableCell>{report.vehicleId}</TableCell>
                                                 <TableCell>{report.operatorName}</TableCell>
                                                 <TableCell className="max-w-xs truncate">{report.description}</TableCell>
+                                                <TableCell>{getStatusBadge(report.overallStatus)}</TableCell>
                                                 <TableCell>
                                                   {photos.length > 0 && (
                                                     <Dialog><DialogTrigger asChild><Button variant="ghost" size="icon"><Camera/></Button></DialogTrigger>
                                                       <DialogContent className="max-w-4xl">
                                                         <DialogHeader><DialogTitle>Foto Kerusakan: {report.vehicleId}</DialogTitle></DialogHeader>
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
-                                                          {photos.map((p, i) => <img key={i} src={p} alt={`Damage photo ${i+1}`} className="rounded-md" />)}
+                                                          {photos.map((p, i) => <img key={i} src={p} alt={`Damage photo ${i+1}`} className="rounded-md" data-ai-hint="vehicle damage"/>)}
                                                         </div>
                                                       </DialogContent>
                                                     </Dialog>
@@ -988,7 +996,7 @@ export default function KepalaMekanikPage() {
                                                 </TableCell>
                                             </TableRow>
                                         )
-                                    })) : <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>}
+                                    })) : <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>}
                                 </TableBody>
                             </Table>
                          </div>
@@ -1219,22 +1227,22 @@ export default function KepalaMekanikPage() {
         </DialogContent>
       </Dialog>
       
-       <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Konfirmasi Status Karantina</AlertDialogTitle>
-                <AlertDialogDescription>
-                   Anda yakin ingin {quarantineTarget?.statusKarantina ? 'mengeluarkan' : 'memasukkan'} kendaraan <strong>{quarantineTarget?.nomorLambung}</strong> {quarantineTarget?.statusKarantina ? 'dari' : 'ke dalam'} karantina?
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction>
-                    Ya, Konfirmasi
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+        <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
+         <AlertDialogContent>
+             <AlertDialogHeader>
+                 <AlertDialogTitle>Konfirmasi Status Karantina</AlertDialogTitle>
+                 <AlertDialogDescription>
+                    Anda yakin ingin {quarantineTarget?.statusKarantina ? 'mengeluarkan' : 'memasukkan'} kendaraan <strong>{quarantineTarget?.nomorLambung}</strong> {quarantineTarget?.statusKarantina ? 'dari' : 'ke dalam'} karantina?
+                 </AlertDialogDescription>
+             </AlertDialogHeader>
+             <AlertDialogFooter>
+                 <AlertDialogCancel>Batal</AlertDialogCancel>
+                 <AlertDialogAction>
+                     Ya, Konfirmasi
+                 </AlertDialogAction>
+             </AlertDialogFooter>
+         </AlertDialogContent>
+     </AlertDialog>
 
 
     <SidebarProvider>
