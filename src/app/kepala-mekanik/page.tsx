@@ -649,6 +649,8 @@ export default function KepalaMekanikPage() {
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
   const [locations, setLocations] = useState<LocationData[]>([]);
+  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
+  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
   
   // Delay Dialog State
   const [isDelayDialogOpen, setIsDelayDialogOpen] = useState(false);
@@ -662,8 +664,6 @@ export default function KepalaMekanikPage() {
   const [detailListTitle, setDetailListTitle] = useState('');
   const [detailListData, setDetailListData] = useState<any[]>([]);
   const [isDetailListOpen, setIsDetailListOpen] = useState(false);
-  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
-  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
 
   // Notification state
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -902,6 +902,7 @@ export default function KepalaMekanikPage() {
       return;
     }
     setUserInfo(userData);
+    setIsFetchingData(false);
   }, [router, toast]);
   
     useEffect(() => {
@@ -1312,9 +1313,7 @@ export default function KepalaMekanikPage() {
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>Tunda Pekerjaan</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Masukkan alasan mengapa pekerjaan untuk <strong>{taskToDelay?.vehicle.hullNumber}</strong> ditunda. Ini akan menjeda penghitungan waktu kerja efektif.
-                </AlertDialogDescription>
+                <AlertDialogDescription>Masukkan alasan mengapa pekerjaan untuk <strong>{taskToDelay?.vehicle.hullNumber}</strong> ditunda. Ini akan menjeda penghitungan waktu kerja efektif.</AlertDialogDescription>
             </AlertDialogHeader>
             <div className="py-4">
                 <Textarea 
@@ -1399,7 +1398,7 @@ export default function KepalaMekanikPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Workshop</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
@@ -1418,10 +1417,7 @@ export default function KepalaMekanikPage() {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
-            <SidebarFooter className="p-2 space-y-2">
-                 <div className="text-center p-4 border rounded-lg">
-                    <h3 className="font-bold text-lg">Logo PT Farika Riau Perkasa</h3>
-                 </div>
+            <SidebarFooter>
                 <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-muted-foreground">
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
