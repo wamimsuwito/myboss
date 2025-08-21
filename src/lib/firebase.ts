@@ -1,3 +1,4 @@
+
 // This file is now configured for a real Firebase project.
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, collection, getDocs, getDoc, setDoc, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, Timestamp, query, where, limit, orderBy, runTransaction, FieldValue, increment, writeBatch } from 'firebase/firestore';
@@ -11,7 +12,7 @@ const firebaseConfig = {
   appId: "1:425726816093:web:93af9e102298d4d07082b4"
 };
 
-// Initialize Firebase
+// Initialize Firebase.
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
 
