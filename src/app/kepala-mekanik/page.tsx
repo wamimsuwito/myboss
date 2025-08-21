@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -493,12 +494,12 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
 
     return (
       <>
-        <div className='hidden'>
+        <div className='hidden print:block'>
             <div id="history-print-area">
                 <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
             </div>
         </div>
-        <Card>
+        <Card className="no-print">
           <CardHeader>
             <CardTitle>Histori Perbaikan Alat</CardTitle>
             <CardDescription>
@@ -846,12 +847,10 @@ export default function KepalaMekanikPage() {
         const report = getLatestReport(a.nomorLambung, reports);
         if (report) latestReportsMap.set(a.nomorLambung, report);
     });
-
-    const hasActiveTask = (reportId: string) => mechanicTasks.some(task => task.vehicle.triggeringReportId === reportId && task.status !== 'COMPLETED');
     
     const alatBaikList = Array.from(latestReportsMap.values()).filter(r => r.overallStatus === 'baik').map(r => alat.find(a => a.nomorLambung === r.vehicleId)).filter(Boolean) as AlatData[];
-    const perluPerhatianList = Array.from(latestReportsMap.values()).filter(r => r.overallStatus === 'perlu perhatian' && !hasActiveTask(r.id)).map(r => alat.find(a => a.nomorLambung === r.vehicleId)).filter(Boolean) as AlatData[];
-    const alatRusakList = Array.from(latestReportsMap.values()).filter(r => r.overallStatus === 'rusak' && !hasActiveTask(r.id)).map(r => alat.find(a => a.nomorLambung === r.vehicleId)).filter(Boolean) as AlatData[];
+    const perluPerhatianList = Array.from(latestReportsMap.values()).filter(r => r.overallStatus === 'perlu perhatian').map(r => alat.find(a => a.nomorLambung === r.vehicleId)).filter(Boolean) as AlatData[];
+    const alatRusakList = Array.from(latestReportsMap.values()).filter(r => r.overallStatus === 'rusak').map(r => alat.find(a => a.nomorLambung === r.vehicleId)).filter(Boolean) as AlatData[];
 
     return {
         totalAlat: { count: String(alatInLocation.length), list: mapToDetailFormat(alatInLocation, 'latest'), vehicleNames: '' },
