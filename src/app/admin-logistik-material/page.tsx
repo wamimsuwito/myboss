@@ -4,12 +4,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { RencanaPemasukan, UserData, LocationData, Job, AlatData, TripLog, ArchivedJob, PemasukanLogEntry } from '@/lib/types';
 import { useRouter } from 'next/navigation';
-import { Loader2, X, FileClock, ListOrdered, Edit, Anchor, Archive, History, Package, PackagePlus, Truck, ActivitySquare, Ship, User, Fingerprint, Briefcase, ChevronDown, LogOut, Calendar as CalendarIconLucide, Search, FilterX, ArrowRightLeft, ShieldAlert, Play, Pause, Check, Printer, Info, Trash2, Eraser, AlertTriangle } from 'lucide-react';
+import { Loader2, X, FileClock, ListOrdered, Edit, Anchor, Archive, History, Package, PackagePlus, Truck, ActivitySquare, Ship, User, Fingerprint, Briefcase, ChevronDown, LogOut, Calendar as CalendarIconLucide, Search, FilterX, ArrowRightLeft, ShieldAlert, Play, Pause, Check, Printer, Info, Trash2, Eraser } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Sidebar, SidebarProvider, SidebarInset, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
-import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, query, where, Timestamp, getDoc, deleteDoc, orderBy, writeBatch } from '@/lib/firebase';
+import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, query, where, Timestamp, getDoc, deleteDoc, orderBy } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -90,8 +90,6 @@ export default function AdminLogistikPage() {
   const [filteredPemasukan, setFilteredPemasukan] = useState<PemasukanLogEntry[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
-  const [isClearingData, setIsClearingData] = useState(false);
-  const [isClearDataConfirmOpen, setIsClearDataConfirmOpen] = useState(false);
 
 
    useEffect(() => {
@@ -534,45 +532,13 @@ export default function AdminLogistikPage() {
         setIsFetchingHistory(false);
     };
 
-    const clearAllData = async () => {
-        setIsClearingData(true);
-        toast({ title: "Memulai proses pembersihan data...", description: "Ini mungkin memakan waktu beberapa saat." });
-
-        const collectionsToClear = [
-            'rencana_pemasukan',
-            'available_jobs',
-            'archived_jobs',
-            'all_trip_histories',
-            'bongkar_state',
-            'arsip_pemasukan_material_semua'
-        ];
-
-        try {
-            for (const collectionName of collectionsToClear) {
-                const snapshot = await getDocs(collection(db, collectionName));
-                if (snapshot.empty) continue;
-
-                const batch = writeBatch(db);
-                snapshot.docs.forEach(doc => {
-                    batch.delete(doc.ref);
-                });
-                await batch.commit();
-                toast({ title: `Koleksi '${collectionName}' berhasil dibersihkan.` });
-            }
-            toast({ title: "Pembersihan Selesai", description: "Semua data logistik telah dihapus.", variant: "default" });
-        } catch (error) {
-            console.error("Error clearing data: ", error);
-            toast({ title: "Gagal Membersihkan Data", description: "Terjadi kesalahan saat menghapus data.", variant: "destructive" });
-        } finally {
-            setIsClearingData(false);
-            setIsClearDataConfirmOpen(false);
-        }
-    };
-
-
-  if (isLoading || !userInfo) {
-    return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin" /></div>;
-  }
+    if (isLoading || !userInfo) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center">
+                <Loader2 className="h-10 w-10 animate-spin" />
+            </div>
+        );
+    }
   
   return (
     <>
@@ -714,34 +680,16 @@ export default function AdminLogistikPage() {
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
-        <AlertDialog open={isClearDataConfirmOpen} onOpenChange={setIsClearDataConfirmOpen}>
-             <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle className='flex items-center gap-2'><AlertTriangle className="h-6 w-6 text-destructive"/>Peringatan Keras!</AlertDialogTitle>
-                    <AlertDialogDescriptionComponent>
-                        Anda akan menghapus **SEMUA** data transaksi logistik (Rencana, WO, Arsip, Riwayat Ritase, Riwayat Pemasukan). Tindakan ini **tidak dapat diurungkan**. Gunakan fitur ini hanya untuk tujuan reset selama masa pengembangan.
-                    </AlertDialogDescriptionComponent>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Batal</AlertDialogCancel>
-                    <AlertDialogAction onClick={clearAllData} className="bg-destructive hover:bg-destructive/90" disabled={isClearingData}>
-                        {isClearingData && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                        Ya, Hapus Semua Data
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
 
         <SidebarProvider><Sidebar><SidebarContent><SidebarHeader><h2 className="text-xl font-semibold text-foreground">Admin Logistik</h2></SidebarHeader><SidebarMenu className="flex-1">
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'status'} onClick={() => setActiveMenu('status')}><ActivitySquare />Status Bongkaran Hari Ini</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'rencana'} onClick={() => setActiveMenu('rencana')}><FileClock />Rencana Pemasukan Material</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'bongkar'} onClick={() => setActiveMenu('bongkar')}><Anchor />Bongkar Batu &amp; Pasir Hari Ini (WO-Sopir DT)</SidebarMenuButton></SidebarMenuItem>
-            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'riwayat-bongkar'} onClick={()={() => setActiveMenu('riwayat-bongkar')}}><Archive />Riwayat Bongkar</SidebarMenuButton></SidebarMenuItem>
+            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'riwayat-bongkar'} onClick={() => setActiveMenu('riwayat-bongkar')}><Archive />Riwayat Bongkar</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'pemasukan'} onClick={() => setActiveMenu('pemasukan')}><PackagePlus />Pemasukan Material</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'riwayat'} onClick={() => setActiveMenu('riwayat')}><History />Riwayat Pemasukan</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'daftar-kendaraan'} onClick={() => setActiveMenu('daftar-kendaraan')}><Truck />Daftar Kendaraan</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'stok'} onClick={() => router.push('/stok-material-logistik')}><Package />Stok Material</SidebarMenuButton></SidebarMenuItem>
-            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'clear-data'} onClick={() => setActiveMenu('clear-data')}><Eraser />Pembersihan Data</SidebarMenuButton></SidebarMenuItem>
         </SidebarMenu><SidebarFooter>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -764,7 +712,7 @@ export default function AdminLogistikPage() {
             </DropdownMenu>
         </SidebarFooter></SidebarContent></Sidebar>
             <SidebarInset><main className="flex-1 p-6 lg:p-10">
-                    <header className="flex items-center justify-between gap-4 mb-8"><div className='flex items-center gap-4'><SidebarTrigger /><div><h1 className="text-2xl font-bold tracking-wider">{activeMenu === 'pemasukan' ? 'Pemasukan Material' : activeMenu === 'riwayat' ? 'Riwayat Pemasukan Material' : activeMenu === 'rencana' ? 'Rencana Pemasukan Material' : activeMenu === 'riwayat-bongkar' ? 'Riwayat Bongkar Material' : activeMenu === 'status' ? 'Status Bongkaran Hari Ini' : activeMenu === 'daftar-kendaraan' ? 'Daftar Kendaraan Aktif' : activeMenu === 'clear-data' ? 'Pembersihan Data Logistik' : 'Bongkar Batu & Pasir Hari Ini (WO-Sopir DT)'}</h1><p className="text-muted-foreground">Lokasi: <span className='font-semibold text-primary'>{userInfo.lokasi}</span></p></div></div>{activeMenu === 'pemasukan' && (<Button variant="outline" onClick={() => handlePrintReport('today')}><Printer className="mr-2 h-4 w-4" /> Cetak Laporan Hari Ini</Button>)}</header>
+                    <header className="flex items-center justify-between gap-4 mb-8"><div className='flex items-center gap-4'><SidebarTrigger /><div><h1 className="text-2xl font-bold tracking-wider">{activeMenu === 'pemasukan' ? 'Pemasukan Material' : activeMenu === 'riwayat' ? 'Riwayat Pemasukan Material' : activeMenu === 'rencana' ? 'Rencana Pemasukan Material' : activeMenu === 'riwayat-bongkar' ? 'Riwayat Bongkar Material' : activeMenu === 'status' ? 'Status Bongkaran Hari Ini' : activeMenu === 'daftar-kendaraan' ? 'Daftar Kendaraan Aktif' : 'Bongkar Batu & Pasir Hari Ini (WO-Sopir DT)'}</h1><p className="text-muted-foreground">Lokasi: <span className='font-semibold text-primary'>{userInfo.lokasi}</span></p></div></div>{activeMenu === 'pemasukan' && (<Button variant="outline" onClick={() => handlePrintReport('today')}><Printer className="mr-2 h-4 w-4" /> Cetak Laporan Hari Ini</Button>)}</header>
                     
                     {activeMenu === 'status' && (<div className='space-y-6'>
                             <Card>
@@ -937,34 +885,9 @@ export default function AdminLogistikPage() {
                     
                     {activeMenu === 'riwayat' && (<Card><CardHeader><CardTitle>Filter Riwayat Pemasukan</CardTitle><CardDescription>Cari data pemasukan material berdasarkan rentang tanggal.</CardDescription></CardHeader><CardContent className="flex flex-col md:flex-row items-center gap-4"><Popover><PopoverTrigger asChild><Button id="date" variant={"outline"} className={cn("w-[300px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}><CalendarIconLucide className="mr-2 h-4 w-4" />{dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}</Button></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2}/></PopoverContent></Popover><Button onClick={handleSearchHistory} disabled={isFetchingHistory}>{isFetchingHistory ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Search className="mr-2 h-4 w-4"/>}Cari Riwayat</Button><Button variant="ghost" onClick={clearHistoryFilter}><FilterX className="mr-2 h-4 w-4"/>Reset</Button></CardContent><CardContent><CardHeader className="px-0 flex-row items-center justify-between"><div><CardTitle>Hasil Pencarian</CardTitle><CardDescription>Menampilkan {filteredPemasukan.length} dari {allPemasukan.length} total data riwayat.</CardDescription></div><Button variant="outline" onClick={() => handlePrintReport('history')} disabled={filteredPemasukan.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak Hasil</Button></CardHeader><div className="border rounded-md max-h-96 overflow-auto"><Table><TableHeader className="sticky top-0 bg-muted"><TableRow><TableHead>Waktu</TableHead><TableHead>Material</TableHead><TableHead>No. SPB</TableHead><TableHead>Kapal/Truk</TableHead><TableHead>Jumlah</TableHead><TableHead>Keterangan</TableHead></TableRow></TableHeader><TableBody>{isFetchingHistory ? (<TableRow><TableCell colSpan={6} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></TableCell></TableRow>) : filteredPemasukan.length > 0 ? (filteredPemasukan.map(entry => (<TableRow key={entry.id}><TableCell>{safeFormatDate(entry.timestamp, 'dd/MM/yy HH:mm')}</TableCell><TableCell>{entry.material}</TableCell><TableCell>{entry.noSpb}</TableCell><TableCell>{entry.namaKapal}</TableCell><TableCell>{entry.jumlah.toLocaleString('id-ID')} {entry.unit}</TableCell><TableCell>{entry.keterangan || '-'}</TableCell></TableRow>))) : (<TableRow><TableCell colSpan={6} className="h-48 text-center text-muted-foreground">Tidak ada data untuk filter yang dipilih.</TableCell></TableRow>)}</TableBody></Table></div></CardContent></Card>
                     )}
-
-                    {activeMenu === 'clear-data' && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-3"><Eraser />Pembersihan Data Logistik</CardTitle>
-                                <CardDescription>Gunakan fitur ini dengan sangat hati-hati untuk menghapus semua data transaksi logistik. Berguna untuk memulai dari awal selama masa pengembangan.</CardDescription>
-                            </CardHeader>
-                            <CardContent className="p-6 border-t">
-                                <div className="flex flex-col items-center justify-center p-8 bg-destructive/10 border border-destructive/30 rounded-lg text-center">
-                                    <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-                                    <h3 className="text-lg font-bold text-destructive-foreground">Peringatan Keras</h3>
-                                    <p className="text-destructive-foreground/80 mt-2 max-w-md">
-                                        Tindakan ini akan menghapus **SEMUA** data terkait logistik, termasuk rencana pemasukan, work order aktif, dan semua riwayat. Data yang dihapus tidak dapat dipulihkan.
-                                    </p>
-                                    <Button variant="destructive" className="mt-6" onClick={() => setIsClearDataConfirmOpen(true)} disabled={isClearingData}>
-                                        {isClearingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Trash2 className="mr-2 h-4 w-4"/>}
-                                        Hapus Semua Data Logistik
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-
                 </main>
             </SidebarInset>
         </SidebarProvider>
     </>
   );
 }
-
-    
