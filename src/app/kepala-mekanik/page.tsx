@@ -751,38 +751,26 @@ export default function KepalaMekanikPage() {
             return [];
         }
     
-        return reports
-            .filter(report => {
-                const latestReportForVehicle = getLatestReport(report.vehicleId, reports);
-                if (latestReportForVehicle?.id !== report.id) {
-                    return false;
-                }
-    
-                const isProblematic = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
-                if (!isProblematic) {
-                    return false;
-                }
-    
+        return Array.from(alat.values()).map(vehicle => {
+            const latestReport = getLatestReport(vehicle.nomorLambung, reports);
+            if (latestReport && (latestReport.overallStatus === 'rusak' || latestReport.overallStatus === 'perlu perhatian')) {
                 const hasActiveTask = mechanicTasks.some(task => 
-                    task.vehicle?.triggeringReportId === report.id
+                    task.vehicle?.triggeringReportId === latestReport.id || 
+                    (task.vehicle?.hullNumber === vehicle.nomorLambung && task.status !== 'COMPLETED')
                 );
-                if (hasActiveTask) {
-                    return false;
+                if (!hasActiveTask) {
+                    return latestReport;
                 }
-                
-                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-                if (userInfo?.lokasi && vehicle?.lokasi !== userInfo.lokasi) {
-                    return false;
-                }
-    
-                return true;
-            })
-            .sort((a, b) => {
-                const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-                const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-                return dateB - dateA;
-            });
-    }, [reports, alat, mechanicTasks, userInfo, getLatestReport]);
+            }
+            return null;
+        }).filter((report): report is Report => report !== null)
+          .sort((a, b) => {
+            const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            return dateB - dateA;
+        });
+
+    }, [reports, alat, mechanicTasks, getLatestReport]);
 
     const activeTasks = useMemo(() => {
     return mechanicTasks
@@ -984,6 +972,13 @@ export default function KepalaMekanikPage() {
     router.push('/login');
   };
   
+  const handleMenuClick = (menuName: ActiveMenu) => {
+    if (menuName === 'Pesan Masuk') {
+      setHasNewMessage(false);
+    }
+    setActiveMenu(menuName);
+  };
+
   const optimisticTaskUpdate = (taskId: string, updatedProps: Partial<MechanicTask>) => {
     setMechanicTasks(prevTasks =>
         prevTasks.map(t =>
@@ -1313,7 +1308,9 @@ export default function KepalaMekanikPage() {
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>Tunda Pekerjaan</AlertDialogTitle>
-                <AlertDialogDescription>Masukkan alasan mengapa pekerjaan untuk <strong>{taskToDelay?.vehicle.hullNumber}</strong> ditunda. Ini akan menjeda penghitungan waktu kerja efektif.</AlertDialogDescription>
+                <AlertDialogDescription>
+                    Masukkan alasan mengapa pekerjaan untuk <strong>{taskToDelay?.vehicle.hullNumber}</strong> ditunda. Ini akan menjeda penghitungan waktu kerja efektif.
+                </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="py-4">
                 <Textarea 
@@ -1398,7 +1395,7 @@ export default function KepalaMekanikPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Workshop</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
@@ -1417,7 +1414,10 @@ export default function KepalaMekanikPage() {
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
-            <SidebarFooter>
+            <SidebarFooter className="p-2 space-y-2">
+                 <div className="text-center p-4 border rounded-lg">
+                    <h3 className="font-bold text-lg">Logo PT Farika Riau Perkasa</h3>
+                 </div>
                 <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-muted-foreground">
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
