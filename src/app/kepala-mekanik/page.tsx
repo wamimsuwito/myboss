@@ -145,7 +145,7 @@ const StatCard = ({ title, value, description, icon: Icon, color, onClick }: { t
     </Card>
 );
 
-const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { vehicle: AlatData, report: Report, mechanics: UserData[], onTaskCreated: (newTask: MechanicTask) => void }) => {
+const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { vehicle: AlatData, report: Report, mechanics: UserData[], onTaskCreated: () => void }) => {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -182,11 +182,10 @@ const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { 
         };
 
         try {
-            const docRef = await addDoc(collection(db, 'mechanic_tasks'), newTaskData);
-            const finalTask: MechanicTask = { ...newTaskData, id: docRef.id };
+            await addDoc(collection(db, 'mechanic_tasks'), newTaskData);
             toast({ title: "Work Order Berhasil Dibuat" });
             form.reset();
-            onTaskCreated(finalTask);
+            onTaskCreated();
             setIsOpen(false);
         } catch (error) {
             console.error("Error creating task:", error);
@@ -496,7 +495,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
       <>
         <div className='hidden print:block'>
             <div id="history-print-area">
-                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
+                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={users} location={user?.lokasi} />
             </div>
         </div>
         <Card className="no-print">
@@ -805,11 +804,8 @@ export default function KepalaMekanikPage() {
         return { totalAlat: defaultStats, sudahChecklist: defaultStats, belumChecklist: defaultStats, alatBaik: defaultStats, perluPerhatian: defaultStats, alatRusak: defaultStats, alatRusakBerat: defaultStats, alatTdkAdaOperator: defaultStats };
     }
     
-    // Total alat dihitung dari semua alat di lokasi, termasuk yang dikarantina.
     const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
     const alatRusakBeratList = alatInLocation.filter(a => a.statusKarantina);
-    
-    // Perhitungan operasional hanya untuk alat yang tidak dikarantina.
     const alatOperasional = alatInLocation.filter(a => !a.statusKarantina);
     
     const mapToDetailFormat = (items: AlatData[], statusSource: 'latest' | 'belum' | 'karantina' | 'unpaired') => {
@@ -1201,7 +1197,7 @@ export default function KepalaMekanikPage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right">
-                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={(newTask: any) => setMechanicTasks(prev => [newTask, ...prev])} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
+                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={() => {}} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
                                                         </TableCell>
                                                     </TableRow>
                                                 )
@@ -1304,7 +1300,7 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />
+             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         case 'Absensi':
              if (!userInfo) return null;
              return <Card><CardHeader><CardTitle>Absensi</CardTitle></CardHeader><CardContent><p>Halaman absensi.</p></CardContent></Card>;
@@ -1368,7 +1364,7 @@ export default function KepalaMekanikPage() {
                         <TableRow>
                             <TableHead>No. Polisi</TableHead>
                             <TableHead>No. Lambung</TableHead>
-                            <TableHead>Sopir/Pelapor</TableHead>
+                            <TableHead>Sopir (Batangan)</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -1400,6 +1396,24 @@ export default function KepalaMekanikPage() {
         </DialogContent>
       </Dialog>
       
+       <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Konfirmasi Status Karantina</AlertDialogTitle>
+                <AlertDialogDescription>
+                   Anda yakin ingin {quarantineTarget?.statusKarantina ? 'mengeluarkan' : 'memasukkan'} kendaraan <strong>{quarantineTarget?.nomorLambung}</strong> {quarantineTarget?.statusKarantina ? 'dari' : 'ke dalam'} karantina?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmQuarantine}>
+                    Ya, Konfirmasi
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+
     <SidebarProvider>
       <div className="flex min-h-screen bg-background text-foreground">
         <Sidebar>
