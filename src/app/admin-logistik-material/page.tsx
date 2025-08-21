@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { RencanaPemasukan, UserData, LocationData, Job, AlatData, TripLog, ArchivedJob, PemasukanLogEntry } from '@/lib/types';
 import { useRouter } from 'next/navigation';
-import { Loader2, X, FileClock, ListOrdered, Edit, Anchor, Archive, History, Package, PackagePlus, Truck, ActivitySquare, Ship, User, Fingerprint, Briefcase, ChevronDown, LogOut, Calendar as CalendarIconLucide, Search, FilterX, ArrowRightLeft, ShieldAlert, Play, Pause, Check, Printer, Info, Trash2, Eraser } from 'lucide-react';
+import { Loader2, X, FileClock, ListOrdered, Edit, Anchor, Archive, History, Package, PackagePlus, Truck, ActivitySquare, Ship, User, Fingerprint, Briefcase, ChevronDown, LogOut, Calendar as CalendarIconLucide, Search, FilterX, ArrowRightLeft, ShieldAlert, Play, Pause, Check, Printer, Info, Trash2, Eraser, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -33,7 +33,8 @@ const materialConfig = [
     { key: 'batu', name: 'BATU' },
 ];
 const SHIP_TANK_COUNT = 6;
-const MUATAN_PER_RIT_ESTIMASI = 20;
+const MUATAN_PER_RIT_ESTIMASI_PASIR = 18;
+const MUATAN_PER_RIT_ESTIMASI_BATU = 20;
 
 
 const safeFormatDate = (dateInput: any, formatString: string) => {
@@ -320,8 +321,8 @@ export default function AdminLogistikPage() {
             updateData.jamMulai = new Date().toISOString();
         } else if (newStatus === 'Selesai' && !jobData.jamSelesai) {
              const ritasiSelesai = (allTripHistories[jobId] || []).length;
-             // The "actual" volume is now stored in totalVolume. `volumeTerbongkar` is just an estimate for display.
-             const finalVolumeTerbongkar = ritasiSelesai * MUATAN_PER_RIT_ESTIMASI;
+             const muatanPerRit = jobData.material === 'Pasir' ? MUATAN_PER_RIT_ESTIMASI_PASIR : MUATAN_PER_RIT_ESTIMASI_BATU;
+             const finalVolumeTerbongkar = ritasiSelesai * muatanPerRit;
              
              updateData.volumeTerbongkar = finalVolumeTerbongkar;
              updateData.sisaVolume = Math.max(0, jobData.totalVolume - finalVolumeTerbongkar);
@@ -802,9 +803,13 @@ export default function AdminLogistikPage() {
                                 </CardContent>
                             </Card>
                             <Card><CardHeader><CardTitle className="flex items-center gap-3"><Anchor className="text-primary"/>Bongkaran Batu/Pasir Sedang Berjalan</CardTitle></CardHeader><CardContent className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                                {jobs.filter(j => j.status === 'Proses').length > 0 ? jobs.filter(j => j.status === 'Proses').map(job => {
-                                    const trips = allTripHistories[job.id] || []; const ritasi = trips.length; const volumeTerbongkar = ritasi * MUATAN_PER_RIT_ESTIMASI; const activeSopir = new Set(trips.map(t => t.sopirId)).size; const duration = job.jamMulai ? formatDistanceStrict(currentTime, new Date(job.jamMulai), { locale: localeID }) : '0 menit';
-                                    return (<Card key={job.id} className="bg-card/50"><CardHeader className="pb-2"><CardTitle className="truncate">{job.namaKapal} ({job.material})</CardTitle></CardHeader><CardContent className='space-y-2 text-sm'><p><strong>Volume:</strong> {volumeTerbongkar.toLocaleString()} / {job.totalVolume.toLocaleString()} M³</p><p><strong>Ritasi:</strong> {ritasi} Rit</p><p><strong>Jumlah DT:</strong> {activeSopir} Kendaraan</p><p><strong>Waktu Berjalan:</strong> {duration}</p></CardContent></Card>)
+                                {jobs.filter(j => j.status === 'Proses').map(job => {
+                                    const trips = allTripHistories[job.id] || []; const ritasi = trips.length; 
+                                    const muatanPerRit = job.material === 'Pasir' ? MUATAN_PER_RIT_ESTIMASI_PASIR : MUATAN_PER_RIT_ESTIMASI_BATU;
+                                    const volumeTerbongkar = ritasi * muatanPerRit; 
+                                    const activeSopir = new Set(trips.map(t => t.sopirId)).size; 
+                                    const duration = job.jamMulai ? formatDistanceStrict(currentTime, new Date(job.jamMulai), { locale: localeID }) : '0 menit';
+                                    return (<Card key={job.id} className="bg-card/50"><CardHeader className="pb-2"><CardTitle className="truncate">{job.namaKapal} ({job.material})</CardTitle></CardHeader><CardContent className='space-y-2 text-sm'><p><strong>Estimasi Volume:</strong> {volumeTerbongkar.toLocaleString()} / {job.totalVolume.toLocaleString()} M³</p><p><strong>Ritasi:</strong> {ritasi} Rit</p><p><strong>Jumlah DT:</strong> {activeSopir} Kendaraan</p><p><strong>Waktu Berjalan:</strong> {duration}</p></CardContent></Card>)
                                 }) : <p className='text-muted-foreground col-span-full text-center py-4'>Tidak ada aktivitas bongkar batu/pasir saat ini.</p>}
                             </CardContent></Card>
                         </div>
@@ -862,7 +867,7 @@ export default function AdminLogistikPage() {
                                     
                                     {newRencana.jenisMaterial !== 'SEMEN' && (
                                         <>
-                                            <div className="space-y-1"><Label>Volume Estimasi</Label><Input type="number" value={newRencana.estimasiMuatan || ''} onChange={e => handleNewRencanaChange('estimasiMuatan', Number(e.target.value))} placeholder="0" /></div>
+                                            <div className="space-y-1"><Label>Volume Estimasi (M³)</Label><Input type="number" value={newRencana.estimasiMuatan || ''} onChange={e => handleNewRencanaChange('estimasiMuatan', Number(e.target.value))} placeholder="0" /></div>
                                             <div className="space-y-1"><Label>Nomor SPB</Label><Input value={newRencana.noSpb || ''} onChange={e => handleNewRencanaChange('noSpb', e.target.value.toUpperCase())} placeholder="Nomor Surat Jalan" /></div>
                                         </>
                                     )}
@@ -880,9 +885,10 @@ export default function AdminLogistikPage() {
                     {activeMenu === 'bongkar' && (<div className="space-y-8">
                         <Card>
                             <CardHeader><CardTitle>Daftar Perintah Bongkar Aktif</CardTitle><CardDescription>Monitor dan ubah status pekerjaan bongkar yang sedang berjalan.</CardDescription></CardHeader>
-                            <CardContent><div className="border rounded-md overflow-auto"><Table><TableHeader><TableRow><TableHead>Kapal/Truk</TableHead><TableHead>Status</TableHead><TableHead>Rit</TableHead><TableHead>Vol. Total</TableHead><TableHead>Estimasi Vol. Terbongkar</TableHead><TableHead>Estimasi Sisa Volume</TableHead><TableHead>Jam Mulai</TableHead><TableHead>Jam Selesai</TableHead><TableHead>Waktu Tunda</TableHead><TableHead>Waktu Efektif</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{activeJobs.length > 0 ? activeJobs.map(job => { 
+                            <CardContent><div className="border rounded-md overflow-auto"><Table><TableHeader><TableRow><TableHead>Kapal/Truk</TableHead><TableHead>Status</TableHead><TableHead>Rit</TableHead><TableHead>Vol. Aktual</TableHead><TableHead>Estimasi Vol. Terbongkar</TableHead><TableHead>Estimasi Sisa Volume</TableHead><TableHead>Jam Mulai</TableHead><TableHead>Jam Selesai</TableHead><TableHead>Waktu Tunda</TableHead><TableHead>Waktu Efektif</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{activeJobs.length > 0 ? activeJobs.map(job => { 
                                 const ritasiBerjalan = (allTripHistories[job.id] || []).length;
-                                const volumeTerbongkar = ritasiBerjalan * MUATAN_PER_RIT_ESTIMASI;
+                                const muatanPerRit = job.material === 'Pasir' ? MUATAN_PER_RIT_ESTIMASI_PASIR : MUATAN_PER_RIT_ESTIMASI_BATU;
+                                const volumeTerbongkar = ritasiBerjalan * muatanPerRit;
                                 const sisaVolume = Math.max(0, job.totalVolume - volumeTerbongkar);
                                 
                                 return (<TableRow key={job.id}><TableCell className="font-semibold">{job.namaKapal} <span className="text-muted-foreground">({job.material})</span>{job.riwayatTunda && job.riwayatTunda.length > 0 && (<ol className="text-xs text-orange-500 list-decimal list-inside mt-1 italic">{job.riwayatTunda.map((tunda, index) => <li key={index}>{tunda.alasan}</li>)}</ol>)}</TableCell><TableCell><Select value={job.status} onValueChange={(newStatus) => handleJobStatusChange(job.id, newStatus as Job['status'])} disabled={job.status === 'Selesai'}><SelectTrigger className='w-32'><SelectValue/></SelectTrigger><SelectContent><SelectItem value="Menunggu"><Play className="inline-block mr-2 h-4 w-4 text-gray-500" />Menunggu</SelectItem><SelectItem value="Proses"><Play className="inline-block mr-2 h-4 w-4 text-blue-500" />Proses</SelectItem><SelectItem value="Tunda"><Pause className="inline-block mr-2 h-4 w-4 text-yellow-500" />Tunda</SelectItem><SelectItem value="Selesai"><Check className="inline-block mr-2 h-4 w-4 text-green-500" />Selesai</SelectItem></SelectContent></Select></TableCell><TableCell>{ritasiBerjalan}</TableCell><TableCell>{job.totalVolume} M³</TableCell><TableCell>{volumeTerbongkar} M³</TableCell><TableCell>{sisaVolume} M³</TableCell><TableCell>{safeFormatDate(job.jamMulai, 'dd MMM, HH:mm')}</TableCell><TableCell>{safeFormatDate(job.jamSelesai, 'dd MMM, HH:mm')}</TableCell><TableCell>{job.totalWaktuTunda ? formatDistanceStrict(0, job.totalWaktuTunda, { locale: localeID }) : '-'}</TableCell><TableCell>{calculateEffectiveTime(job)}</TableCell><TableCell className="text-right">
