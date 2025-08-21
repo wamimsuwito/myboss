@@ -670,67 +670,58 @@ export default function KepalaMekanikPage() {
   const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
-  
-  const getStatusBadge = useCallback((status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
-    switch (status) {
-      case 'baik':
-        return <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-300">Baik</Badge>;
-      case 'perlu perhatian':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Perlu Perhatian</Badge>;
-      case 'rusak':
-        return <Badge variant="destructive">Rusak</Badge>;
-       case 'Karantina':
-        return <Badge variant="destructive">Karantina</Badge>;
-      case 'Tanpa Operator':
-          return <Badge variant="secondary">Tanpa Operator</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
+
+  useEffect(() => {
+    const userString = localStorage.getItem('user');
+    if (!userString) {
+      router.replace('/login');
+      return;
     }
-  }, []);
-
-  const getLatestReport = useCallback((vehicleId: string, allReports: Report[]): Report | undefined => {
-    if (!Array.isArray(allReports)) return undefined;
-    return allReports
-      .filter(r => r.vehicleId === vehicleId)
-      .sort((a, b) => {
-          const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-          const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-          return dateB - dateA;
-      })[0];
-  }, []);
-
-  const dataTransformer = useCallback((docData: any) => {
-    const transformedData = { ...docData };
-  
-    const timestampFieldsToMillis = ['createdAt', 'startedAt', 'completedAt'];
-    timestampFieldsToMillis.forEach(field => {
-        if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
-          transformedData[field] = transformedData[field].toDate().getTime();
-        }
-    });
-
-    const timestampFieldsToDate = ['timestamp'];
-    timestampFieldsToDate.forEach(field => {
-        if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
-          transformedData[field] = transformedData[field].toDate();
-        }
-    });
-  
-    if (transformedData.riwayatTunda && Array.isArray(transformedData.riwayatTunda)) {
-      transformedData.riwayatTunda = transformedData.riwayatTunda.map((tundaItem: any) => {
-        const newTundaItem = { ...tundaItem };
-        if (newTundaItem.waktuMulai && typeof newTundaItem.waktuMulai.toDate === 'function') {
-          newTundaItem.waktuMulai = newTundaItem.waktuMulai.toDate();
-        }
-        if (newTundaItem.waktuSelesai && typeof newTundaItem.waktuSelesai.toDate === 'function') {
-          newTundaItem.waktuSelesai = newTundaItem.waktuSelesai.toDate();
-        }
-        return newTundaItem;
+    const userData = JSON.parse(userString);
+     if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
+      toast({
+        variant: 'destructive',
+        title: 'Akses Ditolak',
+        description: 'Anda tidak memiliki hak untuk mengakses halaman ini.',
       });
+      router.replace('/login');
+      return;
     }
+    setUserInfo(userData);
+  }, [router, toast]);
   
-    return transformedData;
-  }, []);
+    const dataTransformer = useCallback((docData: any) => {
+        const transformedData = { ...docData };
+    
+        const timestampFieldsToMillis = ['createdAt', 'startedAt', 'completedAt'];
+        timestampFieldsToMillis.forEach(field => {
+            if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
+              transformedData[field] = transformedData[field].toDate().getTime();
+            }
+        });
+
+        const timestampFieldsToDate = ['timestamp'];
+        timestampFieldsToDate.forEach(field => {
+            if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
+              transformedData[field] = transformedData[field].toDate();
+            }
+        });
+    
+        if (transformedData.riwayatTunda && Array.isArray(transformedData.riwayatTunda)) {
+          transformedData.riwayatTunda = transformedData.riwayatTunda.map((tundaItem: any) => {
+            const newTundaItem = { ...tundaItem };
+            if (newTundaItem.waktuMulai && typeof newTundaItem.waktuMulai.toDate === 'function') {
+              newTundaItem.waktuMulai = newTundaItem.waktuMulai.toDate();
+            }
+            if (newTundaItem.waktuSelesai && typeof newTundaItem.waktuSelesai.toDate === 'function') {
+              newTundaItem.waktuSelesai = newTundaItem.waktuSelesai.toDate();
+            }
+            return newTundaItem;
+          });
+        }
+    
+        return transformedData;
+    }, []);
   
   const setupListener = useCallback((collectionName: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
         const q = query(collection(db, collectionName));
@@ -979,6 +970,14 @@ export default function KepalaMekanikPage() {
   const handleLogout = () => {
     localStorage.removeItem('user');
     router.push('/login');
+  };
+  
+  const optimisticTaskUpdate = (taskId: string, updatedProps: Partial<MechanicTask>) => {
+    setMechanicTasks(prevTasks =>
+        prevTasks.map(t =>
+            t.id === taskId ? { ...t, ...updatedProps } : t
+        )
+    );
   };
   
   const handleTaskStatusChange = async (taskId: string, newStatus: MechanicTask['status']) => {
@@ -1283,52 +1282,6 @@ export default function KepalaMekanikPage() {
                 </Card>
                 </div>
             );
-        case 'Anggota Mekanik': {
-          const mekanikUsers = users.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK") && u.lokasi === userInfo?.lokasi);
-          return (
-            <Card>
-              <CardHeader>
-                <CardTitle>Daftar Anggota Tim Mekanik</CardTitle>
-                <CardDescription>Berikut adalah daftar mekanik yang terdaftar di lokasi Anda ({userInfo?.lokasi}).</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Nama Lengkap</TableHead>
-                        <TableHead>NIK</TableHead>
-                        <TableHead>Tugas Aktif</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {isFetchingData ? (
-                        <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin"/></TableCell></TableRow>
-                      ) : mekanikUsers.length > 0 ? (
-                        mekanikUsers.map(mekanik => {
-                          const activeTaskCount = mechanicTasks.filter(t => t.mechanics.some(m => m.id === mekanik.id) && t.status !== 'COMPLETED').length;
-                          return (
-                            <TableRow key={mekanik.id}>
-                              <TableCell className="font-medium">{mekanik.username}</TableCell>
-                              <TableCell>{mekanik.nik}</TableCell>
-                              <TableCell>{activeTaskCount} Tugas</TableCell>
-                              <TableCell>
-                                {activeTaskCount > 0 ? <Badge>Sedang Bertugas</Badge> : <Badge variant="secondary">Standby</Badge>}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      ) : (
-                        <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada mekanik yang terdaftar di lokasi ini.</TableCell></TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        }
         case 'Histori Perbaikan Alat':
             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />
         default:
@@ -1336,7 +1289,7 @@ export default function KepalaMekanikPage() {
     }
   }
 
-  if (isLoading || !userInfo) {
+  if (isFetchingData || !userInfo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
