@@ -15,8 +15,6 @@ import { cn } from '@/lib/utils';
 import type { Job, TripLog, UserData } from '@/lib/types';
 import { db, collection, getDocs, doc, updateDoc, addDoc, onSnapshot, query, where, setDoc, getDoc } from '@/lib/firebase';
 
-const MUATAN_PER_RIT_ESTIMASI = 20; // m3
-
 const getStepDetails = (step: 'idle' | 'departed_from_bp' | 'arrived_at_destination' | 'loading_started' | 'loading_finished' | 'departed_from_destination', destination: string) => {
     switch (step) {
         case 'idle': return { title: 'Siap Berangkat', buttonText: 'Mulai Ritase' };
@@ -49,6 +47,9 @@ export default function CatatRitBongkarPage() {
         if (activeJob.material === 'Pasir') return 'Dermaga Buffer Silo';
         return '';
     }, [activeJob]);
+
+    const MUATAN_PER_RIT_ESTIMASI_PASIR = 18;
+    const MUATAN_PER_RIT_ESTIMASI_BATU = 20;
 
     const loadStateFromFirestore = useCallback(async (userId: string) => {
         const stateDocQuery = await getDocs(query(collection(db, 'driver_states'), where('userId', '==', userId)));
@@ -180,9 +181,10 @@ export default function CatatRitBongkarPage() {
             switch (currentStep) {
                 case 'idle':
                     nextStep = 'departed_from_bp';
+                    const newTripNumber = (tripHistory.length > 0 ? Math.max(...tripHistory.map(t => t.tripNumber)) : 0) + 1;
                     updatedLog = { 
                         jobId: activeJob.id,
-                        tripNumber: tripHistory.length + 1, 
+                        tripNumber: newTripNumber, 
                         material: activeJob.material,
                         destination: destination,
                         sopirId: userInfo.id,
@@ -216,14 +218,8 @@ export default function CatatRitBongkarPage() {
                     
                     await addDoc(collection(db, 'all_trip_histories'), finalTripLog);
                     
-                    const jobDocRef = doc(db, 'available_jobs', activeJob.id);
-                    const newVolumeTerbongkar = (activeJob.volumeTerbongkar || 0) + MUATAN_PER_RIT_ESTIMASI;
-                    const newSisaVolume = activeJob.totalVolume - newVolumeTerbongkar;
-
-                    await updateDoc(jobDocRef, {
-                        volumeTerbongkar: newVolumeTerbongkar,
-                        sisaVolume: newSisaVolume,
-                    });
+                    // Volume update is now just for estimation, not for stock deduction
+                    // This can be simplified or removed if not needed for display
                     
                     updatedLog = { jobId: activeJob.id };
                     toast({ title: 'Siklus Selesai', description: `Rit ke-${newHistory.length} telah dicatat.`});
@@ -241,7 +237,8 @@ export default function CatatRitBongkarPage() {
     };
 
     const ritasiSelesai = tripHistory.length;
-    const estimasiVolumeTerbongkar = ritasiSelesai * MUATAN_PER_RIT_ESTIMASI;
+    const muatanPerRitEstimasi = activeJob?.material === 'Pasir' ? MUATAN_PER_RIT_ESTIMASI_PASIR : MUATAN_PER_RIT_ESTIMASI_BATU;
+    const estimasiVolumeTerbongkar = ritasiSelesai * muatanPerRitEstimasi;
     const estimasiSisaVolume = activeJob ? activeJob.totalVolume - estimasiVolumeTerbongkar : 0;
     const pemakaianBBM = activeJob ? ritasiSelesai * activeJob.bbmPerRit : 0;
 
@@ -356,3 +353,5 @@ export default function CatatRitBongkarPage() {
         </div>
     );
 }
+
+    

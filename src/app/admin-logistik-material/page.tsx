@@ -797,7 +797,7 @@ export default function AdminLogistikPage() {
                                 </CardContent>
                             </Card>
                             <Card><CardHeader><CardTitle className="flex items-center gap-3"><Anchor className="text-primary"/>Bongkaran Batu/Pasir Sedang Berjalan</CardTitle></CardHeader><CardContent className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                                {jobs.filter(j => j.status === 'Proses').map(job => {
+                                {jobs.filter(j => j.status === 'Proses').length > 0 ? jobs.filter(j => j.status === 'Proses').map(job => {
                                     const trips = allTripHistories[job.id] || []; const ritasi = trips.length; 
                                     const muatanPerRit = job.material === 'Pasir' ? MUATAN_PER_RIT_ESTIMASI_PASIR : MUATAN_PER_RIT_ESTIMASI_BATU;
                                     const volumeTerbongkar = ritasi * muatanPerRit; 
@@ -966,3 +966,5 @@ export default function AdminLogistikPage() {
     </>
   );
 }
+
+    
