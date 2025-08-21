@@ -671,6 +671,17 @@ export default function KepalaMekanikPage() {
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
 
+  const getLatestReport = useCallback((vehicleId: string, allReports: Report[]): Report | undefined => {
+    if (!Array.isArray(allReports)) return undefined;
+    return allReports
+      .filter(r => r.vehicleId === vehicleId)
+      .sort((a, b) => {
+          const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return dateB - dateA;
+      })[0];
+  }, []);
+
   useEffect(() => {
     const userString = localStorage.getItem('user');
     if (!userString) {
@@ -1108,13 +1119,6 @@ export default function KepalaMekanikPage() {
     }
   };
 
-  const handleMenuClick = (menuName: ActiveMenu) => {
-    if (menuName === 'Pesan Masuk') {
-      setHasNewMessage(false);
-    }
-    setActiveMenu(menuName);
-  };
-  
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1372,7 +1376,7 @@ export default function KepalaMekanikPage() {
         </DialogContent>
       </Dialog>
       
-        <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
+       <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
          <AlertDialogContent>
              <AlertDialogHeader>
                  <AlertDialogTitle>Konfirmasi Status Karantina</AlertDialogTitle>
