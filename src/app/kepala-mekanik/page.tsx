@@ -1,13 +1,13 @@
+"use client";
 
-'use client';
-
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -15,78 +15,81 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+} from "@/components/ui/table";
+import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import type { UserData, Report, AlatData, MechanicTask, SopirBatanganData, LocationData } from '@/lib/types';
+import { cn, printElement } from '@/lib/utils';
+import { db, collection, doc, updateDoc, onSnapshot, addDoc, query, where, Timestamp, deleteDoc, getDocs } from '@/lib/firebase';
+import { format, subDays, startOfDay, endOfDay, isAfter, isBefore, isSameDay, formatDistanceStrict, differenceInMinutes } from "date-fns";
+import { id as localeID } from 'date-fns/locale';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   ClipboardList,
   History,
   Users,
-  ShieldAlert,
   LogOut,
   Wrench,
   Loader2,
-  Calendar as CalendarIcon,
-  Plus,
+  CalendarIcon,
+  PlusCircle,
   Copy,
   CheckCircle,
-  XCircle,
   AlertTriangle,
   WrenchIcon,
   UserX,
   Pencil,
-  Trash2,
   Save,
-  ArrowRightLeft,
-  PlusCircle,
-  Camera,
-  ActivitySquare,
-  Check,
-  Printer,
-  FilterX,
-  MessageSquareWarning,
-  Lightbulb,
-  Mail,
-  Truck,
-  Fingerprint,
-  Briefcase,
+  ShieldAlert,
   ShieldX,
   Star,
   FileText,
   ClipboardCheck,
-} from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import type { UserData, Report, LocationData, SopirBatanganData, AlatData, MechanicTask } from '@/lib/types';
-import { cn, printElement } from '@/lib/utils';
-import { format, startOfToday, isSameDay, isBefore, subDays, startOfDay, endOfDay, isAfter, formatDistanceStrict, differenceInMinutes, differenceInMilliseconds, formatRelative } from 'date-fns';
-import { id as localeID } from 'date-fns/locale';
-import Link from 'next/link';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { DateRange } from 'react-day-picker';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { db, collection, getDocs, doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, addDoc, query, where, Timestamp } from '@/lib/firebase';
-import { Skeleton } from '@/components/ui/skeleton';
+  Mail,
+  Fingerprint,
+  Briefcase,
+  Printer,
+  FilterX,
+  Camera,
+  ArrowRightLeft,
+  Trash2,
+  MessageSquareWarning,
+  Lightbulb,
+  Inbox,
+  Truck,
+  Eye,
+  Play,
+  Pause,
+  Check,
+} from "lucide-react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useForm } from "react-hook-form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogDescription, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { DateRange } from "react-day-picker";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarInset, SidebarTrigger, SidebarSeparator } from '@/components/ui/sidebar';
-import HistoryPrintLayout from '@/components/history-print-layout';
+import HistoryPrintLayout from "@/components/history-print-layout";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 
 type ActiveMenu = 
@@ -94,11 +97,13 @@ type ActiveMenu =
   | 'Manajemen Work Order'
   | 'Histori Perbaikan Alat' 
   | 'Anggota Mekanik'
-  | 'Absensi'
-  | 'Kegiatan'
-  | 'Riwayat Kegiatan'
+  | 'Sopir & Batangan'
+  | 'Alat Rusak Berat/Karantina' 
+  | 'Laporan Logistik'
+  | 'Manajemen Pengguna'
   | 'Riwayat Penalti'
-  | 'Riwayat Reward'
+  | 'Komplain dari Sopir'
+  | 'Usulan / Saran dari Sopir'
   | 'Pesan Masuk';
 
 const menuItems = [
@@ -109,14 +114,9 @@ const menuItems = [
 ];
 
 const secondaryMenuItems = [
-    { name: 'Absensi', icon: ClipboardCheck, href: '/absensi' },
-    { name: 'Kegiatan', icon: FileText, href: '/kegiatan' },
-    { name: 'Riwayat Kegiatan', icon: History, href: '/riwayat-kegiatan' },
     { name: 'Riwayat Penalti', icon: ShieldX, href: '/riwayat-saya?type=penalty' },
-    { name: 'Riwayat Reward', icon: Star, href: '/riwayat-saya?type=reward' },
     { name: 'Pesan Masuk', icon: Mail, href: '#' },
 ];
-
 
 const taskFormSchema = z.object({
   mechanics: z.array(z.object({ id: z.string(), name: z.string() })).min(1, "Pilih minimal satu mekanik."),
@@ -125,6 +125,7 @@ const taskFormSchema = z.object({
 });
 
 type TaskFormData = z.infer<typeof taskFormSchema>;
+
 
 const StatCard = ({ title, value, description, icon: Icon, color, onClick }: { title: string, value: string, description: string, icon: React.ElementType, color: string, onClick?: () => void }) => (
     <Card className="hover:bg-accent/50 transition-colors cursor-pointer" onClick={onClick}>
@@ -204,102 +205,102 @@ const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { 
                         Pilih mekanik dan tentukan target penyelesaian perbaikan.
                     </DialogDescription>
                 </DialogHeader>
-                   <Form {...form}>
-                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
-                       <FormField
-                       control={form.control}
-                       name="mechanics"
-                       render={({ field }) => (
-                         <FormItem>
-                           <FormLabel>Pilih Mekanik</FormLabel>
-                             <Popover>
-                                 <PopoverTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-start">
-                                       <PlusCircle className="mr-2"/>
-                                       {field.value.length > 0 ? field.value.map(m => m.name).join(', ') : "Pilih mekanik"}
+                 <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
+                     <FormField
+                      control={form.control}
+                      name="mechanics"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Pilih Mekanik</FormLabel>
+                           <Popover>
+                              <PopoverTrigger asChild>
+                                 <Button variant="outline" className="w-full justify-start">
+                                    <PlusCircle className="mr-2"/>
+                                    {field.value.length > 0 ? field.value.map(m => m.name).join(', ') : "Pilih mekanik"}
+                                 </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                  <Command>
+                                    <CommandInput placeholder="Cari mekanik..." />
+                                    <CommandList>
+                                        <CommandEmpty>Tidak ada mekanik.</CommandEmpty>
+                                        <CommandGroup>
+                                            {mechanics.filter(m => m.jabatan?.toUpperCase().includes('MEKANIK')).map((mechanic) => {
+                                                const isSelected = field.value.some(m => m.id === mechanic.id);
+                                                return (
+                                                    <CommandItem
+                                                        key={mechanic.id}
+                                                        onSelect={() => {
+                                                            const currentMechanics = field.value;
+                                                            if (isSelected) {
+                                                                form.setValue("mechanics", currentMechanics.filter(m => m.id !== mechanic.id));
+                                                            } else {
+                                                                form.setValue("mechanics", [...currentMechanics, { id: mechanic.id, name: mechanic.username }]);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
+                                                            <Check className="h-4 w-4" />
+                                                        </div>
+                                                        <span>{mechanic.username}</span>
+                                                    </CommandItem>
+                                                )
+                                            })}
+                                        </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                              </PopoverContent>
+                           </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="targetDate"
+                            render={({ field }) => (
+                            <FormItem className="flex flex-col">
+                                <FormLabel>Target Selesai</FormLabel>
+                                <Popover>
+                                <PopoverTrigger asChild>
+                                    <FormControl>
+                                    <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                        {field.value ? format(field.value, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                                     </Button>
-                                 </PopoverTrigger>
-                                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                     <Command>
-                                       <CommandInput placeholder="Cari mekanik..." />
-                                       <CommandList>
-                                         <CommandEmpty>Tidak ada mekanik.</CommandEmpty>
-                                         <CommandGroup>
-                                             {mechanics.filter(m => m.jabatan?.toUpperCase().includes('MEKANIK')).map((mechanic) => {
-                                                 const isSelected = field.value.some(m => m.id === mechanic.id);
-                                                 return (
-                                                     <CommandItem
-                                                         key={mechanic.id}
-                                                         onSelect={() => {
-                                                             const currentMechanics = field.value;
-                                                             if (isSelected) {
-                                                                 form.setValue("mechanics", currentMechanics.filter(m => m.id !== mechanic.id));
-                                                             } else {
-                                                                 form.setValue("mechanics", [...currentMechanics, { id: mechanic.id, name: mechanic.username }]);
-                                                             }
-                                                         }}
-                                                     >
-                                                         <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
-                                                             <Check className="h-4 w-4" />
-                                                         </div>
-                                                         <span>{mechanic.username}</span>
-                                                     </CommandItem>
-                                                 )
-                                             })}
-                                         </CommandGroup>
-                                       </CommandList>
-                                     </Command>
-                                 </PopoverContent>
-                             </Popover>
-                           <FormMessage />
-                         </FormItem>
-                       )}
-                       />
-                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <FormField
-                               control={form.control}
-                               name="targetDate"
-                               render={({ field }) => (
-                               <FormItem className="flex flex-col">
-                                   <FormLabel>Target Selesai</FormLabel>
-                                   <Popover>
-                                   <PopoverTrigger asChild>
-                                       <FormControl>
-                                       <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                           {field.value ? format(field.value, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
-                                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                       </Button>
-                                       </FormControl>
-                                   </PopoverTrigger>
-                                   <PopoverContent className="w-auto p-0" align="start">
-                                       <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                                   </PopoverContent>
-                                   </Popover>
-                                   <FormMessage />
-                               </FormItem>
-                               )}
-                           />
-                             <FormField
-                               control={form.control}
-                               name="targetTime"
-                               render={({ field }) => (
-                               <FormItem className="flex flex-col">
-                                   <FormLabel>Waktu Target</FormLabel>
-                                   <Input type="time" {...field} />
-                                   <FormMessage />
-                               </FormItem>
-                               )}
-                           />
-                       </div>
-                       <DialogFooter>
-                           <DialogClose asChild><Button variant="outline">Batal</Button></DialogClose>
-                           <Button type="submit" disabled={isSubmitting}>
-                               {isSubmitting ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2" />}
-                                 Buat Work Order
-                           </Button>
-                       </DialogFooter>
-                     </form>
-                   </Form>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="targetTime"
+                            render={({ field }) => (
+                            <FormItem className="flex flex-col">
+                                <FormLabel>Waktu Target</FormLabel>
+                                <Input type="time" {...field} />
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Batal</Button></DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2" />}
+                             Buat Work Order
+                        </Button>
+                    </DialogFooter>
+                  </form>
+                </Form>
             </DialogContent>
         </Dialog>
     );
@@ -311,10 +312,11 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     const targetDateTime = new Date(`${task.vehicle.targetDate}T${task.vehicle.targetTime}`);
     const completedDateTime = new Date(task.completedAt);
     
-    let totalDelayDuration = task.totalDelayDuration || 0;
+    const totalDelayDuration = task.totalDelayDuration || 0;
+    const diffMinutesWithDelay = differenceInMinutes(completedDateTime, targetDateTime) - (totalDelayDuration / 60000);
 
-    const diffMinutes = differenceInMinutes(completedDateTime, targetDateTime) - (totalDelayDuration / 60000);
-    const diffAbs = Math.abs(diffMinutes);
+    
+    const diffAbs = Math.abs(diffMinutesWithDelay);
     const hours = Math.floor(diffAbs / 60);
     const minutes = Math.round(diffAbs % 60);
     
@@ -323,198 +325,11 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     if (minutes > 0) timeText += `${minutes}m`;
     if (timeText.trim() === '') timeText = '0m';
 
-    if (diffMinutes <= 5) {
-        return <Badge className="bg-green-100 text-green-800">Tepat Waktu {diffMinutes <= 0 ? `(Lebih Cepat ${timeText})` : ''}</Badge>;
+    if (diffMinutesWithDelay <= 5) {
+        return <Badge className="bg-green-100 text-green-800">Tepat Waktu {diffMinutesWithDelay <= 0 ? `(Lebih Cepat ${timeText})` : ''}</Badge>;
     } else {
         return <Badge variant="destructive">Terlambat {timeText}</Badge>;
     }
-};
-
-const HistoriContent = ({ user, mechanicTasks, users, alat, allReports }: { user: UserData | null; mechanicTasks: MechanicTask[]; users: UserData[]; alat: AlatData[], allReports: Report[] }) => {
-    const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
-    const [searchNoPol, setSearchNoPol] = useState('');
-    const [date, setDate] = useState<DateRange | undefined>({
-      from: subDays(new Date(), 29),
-      to: new Date(),
-    });
-
-    const sopirOptions = useMemo(() => {
-        return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'))
-            .filter(u => user?.lokasi ? u.lokasi === user.lokasi : true)
-            .sort((a,b) => a.username.localeCompare(b.username));
-    }, [users, user]);
-  
-    const filteredTasks = useMemo(() => {
-      const fromDate = date?.from ? startOfDay(date.from) : null;
-      const toDate = date?.to ? endOfDay(date.to) : null;
-  
-      return mechanicTasks
-        .filter((task) => {
-          if (task.status !== 'COMPLETED' || !task.completedAt) return false;
-          
-          if (user?.lokasi) {
-            const taskLocation = alat.find(v => v.nomorLambung === task.vehicle?.hullNumber)?.lokasi;
-            if (taskLocation !== user.lokasi) return false;
-          }
-  
-          if (fromDate && toDate) {
-            const completedDate = new Date(task.completedAt);
-            if (isBefore(completedDate, fromDate) || isAfter(completedDate, toDate)) {
-              return false;
-            }
-          }
-          
-          if (selectedOperatorId !== "all") {
-              const reportForTask = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
-              if (!reportForTask || reportForTask.operatorId !== selectedOperatorId) {
-                  return false;
-              }
-          }
-
-          if (searchNoPol && task.vehicle?.licensePlate) {
-              if (!task.vehicle.licensePlate.toUpperCase().includes(searchNoPol.toUpperCase())) {
-                  return false;
-              }
-          }
-          
-          return true;
-        })
-        .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime());
-    }, [mechanicTasks, date, selectedOperatorId, user, alat, allReports, searchNoPol]);
-
-    return (
-        <>
-            <div className='hidden'>
-                <div id="history-print-area">
-                    <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={users} location={user?.lokasi} />
-                </div>
-            </div>
-            <Card>
-                <CardHeader>
-                <CardTitle>Histori Perbaikan Alat</CardTitle>
-                <CardDescription>
-                    Tinjau riwayat pekerjaan perbaikan yang telah diselesaikan.
-                </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                <div className="flex flex-wrap gap-2 items-center">
-                    <Input
-                        placeholder="Cari No. Polisi..."
-                        value={searchNoPol}
-                        onChange={e => setSearchNoPol(e.target.value)}
-                        className="w-full sm:w-auto sm:flex-1"
-                    />
-                    <Select value={selectedOperatorId} onValueChange={setSelectedOperatorId}>
-                    <SelectTrigger className="w-full sm:w-auto sm:flex-1">
-                        <SelectValue placeholder="Pilih Operator/Sopir" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">Semua Operator/Sopir</SelectItem>
-                        {sopirOptions.map((sopir) => (
-                        <SelectItem key={sopir.id} value={sopir.id}>
-                            {sopir.username}
-                        </SelectItem>
-                        ))}
-                    </SelectContent>
-                    </Select>
-                    <Popover>
-                    <PopoverTrigger asChild>
-                        <Button id="date" variant={"outline"} className={cn("w-full sm:w-auto sm:flex-1 justify-start text-left font-normal", !date && "text-muted-foreground" )}>
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date?.from ? ( date.to ? (<>{format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")}</>) : (format(date.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
-                    </PopoverContent>
-                    </Popover>
-                    <Button variant="ghost" onClick={() => { setSearchNoPol(''); setSelectedOperatorId('all'); setDate({ from: subDays(new Date(), 29), to: new Date() }); }}><FilterX className="mr-2 h-4 w-4"/>Reset</Button>
-                    <Button variant="outline" className="ml-auto" onClick={() => printElement('history-print-area')}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
-                </div>
-                <div className="border rounded-md overflow-x-auto">
-                    <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Kendaraan/Sopir</TableHead>
-                            <TableHead>Deskripsi Perbaikan</TableHead>
-                            <TableHead>Mekanik</TableHead>
-                            <TableHead>Waktu Pengerjaan</TableHead>
-                            <TableHead>Total Waktu Tunda</TableHead>
-                            <TableHead>Waktu Efektif</TableHead>
-                            <TableHead>Penyelesaian</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredTasks.length > 0 ? (
-                        filteredTasks.map((task) => {
-                            const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
-                            const sopir = users.find(u => u.id === triggeringReport?.operatorId);
-                            const calculateEffectiveDuration = (task: MechanicTask) => {
-                                if (!task.startedAt || !task.completedAt) return '-';
-                                const duration = new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime() - (task.totalDelayDuration || 0);
-                                return formatDistanceStrict(0, Math.max(0, duration), { locale: localeID });
-                            }
-                        
-                            const calculateTotalDelay = (task: MechanicTask) => {
-                                if (!task.riwayatTunda || task.riwayatTunda.length === 0) return '-';
-                                let totalMs = 0;
-                                task.riwayatTunda.forEach(tunda => {
-                                    if (tunda.waktuMulai && tunda.waktuSelesai) {
-                                        const start = typeof tunda.waktuMulai === 'number' ? new Date(tunda.waktuMulai) : tunda.waktuMulai;
-                                        const end = typeof tunda.waktuSelesai === 'number' ? new Date(tunda.waktuSelesai) : tunda.waktuSelesai;
-                                        totalMs += end.getTime() - start.getTime();
-                                    }
-                                });
-                                return formatDistanceStrict(0, totalMs, { locale: localeID });
-                            };
-
-                            return (
-                            <TableRow key={task.id}>
-                                <TableCell>
-                                    <p className="font-semibold">{task.vehicle.hullNumber} ({task.vehicle.licensePlate})</p>
-                                    <p className="text-xs text-muted-foreground">{sopir?.username || 'N/A'}</p>
-                                    <p className="text-xs text-muted-foreground">NIK: {sopir?.nik || '-'}</p>
-                                </TableCell>
-                                <TableCell className="max-w-[200px] truncate">{task.mechanicRepairDescription || "(Belum ada deskripsi)"}</TableCell>
-                                <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
-                                <TableCell>
-                                    <div className="text-xs space-y-1">
-                                        <p><span className="font-semibold">Mulai:</span> {task.startedAt ? format(new Date(task.startedAt), 'dd/MM HH:mm') : '-'}</p>
-                                        <p><span className="font-semibold">Target:</span> {format(new Date(task.vehicle.targetDate), 'dd/MM')} @ {task.vehicle.targetTime}</p>
-                                        <p><span className="font-semibold">Selesai:</span> {task.completedAt ? format(new Date(task.completedAt), 'dd/MM HH:mm') : '-'}</p>
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex flex-col">
-                                        <span>{calculateTotalDelay(task)}</span>
-                                        {task.riwayatTunda && task.riwayatTunda.length > 0 && (
-                                            <ol className="text-xs text-orange-500 mt-1 italic list-decimal list-inside">
-                                                {task.riwayatTunda.map((tunda, index) => (
-                                                  <li key={index}>{tunda.alasan}</li>
-                                                ))}
-                                            </ol>
-                                          )}
-                                    </div>
-                                </TableCell>
-                                <TableCell>{calculateEffectiveDuration(task)}</TableCell>
-                                <TableCell><CompletionStatusBadge task={task} /></TableCell>
-                            </TableRow>
-                            )
-                        })
-                        ) : (
-                        <TableRow>
-                            <TableCell colSpan={7} className="h-24 text-center">
-                            Tidak ada riwayat perbaikan ditemukan untuk filter yang dipilih.
-                            </TableCell>
-                        </TableRow>
-                        )}
-                    </TableBody>
-                    </Table>
-                </div>
-                </CardContent>
-            </Card>
-        </>
-    );
 };
 
 const EditDescriptionDialog = ({ task, onSave }: { task: MechanicTask | null, onSave: (taskId: string, description: string) => Promise<void> }) => {
@@ -568,22 +383,272 @@ const EditDescriptionDialog = ({ task, onSave }: { task: MechanicTask | null, on
     );
 }
 
+const calculateDelayDetails = (task: MechanicTask) => {
+    if (!task.riwayatTunda || task.riwayatTunda.length === 0) {
+        return { details: [], total: '-' };
+    }
+
+    const details = task.riwayatTunda.map((delay, index) => {
+        const duration = delay.waktuSelesai
+            ? formatDistanceStrict(new Date(delay.waktuSelesai), new Date(delay.waktuMulai), { locale: localeID })
+            : 'berlangsung';
+        return {
+            text: `Tunda #${index + 1}: ${duration}`,
+            reason: delay.alasan,
+        };
+    });
+
+    const totalMs = task.totalDelayDuration || task.riwayatTunda.reduce((acc, curr) => {
+        if (curr.waktuMulai && curr.waktuSelesai) {
+            const start = curr.waktuMulai instanceof Date ? curr.waktuMulai.getTime() : new Date(curr.waktuMulai).getTime();
+            const end = curr.waktuSelesai instanceof Date ? curr.waktuSelesai.getTime() : new Date(curr.waktuSelesai).getTime();
+            return acc + (end - start);
+        }
+        return acc;
+    }, 0);
+
+    const total = totalMs > 0 ? formatDistanceStrict(0, totalMs, { locale: localeID }) : '-';
+
+    return { details, total };
+};
+
+const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
+    const [tasks, setTasks] = useState<MechanicTask[]>([]);
+    const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
+    const [searchNoPol, setSearchNoPol] = useState('');
+    const [date, setDate] = useState<DateRange | undefined>({
+      from: subDays(new Date(), 29),
+      to: new Date(),
+    });
+
+    useEffect(() => {
+        setTasks(allTasks.filter(t => t.status === 'COMPLETED'));
+    }, [allTasks]);
+    
+    const sopirOptions = useMemo(() => {
+        return allUsers.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'))
+            .filter(u => user?.lokasi ? u.lokasi === user.lokasi : true)
+            .sort((a,b) => a.username.localeCompare(b.username));
+    }, [allUsers, user]);
+
+    const filteredTasks = useMemo(() => {
+        const fromDate = date?.from ? startOfDay(date.from) : null;
+        const toDate = date?.to ? endOfDay(date.to) : null;
+
+        return tasks
+        .filter((task) => {
+            if (task.status !== 'COMPLETED' || !task.completedAt) return false;
+            
+            if (user?.lokasi) {
+            const taskLocation = allAlat.find(v => v.nomorLambung === task.vehicle?.hullNumber)?.lokasi;
+            if (taskLocation !== user.lokasi) return false;
+            }
+
+            if (fromDate && toDate) {
+            const completedDate = new Date(task.completedAt);
+            if (isBefore(completedDate, fromDate) || isAfter(completedDate, toDate)) {
+                return false;
+            }
+            }
+            
+            if (selectedOperatorId !== "all") {
+                const reportForTask = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
+                if (!reportForTask || reportForTask.operatorId !== selectedOperatorId) {
+                    return false;
+                }
+            }
+
+            if (searchNoPol && task.vehicle?.licensePlate) {
+                if (!task.vehicle.licensePlate.toUpperCase().includes(searchNoPol.toUpperCase())) {
+                    return false;
+                }
+            }
+            
+            return true;
+        })
+        .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+    }, [tasks, date, selectedOperatorId, user, allAlat, allReports, searchNoPol]);
+    
+    const calculateEffectiveDuration = (task: MechanicTask) => {
+      if (!task.startedAt || !task.completedAt) return '-';
+      const duration = new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime() - (task.totalDelayDuration || 0);
+      return formatDistanceStrict(0, Math.max(0, duration), { locale: localeID });
+    }
+    
+    const groupedTasks = useMemo(() => {
+        return filteredTasks.reduce((acc, task) => {
+            if (!task.completedAt) return acc;
+            const dateStr = format(new Date(task.completedAt), 'yyyy-MM-dd');
+            if (!acc[dateStr]) {
+                acc[dateStr] = [];
+            }
+            acc[dateStr].push(task);
+            return acc;
+        }, {} as Record<string, MechanicTask[]>);
+    }, [filteredTasks]);
+
+    return (
+      <>
+        <div className='hidden'>
+            <div id="history-print-area">
+                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
+            </div>
+        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Histori Perbaikan Alat</CardTitle>
+            <CardDescription>
+              Tinjau riwayat pekerjaan perbaikan yang telah diselesaikan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2 items-center">
+                <Input
+                    placeholder="Cari No. Polisi..."
+                    value={searchNoPol}
+                    onChange={e => setSearchNoPol(e.target.value)}
+                    className="w-full sm:w-auto sm:flex-1"
+                />
+                <Select value={selectedOperatorId} onValueChange={setSelectedOperatorId}>
+                <SelectTrigger className="w-full sm:w-auto sm:flex-1">
+                    <SelectValue placeholder="Pilih Operator/Sopir" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Semua Operator/Sopir</SelectItem>
+                    {sopirOptions.map((sopir) => (
+                    <SelectItem key={sopir.id} value={sopir.id}>
+                        {sopir.username}
+                    </SelectItem>
+                    ))}
+                </SelectContent>
+                </Select>
+                <Popover>
+                <PopoverTrigger asChild>
+                    <Button id="date" variant={"outline"} className={cn("w-full sm:w-auto sm:flex-1 justify-start text-left font-normal", !date && "text-muted-foreground" )}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date?.from ? ( date.to ? (<>{format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")}</>) : (format(date.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                </PopoverContent>
+                </Popover>
+                <Button variant="ghost" onClick={() => { setSearchNoPol(''); setSelectedOperatorId('all'); setDate({ from: subDays(new Date(), 29), to: new Date() }); }}><FilterX className="mr-2 h-4 w-4"/>Reset</Button>
+                <Button variant="outline" className="ml-auto" onClick={() => printElement('history-print-area')}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
+            </div>
+             <Accordion type="single" collapsible className="w-full">
+               {Object.keys(groupedTasks).length > 0 ? (
+                Object.entries(groupedTasks).map(([dateStr, tasksOnDate]) => (
+                    <AccordionItem value={dateStr} key={dateStr}>
+                        <AccordionTrigger>
+                            <div className="flex justify-between w-full pr-4">
+                                <span className="font-semibold text-base">{format(new Date(dateStr), 'EEEE, dd MMMM yyyy', { locale: localeID })}</span>
+                                <Badge variant="secondary">{tasksOnDate.length} Pekerjaan</Badge>
+                            </div>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                           <div className="border rounded-md overflow-x-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                      <TableHead>Waktu Lapor</TableHead>
+                                      <TableHead>Kendaraan</TableHead>
+                                      <TableHead>Deskripsi</TableHead>
+                                      <TableHead>Foto</TableHead>
+                                      <TableHead>Mekanik</TableHead>
+                                      <TableHead>Target</TableHead>
+                                      <TableHead>Tunda</TableHead>
+                                      <TableHead>Penyelesaian</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {tasksOnDate.map((task) => {
+                                        const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
+                                        const reportDate = triggeringReport?.timestamp ? new Date(triggeringReport.timestamp) : null;
+                                        const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
+                                        const { details: delayDetails, total: totalDelay } = calculateDelayDetails(task);
+                                        const photos = Array.isArray(triggeringReport?.photo) ? triggeringReport?.photo : (triggeringReport?.photo ? [triggeringReport.photo] : []);
+                                        
+                                        return (
+                                        <TableRow key={task.id}>
+                                            <TableCell>{reportDate ? format(reportDate, 'dd MMM, HH:mm') : '-'}</TableCell>
+                                            <TableCell>
+                                                <p className="font-semibold">{task.vehicle.licensePlate} ({task.vehicle.hullNumber})</p>
+                                                <p className="text-xs text-muted-foreground">{sopir?.username || 'N/A'}</p>
+                                            </TableCell>
+                                            <TableCell className="max-w-[200px] truncate">{task.mechanicRepairDescription || task.vehicle.repairDescription}</TableCell>
+                                            <TableCell>
+                                                {photos.length > 0 && (
+                                                    <Dialog><DialogTrigger asChild><Button variant="ghost" size="icon"><Eye/></Button></DialogTrigger>
+                                                        <DialogContent className="max-w-4xl">
+                                                            <DialogHeader><DialogTitle>Foto Kerusakan: {task.vehicle.hullNumber}</DialogTitle></DialogHeader>
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
+                                                                {photos.map((p, i) => <img key={i} src={p} alt={`Damage photo ${i + 1}`} className="rounded-md" data-ai-hint="machine damage"/>)}
+                                                            </div>
+                                                        </DialogContent>
+                                                    </Dialog>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
+                                            <TableCell>
+                                                <div className="text-xs space-y-1">
+                                                       {task.startedAt && <p><b>Mulai:</b> {format(new Date(task.startedAt), 'dd/MM HH:mm')}</p>}
+                                                       <p><b>Target:</b> {format(new Date(`${task.vehicle.targetDate}T${task.vehicle.targetTime}`), 'dd/MM HH:mm')}</p>
+                                                       {task.completedAt && <p><b>Realisasi:</b> {format(new Date(task.completedAt), 'dd/MM HH:mm')}</p>}
+                                                </div>
+                                            </TableCell>
+                                             <TableCell>
+                                                {delayDetails.length > 0 && (
+                                                    <div className="flex flex-col">
+                                                        <ol className="text-xs space-y-1 list-decimal list-inside">
+                                                        {delayDetails.map((delay, index) => (
+                                                            <li key={index} title={delay.reason}>
+                                                            {delay.text} <span className="italic text-muted-foreground">({delay.reason})</span>
+                                                            </li>
+                                                        ))}
+                                                        </ol>
+                                                        {task.status === 'COMPLETED' && totalDelay !== '-' && (
+                                                            <p className="font-bold border-t mt-1 pt-1 text-xs">
+                                                                Total: {totalDelay}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </TableCell>
+                                            <TableCell><CompletionStatusBadge task={task} /></TableCell>
+                                        </TableRow>
+                                        )
+                                    })}
+                                </TableBody>
+                              </Table>
+                           </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                ))
+               ) : (
+                <div className="text-center text-muted-foreground py-10">Tidak ada riwayat perbaikan ditemukan untuk filter yang dipilih.</div>
+               )}
+            </Accordion>
+          </CardContent>
+        </Card>
+      </>
+    );
+}
+
 export default function KepalaMekanikPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dashboard');
   const [userInfo, setUserInfo] = useState<UserData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
+  
+  const [isFetchingData, setIsFetchingData] = useState(true);
   const [alat, setAlat] = useState<AlatData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
-  const [isFetchingData, setIsFetchingData] = useState(true);
-  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
-  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
-
+  const [locations, setLocations] = useState<LocationData[]>([]);
+  
   // Delay Dialog State
   const [isDelayDialogOpen, setIsDelayDialogOpen] = useState(false);
   const [delayReason, setDelayReason] = useState('');
@@ -603,35 +668,50 @@ export default function KepalaMekanikPage() {
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
   
-  useEffect(() => {
-    const userString = localStorage.getItem('user');
-    if (!userString) {
-      router.replace('/login');
-      return;
+  const getStatusBadge = useCallback((status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
+    switch (status) {
+      case 'baik':
+        return <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-300">Baik</Badge>;
+      case 'perlu perhatian':
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Perlu Perhatian</Badge>;
+      case 'rusak':
+        return <Badge variant="destructive">Rusak</Badge>;
+       case 'Karantina':
+        return <Badge variant="destructive">Karantina</Badge>;
+      case 'Tanpa Operator':
+        return <Badge variant="secondary">Tanpa Operator</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
     }
-    const userData = JSON.parse(userString);
-    if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
-      toast({
-        variant: 'destructive',
-        title: 'Akses Ditolak',
-        description: 'Anda tidak memiliki hak untuk mengakses halaman ini.',
-      });
-      router.replace('/login');
-      return;
-    }
-    setUserInfo(userData);
-    setIsLoading(false);
-  }, [router, toast]);
-  
+  }, []);
+
+  const getLatestReport = useCallback((vehicleId: string, allReports: Report[]): Report | undefined => {
+    if (!Array.isArray(allReports)) return undefined;
+    return allReports
+      .filter(r => r.vehicleId === vehicleId)
+      .sort((a, b) => {
+          const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return dateB - dateA;
+      })[0];
+  }, []);
+
   const dataTransformer = useCallback((docData: any) => {
     const transformedData = { ...docData };
   
-    const timestampFields = ['timestamp', 'createdAt', 'startedAt', 'completedAt'];
-      timestampFields.forEach(field => {
-        if (transformedData[field] && typeof transformedData[field]?.toDate === 'function') {
+    const timestampFieldsToMillis = ['createdAt', 'startedAt', 'completedAt'];
+    timestampFieldsToMillis.forEach(field => {
+        if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
           transformedData[field] = transformedData[field].toDate().getTime();
         }
-      });
+    });
+
+    const timestampFieldsToDate = ['timestamp'];
+    timestampFieldsToDate.forEach(field => {
+        if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
+          transformedData[field] = transformedData[field].toDate();
+        }
+    });
   
     if (transformedData.riwayatTunda && Array.isArray(transformedData.riwayatTunda)) {
       transformedData.riwayatTunda = transformedData.riwayatTunda.map((tundaItem: any) => {
@@ -660,149 +740,245 @@ export default function KepalaMekanikPage() {
         });
     }, [dataTransformer, toast]);
 
-    useEffect(() => {
-    if (!userInfo) return;
-    setIsFetchingData(true);
-    
-    const collectionsToListen: { name: string; setter: React.Dispatch<React.SetStateAction<any[]>> }[] = [
-      { name: 'users', setter: setUsers },
-      { name: 'alat', setter: setAlat },
-      { name: 'sopir_batangan', setter: setPairings },
-      { name: 'mechanic_tasks', setter: setMechanicTasks },
-    ];
-  
-    const unsubscribers = collectionsToListen.map(({ name, setter }) => setupListener(name, setter));
 
-    const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
-        const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
-        
-        if (isInitialLoad.current) {
-            const initialDamaged = new Set(data.filter(r => r.overallStatus === 'rusak').map(r => r.id));
-            setSeenDamagedReports(initialDamaged);
-            isInitialLoad.current = false;
-        } else {
-            const newDamagedReports = data.filter(r => r.overallStatus === 'rusak' && !seenDamagedReports.has(r.id));
-            if (newDamagedReports.length > 0) {
-                audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
-                setHasNewMessage(true);
-                setSeenDamagedReports(prev => new Set([...Array.from(prev), ...newDamagedReports.map(r => r.id)]));
-            }
+    const damagedVehicleReports = useMemo(() => {
+        if (!reports || !alat || !mechanicTasks) {
+            return [];
         }
-        setReports(data);
-    }, (error) => {
-        console.error(`Error fetching checklist_reports:`, error);
-        toast({ variant: 'destructive', title: `Gagal Memuat Laporan` });
-    });
-    unsubscribers.push(reportsUnsub);
     
-    const timer = setTimeout(() => {
-        setIsFetchingData(false);
-    }, 2000);
-    unsubscribers.push(() => clearTimeout(timer));
+        return reports
+            .filter(report => {
+                const latestReportForVehicle = getLatestReport(report.vehicleId, reports);
+                if (latestReportForVehicle?.id !== report.id) {
+                    return false;
+                }
+    
+                const isProblematic = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
+                if (!isProblematic) {
+                    return false;
+                }
+    
+                const hasActiveTask = mechanicTasks.some(task => 
+                    task.vehicle?.triggeringReportId === report.id
+                );
+                if (hasActiveTask) {
+                    return false;
+                }
+                
+                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+                if (userInfo?.lokasi && vehicle?.lokasi !== userInfo.lokasi) {
+                    return false;
+                }
+    
+                return true;
+            })
+            .sort((a, b) => {
+                const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                return dateB - dateA;
+            });
+    }, [reports, alat, mechanicTasks, userInfo, getLatestReport]);
+
+    const activeTasks = useMemo(() => {
+    return mechanicTasks
+        .filter(task => {
+            const vehicle = alat.find(a => a.nomorLambung === task.vehicle?.hullNumber);
+            if (!vehicle || (userInfo?.lokasi && vehicle.lokasi !== userInfo.lokasi)) {
+                return false;
+            }
+
+            if (task.status === 'COMPLETED') {
+                return task.completedAt ? isSameDay(new Date(task.completedAt), new Date()) : false;
+            }
+            return true;
+        })
+        .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+}, [mechanicTasks, alat, userInfo?.lokasi]);
+    
+    const statsData = useMemo(() => {
+    const defaultStats = { count: '0', list: [] };
+    if (isFetchingData || !userInfo?.lokasi) {
+        return { totalAlat: defaultStats, sudahChecklist: defaultStats, belumChecklist: defaultStats, alatBaik: defaultStats, perluPerhatian: defaultStats, alatRusak: defaultStats, alatRusakBerat: defaultStats, alatTdkAdaOperator: defaultStats };
+    }
+    const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
+    const existingAlatIds = new Set(alatInLocation.map(a => a.nomorLambung));
+
+    const validReports = reports.filter(r => r.vehicleId && existingAlatIds.has(r.vehicleId));
+
+    const reportsToday = validReports.filter(r => r.timestamp && isSameDay(new Date(r.timestamp), new Date()));
+    const checkedVehicleIdsToday = new Set(reportsToday.map(r => r.vehicleId));
+    
+    const pairedAlatInLocation = alatInLocation.filter(a => pairings.some(p => p.nomorLambung === a.nomorLambung));
+    const alatBelumChecklistList = pairedAlatInLocation.filter(a => !checkedVehicleIdsToday.has(a.nomorLambung));
+    
+    const getLatestReportForAlat = (vehicleId: string) => getLatestReport(vehicleId, validReports);
+    
+    const alatBaikList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'baik');
+    
+    const problematicReports = validReports.filter(report => {
+        const latestReportForVehicle = getLatestReport(report.vehicleId, validReports);
+        if (latestReportForVehicle?.id !== report.id) return false;
+        
+        const isProblematic = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
+        if (!isProblematic) return false;
+        
+        const hasActiveTask = mechanicTasks.some(task => task.vehicle?.triggeringReportId === report.id);
+        return !hasActiveTask;
+    });
+
+    const perluPerhatianList = alatInLocation.filter(a => problematicReports.some(r => r.vehicleId === a.nomorLambung && r.overallStatus === 'perlu perhatian'));
+    const alatRusakList = alatInLocation.filter(a => problematicReports.some(r => r.vehicleId === a.nomorLambung && r.overallStatus === 'rusak'));
+    
+    const alatRusakBeratList = alat.filter(a => a.statusKarantina === true);
+    const alatTdkAdaOperatorList = alatInLocation.filter(a => !pairings.some(p => p.nomorLambung === a.nomorLambung) && !a.statusKarantina);
+
+
+    const mapToDetailFormat = (items: AlatData[], statusSource: 'latest' | 'belum' | 'karantina' | 'unpaired') => {
+      return items.map(item => {
+        let status: Report['overallStatus'] | 'Belum Checklist' | 'Karantina' | 'Tanpa Operator' = 'Belum Checklist';
+        
+        if (statusSource === 'latest') {
+          const report = getLatestReportForAlat(item.nomorLambung);
+          status = report?.overallStatus || 'Belum Checklist';
+        } else if (statusSource === 'karantina') {
+          status = 'Karantina';
+        } else if (statusSource === 'unpaired') {
+          status = 'Tanpa Operator';
+        }
+
+        const pairing = pairings.find(p => p.nomorLambung === item.nomorLambung);
+        return { id: item.id, nomorPolisi: item.nomorPolisi || 'N/A', nomorLambung: item.nomorLambung, operatorPelapor: pairing?.namaSopir || 'Belum Ada Sopir', status: status };
+      });
+    };
+
+    return {
+      totalAlat: { count: String(alatInLocation.length), list: mapToDetailFormat(alatInLocation, 'latest') },
+      sudahChecklist: { count: String(checkedVehicleIdsToday.size), list: mapToDetailFormat(alatInLocation.filter(a => checkedVehicleIdsToday.has(a.nomorLambung)), 'latest') },
+      belumChecklist: { count: String(alatBelumChecklistList.length), list: mapToDetailFormat(alatBelumChecklistList, 'belum') },
+      alatBaik: { count: String(alatBaikList.length), list: mapToDetailFormat(alatBaikList, 'latest') },
+      perluPerhatian: { count: String(perluPerhatianList.length), list: mapToDetailFormat(perluPerhatianList, 'latest') },
+      alatRusak: { count: String(alatRusakList.length), list: mapToDetailFormat(alatRusakList, 'latest') },
+      alatRusakBerat: { count: String(alatRusakBeratList.length), list: mapToDetailFormat(alatRusakBeratList, 'karantina') },
+      alatTdkAdaOperator: { count: String(alatTdkAdaOperatorList.length), list: mapToDetailFormat(alatTdkAdaOperatorList, 'unpaired') },
+    };
+}, [alat, userInfo?.lokasi, reports, pairings, isFetchingData, getLatestReport, mechanicTasks]);
+
+  const sopirOptions = useMemo(() => {
+      return users.filter(u => (u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR')) && u.lokasi === userInfo?.lokasi);
+    }, [users, userInfo?.lokasi]);
   
-    return () => unsubscribers.forEach(unsub => unsub());
-  }, [userInfo, toast, setupListener, dataTransformer]);
+  const statCards = useMemo(() => {
+    return [
+      { title: 'Total Alat', value: statsData.totalAlat.count, description: 'Total alat di lokasi Anda', icon: Copy, color: 'text-blue-400' },
+      { title: 'Alat Sudah Checklist', value: statsData.sudahChecklist.count, description: 'Alat yang sudah dicek hari ini', icon: CheckCircle, color: 'text-green-400' },
+      { title: 'Alat Belum Checklist', value: statsData.belumChecklist.count, description: 'Alat (dengan sopir) yang belum dicek', icon: AlertTriangle, color: 'text-yellow-400' },
+      { title: 'Alat Baik', value: statsData.alatBaik.count, description: 'Status terakhir "Baik"', icon: CheckCircle, color: 'text-green-400' },
+      { title: 'Perlu Perhatian', value: statsData.perluPerhatian.count, description: 'Status terakhir "Perlu Perhatian"', icon: AlertTriangle, color: 'text-yellow-400' },
+      { title: 'Alat Rusak', value: statsData.alatRusak.count, description: 'Status terakhir "Rusak"', icon: WrenchIcon, color: 'text-red-400' },
+      { title: 'Alat Rusak Berat', value: statsData.alatRusakBerat.count, description: 'Alat yang dikarantina', icon: ShieldAlert, color: 'text-destructive' },
+      { title: 'Alat Tdk Ada Operator', value: statsData.alatTdkAdaOperator.count, description: 'Alat tanpa sopir/operator', icon: UserX, color: 'text-orange-400' },
+    ];
+  }, [statsData]);
+
+  useEffect(() => {
+    const userString = localStorage.getItem('user');
+    if (!userString) {
+      router.replace('/login');
+      return;
+    }
+    const userData = JSON.parse(userString);
+     if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
+      toast({
+        variant: 'destructive',
+        title: 'Akses Ditolak',
+        description: 'Anda tidak memiliki hak untuk mengakses halaman ini.',
+      });
+      router.replace('/login');
+      return;
+    }
+    setUserInfo(userData);
+    setIsLoading(false);
+  }, [router, toast]);
   
-  const getLatestReport = (vehicleId: string, allReports: Report[]): Report | undefined => {
-    if (!Array.isArray(allReports)) return undefined;
-    return allReports
-      .filter(r => r.vehicleId === vehicleId)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-  };
+    useEffect(() => {
+        if (!userInfo) return;
+    
+        setIsFetchingData(true);
+        isInitialLoad.current = true;
+    
+        const unsubscribers = [
+            setupListener('users', setUsers),
+            setupListener('alat', setAlat),
+            setupListener('locations', setLocations),
+            setupListener('pairings', setPairings),
+        ];
+        
+        const taskUnsub = onSnapshot(query(collection(db, 'mechanic_tasks')), (snapshot) => {
+            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
+            setMechanicTasks(data);
+        }, (error) => {
+            console.error(`Error fetching mechanic_tasks:`, error);
+            toast({ variant: 'destructive', title: `Gagal Memuat Work Orders` });
+        });
+        unsubscribers.push(taskUnsub);
+        
+        const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
+            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
+             if (isInitialLoad.current) {
+                const initialDamaged = new Set(data.filter(r => r.overallStatus === 'rusak' || r.overallStatus === 'perlu perhatian').map(r => r.id));
+                setSeenDamagedReports(initialDamaged);
+            } else {
+                const newDamagedReports = data.filter(r => 
+                    (r.overallStatus === 'rusak' || r.overallStatus === 'perlu perhatian') && 
+                    !seenDamagedReports.has(r.id)
+                );
+                if (newDamagedReports.length > 0) {
+                    audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+                    setHasNewMessage(true);
+                    setSeenDamagedReports(prev => new Set([...Array.from(prev), ...newDamagedReports.map(r => r.id)]));
+                }
+            }
+            setReports(data);
+        }, (error) => {
+            console.error(`Error fetching checklist_reports:`, error);
+            toast({ variant: 'destructive', title: `Gagal Memuat Laporan` });
+        });
+        unsubscribers.push(reportsUnsub);
+        
+        const timer = setTimeout(() => {
+            setIsFetchingData(false);
+            isInitialLoad.current = false;
+        }, 2000);
+        unsubscribers.push(() => clearTimeout(timer));
+    
+        return () => unsubscribers.forEach(unsub => unsub());
+    }, [userInfo, setupListener, dataTransformer, toast]);
+
+  const handleStatCardClick = (title: string) => {
+    if (isFetchingData || !userInfo?.lokasi) return;
+
+    setDetailListTitle(title);
+    
+    switch (title) {
+        case 'Total Alat': setDetailListData(statsData.totalAlat.list); break;
+        case 'Alat Sudah Checklist': setDetailListData(statsData.sudahChecklist.list); break;
+        case 'Alat Belum Checklist': setDetailListData(statsData.belumChecklist.list); break;
+        case 'Alat Baik': setDetailListData(statsData.alatBaik.list); break;
+        case 'Perlu Perhatian': setDetailListData(statsData.perluPerhatian.list); break;
+        case 'Alat Rusak': setDetailListData(statsData.alatRusak.list); break;
+        case 'Alat Rusak Berat': setDetailListData(statsData.alatRusakBerat.list); break;
+        case 'Alat Tdk Ada Operator': setDetailListData(statsData.alatTdkAdaOperator.list); break;
+        default: toast({ title: `Detail untuk: ${title}`, description: 'Fungsionalitas detail belum tersedia.' }); return;
+    }
+    
+    setIsDetailListOpen(true);
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('user');
     router.push('/login');
   };
-
-  const handleTaskStatusChange = async (taskId: string, newStatus: MechanicTask['status']) => {
-        const task = mechanicTasks.find(t => t.id === taskId);
-        if (!task) return;
-
-        if (newStatus === 'DELAYED') {
-            setTaskToDelay(task);
-            setIsDelayDialogOpen(true);
-            return;
-        }
-        
-        if (newStatus === 'IN_PROGRESS' && task.status === 'PENDING') {
-            setTaskToDescribe(task); // Show description dialog when starting
-            return; // Will be handled by the dialog save function
-        }
-
-        const taskDocRef = doc(db, 'mechanic_tasks', taskId);
-        let updateData: Partial<MechanicTask> = { status: newStatus };
-
-        if (newStatus === 'COMPLETED') {
-            updateData.completedAt = new Date().getTime();
-        }
-        
-        if (task.status === 'DELAYED' && newStatus === 'IN_PROGRESS') {
-             const lastDelay = task.riwayatTunda?.[task.riwayatTunda.length - 1];
-             if (lastDelay && !lastDelay.waktuSelesai) {
-                 const updatedRiwayat = [...(task.riwayatTunda || [])];
-                 updatedRiwayat[updatedRiwayat.length - 1] = { ...lastDelay, waktuSelesai: new Date() };
-                 updateData.riwayatTunda = updatedRiwayat;
-             }
-        }
-
-        try {
-            await updateDoc(taskDocRef, updateData);
-            // State update will be handled by the onSnapshot listener
-            toast({ title: 'Status Tugas Diperbarui' });
-        } catch (error) {
-            toast({ title: 'Gagal Memperbarui Status', variant: 'destructive' });
-        }
-    };
-
-    const handleConfirmDelay = async () => {
-        if (!taskToDelay || !delayReason) {
-            toast({ title: 'Alasan harus diisi.', variant: 'destructive' });
-            return;
-        }
-
-        const taskDocRef = doc(db, 'mechanic_tasks', taskToDelay.id);
-        const newRiwayat = [...(taskToDelay.riwayatTunda || []), { alasan: delayReason, waktuMulai: new Date(), waktuSelesai: null as any }];
-        const updateData: Partial<MechanicTask> = {
-            status: 'DELAYED',
-            riwayatTunda: newRiwayat,
-        };
-
-        try {
-            await updateDoc(taskDocRef, updateData);
-            toast({ title: 'Tugas Ditunda' });
-            setIsDelayDialogOpen(false);
-            setDelayReason('');
-            setTaskToDelay(null);
-        } catch (error) {
-            toast({ title: 'Gagal Menunda Tugas', variant: 'destructive' });
-        }
-    };
-
-    const handleSaveDescription = async (taskId: string, description: string) => {
-        if (!taskId) { // Handle cancel from dialog
-            setTaskToDescribe(null);
-            return;
-        }
-        const taskDocRef = doc(db, 'mechanic_tasks', taskId);
-        try {
-            const updateData: Partial<MechanicTask> = { 
-                mechanicRepairDescription: description,
-                status: 'IN_PROGRESS',
-            };
-            if (!mechanicTasks.find(t => t.id === taskId)?.startedAt) {
-                 updateData.startedAt = new Date().getTime();
-            }
-
-            await updateDoc(taskDocRef, updateData);
-            toast({ title: 'Deskripsi Disimpan & Tugas Dimulai' });
-            setTaskToDescribe(null);
-        } catch (error) {
-            toast({ title: 'Gagal Menyimpan Deskripsi', variant: 'destructive' });
-            console.error("Error saving description: ", error);
-        }
-    };
-
+  
   const handleMenuClick = (menuName: ActiveMenu) => {
     if (menuName === 'Pesan Masuk') {
       setHasNewMessage(false);
@@ -810,138 +986,311 @@ export default function KepalaMekanikPage() {
     setActiveMenu(menuName);
   };
   
-  const damagedVehicleReports = useMemo(() => {
-    return alat
-      .map(vehicle => {
-        const latestReport = getLatestReport(vehicle.id, reports);
-        if (latestReport && (latestReport.overallStatus === 'rusak' || latestReport.overallStatus === 'perlu perhatian')) {
-          const hasActiveTask = mechanicTasks.some(
-            (task) => task.vehicle?.triggeringReportId === latestReport.id && task.status !== 'COMPLETED'
-          );
-          if (!hasActiveTask) {
-            return latestReport;
-          }
-        }
-        return null;
-      })
-      .filter((r): r is Report => r !== null)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [alat, reports, mechanicTasks]);
-
+  const optimisticTaskUpdate = (taskId: string, updatedProps: Partial<MechanicTask>) => {
+    setMechanicTasks(prevTasks =>
+        prevTasks.map(t =>
+            t.id === taskId ? { ...t, ...updatedProps } : t
+        )
+    );
+  };
   
+  const handleTaskStatusChange = async (taskId: string, newStatus: MechanicTask['status']) => {
+    const task = mechanicTasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    let finalUpdateData: Partial<MechanicTask> = { status: newStatus };
+
+    if (newStatus === 'IN_PROGRESS') {
+        const isResuming = task.status === 'DELAYED';
+        if (isResuming && task.riwayatTunda) {
+            const lastDelayIndex = task.riwayatTunda.length - 1;
+            const lastDelay = task.riwayatTunda[lastDelayIndex];
+            if (lastDelay && !lastDelay.waktuSelesai) {
+                const updatedRiwayat = [...task.riwayatTunda];
+                updatedRiwayat[lastDelayIndex] = { ...lastDelay, waktuSelesai: new Date() };
+                
+                const totalDelay = updatedRiwayat.reduce((acc, curr) => {
+                     if (curr.waktuMulai && curr.waktuSelesai) {
+                        const start = curr.waktuMulai instanceof Date ? curr.waktuMulai.getTime() : new Date(curr.waktuMulai).getTime();
+                        const end = curr.waktuSelesai instanceof Date ? curr.waktuSelesai.getTime() : new Date(curr.waktuSelesai).getTime();
+                        return acc + (end - start);
+                    }
+                    return acc;
+                }, 0);
+
+                finalUpdateData = { ...finalUpdateData, riwayatTunda: updatedRiwayat, totalDelayDuration: totalDelay };
+            }
+        } else {
+            finalUpdateData = { ...finalUpdateData, startedAt: new Date().getTime() };
+        }
+    } else if (newStatus === 'COMPLETED') {
+        finalUpdateData = { ...finalUpdateData, completedAt: new Date().getTime() };
+    }
+    
+    optimisticTaskUpdate(taskId, finalUpdateData);
+
+    const taskDocRef = doc(db, 'mechanic_tasks', taskId);
+    try {
+        await updateDoc(taskDocRef, {
+            ...finalUpdateData,
+            riwayatTunda: (finalUpdateData.riwayatTunda || task.riwayatTunda || []).map(item => ({
+                ...item,
+                waktuMulai: item.waktuMulai instanceof Date ? Timestamp.fromDate(item.waktuMulai) : item.waktuMulai,
+                waktuSelesai: null,
+            })),
+        });
+        toast({ title: 'Status Work Order Diperbarui' });
+
+        if (newStatus === 'COMPLETED' && userInfo) {
+            const vehicle = alat.find(a => a.nomorLambung === task.vehicle.hullNumber);
+            if (vehicle) {
+                const newReport: Omit<Report, 'id'> = {
+                    timestamp: Timestamp.now(),
+                    vehicleId: vehicle.nomorLambung,
+                    operatorName: 'SISTEM (PERBAIKAN)',
+                    operatorId: userInfo.id,
+                    location: vehicle.lokasi,
+                    overallStatus: 'baik',
+                    description: `Perbaikan untuk WO ${task.id} telah selesai. Deskripsi: ${task.mechanicRepairDescription || task.vehicle.repairDescription}`,
+                    photo: [],
+                };
+                await addDoc(collection(db, 'checklist_reports'), newReport);
+                toast({ title: 'Status Alat Diperbarui', description: `Laporan "Baik" otomatis dibuat untuk ${vehicle.nomorLambung}.` });
+            }
+        }
+
+    } catch(e) {
+        console.error("Error updating status:", e);
+        toast({ title: 'Gagal Memperbarui Status', variant: 'destructive' });
+        setMechanicTasks(prev => prev.map(t => t.id === taskId ? task : t)); // Revert on failure
+    }
+};
+  
+  const handleSaveDescription = async (taskId: string, description: string) => {
+      if (!taskId) {
+        setTaskToDescribe(null);
+        return;
+      }
+      const taskDocRef = doc(db, 'mechanic_tasks', taskId);
+      try {
+          await updateDoc(taskDocRef, { mechanicRepairDescription: description });
+          toast({ title: 'Deskripsi Perbaikan Disimpan' });
+          optimisticTaskUpdate(taskId, { mechanicRepairDescription: description });
+          setTaskToDescribe(null);
+      } catch (e) {
+          toast({ title: 'Gagal Menyimpan Deskripsi', variant: 'destructive' });
+      }
+  };
+  
+  const handleConfirmDelay = async () => {
+    if (!taskToDelay || !delayReason) {
+        toast({ title: 'Alasan penundaan harus diisi', variant: 'destructive' });
+        return;
+    }
+
+    const newDelayEntry = {
+        alasan: delayReason,
+        waktuMulai: new Date(),
+        waktuSelesai: null
+    };
+
+    const updatedTaskData = {
+        status: 'DELAYED' as const,
+        riwayatTunda: [...(taskToDelay.riwayatTunda || []), newDelayEntry]
+    };
+    
+    const taskId = taskToDelay.id;
+    optimisticTaskUpdate(taskId, updatedTaskData);
+    setIsDelayDialogOpen(false);
+    setDelayReason('');
+    setTaskToDelay(null);
+
+    const taskDocRef = doc(db, 'mechanic_tasks', taskId);
+    try {
+        await updateDoc(taskDocRef, {
+            status: 'DELAYED',
+            riwayatTunda: updatedTaskData.riwayatTunda.map(item => ({
+                ...item,
+                waktuMulai: item.waktuMulai instanceof Date ? Timestamp.fromDate(item.waktuMulai) : item.waktuMulai,
+                waktuSelesai: null,
+            }))
+        });
+        toast({ title: 'Pekerjaan Ditunda' });
+    } catch(e) {
+        toast({ title: 'Gagal Menunda Pekerjaan', variant: 'destructive' });
+        setMechanicTasks(prev => prev.map(t => t.id === taskId ? taskToDelay : t));
+    }
+  };
+
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
-          return (
-            <Card>
-              <CardHeader>
-                <CardTitle>Alat Rusak Hari Ini</CardTitle>
-                <CardDescription>
-                  Daftar semua alat yang dilaporkan rusak atau perlu perhatian oleh operator dan belum dibuatkan WO.
-                  {userInfo?.lokasi && ` Menampilkan laporan untuk lokasi: ${userInfo.lokasi}.`}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="border rounded-md">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Waktu Laporan</TableHead>
-                        <TableHead>Kendaraan</TableHead>
-                        <TableHead>Pelapor</TableHead>
-                        <TableHead>Deskripsi Kerusakan</TableHead>
-                        <TableHead>Foto</TableHead>
-                        <TableHead className="text-right">Aksi</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                       {isFetchingData ? <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin"/></TableCell></TableRow> 
-                                    : damagedVehicleReports.length > 0 ? (damagedVehicleReports
-                                        .map(report => {
-                                        const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-                                        const photos = Array.isArray(report.photo) ? report.photo : (report.photo ? [report.photo] : []);
-                                        const date = report.timestamp ? new Date(report.timestamp) : null;
-                                        
-                                        return (
-                                            <TableRow key={report.id}>
-                                                <TableCell>{date ? format(date, 'dd MMM, HH:mm') : 'N/A'}</TableCell>
-                                                <TableCell>{report.vehicleId}</TableCell>
-                                                <TableCell>{report.operatorName}</TableCell>
-                                                <TableCell className="max-w-xs truncate">{report.description}</TableCell>
+            return (
+              <main>
+                   <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-6 mb-8">
+                     {isFetchingData ? (
+                        Array.from({ length: 8 }).map((_, i) => (
+                          <Card key={i}><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><Skeleton className="h-5 w-2/4" /><Skeleton className="h-6 w-6 rounded-full" /></CardHeader><CardContent><Skeleton className="h-12 w-1/4 mt-2" /><Skeleton className="h-4 w-3/4 mt-2" /></CardContent></Card>
+                        ))
+                    ) : statCards.map(card => (<StatCard key={card.title} {...card} onClick={() => handleStatCardClick(card.title)}/>))}
+                </div>
+              </main>
+            );
+        case 'Manajemen Work Order':
+           return (
+                <div className="space-y-6">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Laporan Kerusakan</CardTitle>
+                        <CardDescription>
+                            Daftar semua alat yang dilaporkan rusak atau perlu perhatian dan belum dibuatkan WO.
+                            {userInfo?.lokasi && ` Menampilkan laporan untuk lokasi: ${userInfo.lokasi}.`}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="border rounded-md">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Waktu Laporan</TableHead>
+                                        <TableHead>Kendaraan</TableHead>
+                                        <TableHead>Pelapor</TableHead>
+                                        <TableHead>Deskripsi Kerusakan</TableHead>
+                                        <TableHead>Foto</TableHead>
+                                        <TableHead className="text-right">Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isFetchingData ? <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                        : damagedVehicleReports.length > 0 ? (damagedVehicleReports
+                                            .map(report => {
+                                                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+                                                const photos = Array.isArray(report.photo) ? report.photo : (report.photo ? [report.photo] : []);
+                                                const date = report.timestamp ? new Date(report.timestamp) : null;
+                                                
+                                                return (
+                                                    <TableRow key={report.id}>
+                                                        <TableCell>{date ? format(date, 'dd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
+                                                        <TableCell>{report.vehicleId}</TableCell>
+                                                        <TableCell>{report.operatorName}</TableCell>
+                                                        <TableCell className="max-w-xs truncate">{report.description}</TableCell>
+                                                        <TableCell>
+                                                            {photos.length > 0 && (
+                                                                <Dialog><DialogTrigger asChild><Button variant="ghost" size="icon"><Camera /></Button></DialogTrigger>
+                                                                    <DialogContent className="max-w-4xl">
+                                                                        <DialogHeader><DialogTitle>Foto Kerusakan: {report.vehicleId}</DialogTitle></DialogHeader>
+                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
+                                                                            {photos.map((p, i) => <img key={i} src={p} alt={`Damage photo ${i + 1}`} className="rounded-md" data-ai-hint="machine damage" />)}
+                                                                        </div>
+                                                                    </DialogContent>
+                                                                </Dialog>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={(newTask: any) => setMechanicTasks(prev => [newTask, ...prev])} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )
+                                            })) : <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Work Order Aktif</CardTitle>
+                        <CardDescription>Daftar semua pekerjaan yang sedang menunggu atau dalam proses perbaikan.</CardDescription>
+                    </CardHeader>
+                     <CardContent>
+                        <div className="border rounded-md">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Waktu Lapor</TableHead>
+                                        <TableHead>Kendaraan</TableHead>
+                                        <TableHead>Deskripsi</TableHead>
+                                        <TableHead>Mekanik</TableHead>
+                                        <TableHead>Target</TableHead>
+                                        <TableHead>Tunda</TableHead>
+                                        <TableHead>Penyelesaian</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className="text-right">Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isFetchingData ? (
+                                        <TableRow><TableCell colSpan={9} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                    ) : activeTasks.length > 0 ? (
+                                        activeTasks.map(task => {
+                                             const triggeringReport = reports.find(r => r.id === task.vehicle?.triggeringReportId);
+                                             const reportDate = triggeringReport?.timestamp ? new Date(triggeringReport.timestamp) : null;
+                                             
+                                             const { details: delayDetails, total: totalDelay } = calculateDelayDetails(task);
+                                             
+                                            return(
+                                            <TableRow key={task.id}>
+                                                <TableCell>{reportDate ? format(reportDate, 'dd MMM, HH:mm') : '-'}</TableCell>
                                                 <TableCell>
-                                                  {photos.length > 0 && (
-                                                    <Dialog><DialogTrigger asChild><Button variant="ghost" size="icon"><Camera/></Button></DialogTrigger>
-                                                      <DialogContent className="max-w-4xl">
-                                                        <DialogHeader><DialogTitle>Foto Kerusakan: {report.vehicleId}</DialogTitle></DialogHeader>
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
-                                                          {photos.map((p, i) => <img key={i} src={p} alt={`Damage photo ${i+1}`} className="rounded-md" data-ai-hint="machine damage" />)}
-                                                        </div>
-                                                      </DialogContent>
-                                                    </Dialog>
-                                                  )}
+                                                    <p className="font-semibold">{task.vehicle.licensePlate} ({task.vehicle.hullNumber})</p>
+                                                    <p className="text-xs text-muted-foreground">{users.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
                                                 </TableCell>
+                                                <TableCell className="max-w-[200px] truncate">{task.mechanicRepairDescription || task.vehicle.repairDescription}</TableCell>
+                                                <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
+                                                <TableCell>
+                                                    <div className="text-xs space-y-1">
+                                                       {task.startedAt && <p><b>Mulai:</b> {format(new Date(task.startedAt), 'dd/MM HH:mm')}</p>}
+                                                       <p><b>Target:</b> {format(new Date(`${task.vehicle.targetDate}T${task.vehicle.targetTime}`), 'dd/MM HH:mm')}</p>
+                                                       {task.completedAt && <p><b>Realisasi:</b> {format(new Date(task.completedAt), 'dd/MM HH:mm')}</p>}
+                                                    </div>
+                                                </TableCell>
+                                                 <TableCell>
+                                                    {delayDetails.length > 0 && (
+                                                      <div className="flex flex-col">
+                                                          <ol className="text-xs space-y-1 list-decimal list-inside">
+                                                            {delayDetails.map((delay, index) => (
+                                                              <li key={index} title={delay.reason}>
+                                                                {delay.text} <span className="italic text-muted-foreground">({delay.reason})</span>
+                                                              </li>
+                                                            ))}
+                                                          </ol>
+                                                          {task.status === 'COMPLETED' && totalDelay !== '-' && (
+                                                              <p className="font-bold border-t mt-1 pt-1 text-xs">
+                                                                Total: {totalDelay}
+                                                              </p>
+                                                            )}
+                                                      </div>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell><CompletionStatusBadge task={task} /></TableCell>
+                                                <TableCell><Badge variant={task.status === 'PENDING' ? 'outline' : task.status === 'DELAYED' ? 'destructive' : 'default'}>{task.status}</Badge></TableCell>
                                                 <TableCell className="text-right">
-                                                    {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={(newTask: any) => setMechanicTasks(prev => [newTask, ...prev])}/>) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><Pencil/></Button></DropdownMenuTrigger>
+                                                        <DropdownMenuContent>
+                                                            {task.status === 'PENDING' && <DropdownMenuItem onClick={() => handleTaskStatusChange(task.id, 'IN_PROGRESS')}><Play className="mr-2"/>Mulai Kerjakan</DropdownMenuItem>}
+                                                            {task.status === 'IN_PROGRESS' && <DropdownMenuItem onClick={() => handleTaskStatusChange(task.id, 'COMPLETED')}><CheckCircle className="mr-2"/>Selesaikan</DropdownMenuItem>}
+                                                            {(task.status === 'IN_PROGRESS') && <DropdownMenuItem onClick={() => { setTaskToDelay(task); setIsDelayDialogOpen(true); }}><Pause className="mr-2"/>Tunda</DropdownMenuItem>}
+                                                            {task.status === 'DELAYED' && <DropdownMenuItem onClick={() => handleTaskStatusChange(task.id, 'IN_PROGRESS')}><Play className="mr-2"/>Lanjutkan</DropdownMenuItem>}
+                                                            <DropdownMenuSeparator/>
+                                                            <DropdownMenuItem onClick={() => setTaskToDescribe(task)}>Edit Deskripsi Perbaikan</DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
                                                 </TableCell>
                                             </TableRow>
-                                        )
-                                    })) : <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>}
-                    </TableBody>
-                  </Table>
+                                        )})
+                                    ) : (
+                                        <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">Tidak ada work order yang aktif.</TableCell></TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
                 </div>
-              </CardContent>
-            </Card>
-          )
-        case 'Manajemen Work Order':
-          return (
-             <Card>
-                  <CardHeader>
-                      <CardTitle>Daftar Work Order Aktif</CardTitle>
-                      <CardDescription>Pekerjaan yang sedang ditangani atau menunggu untuk ditangani oleh tim mekanik.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                      <div className="overflow-x-auto border rounded-lg">
-                          <Table>
-                              <TableHeader>
-                                  <TableRow>
-                                      <TableHead>Kendaraan</TableHead>
-                                      <TableHead>Deskripsi</TableHead>
-                                      <TableHead>Mekanik</TableHead>
-                                      <TableHead>Status</TableHead>
-                                      <TableHead>Target</TableHead>
-                                      <TableHead className="text-right">Aksi</TableHead>
-                                  </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                  {isFetchingData ? <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                      : mechanicTasks.filter(t => t.status !== 'COMPLETED').length > 0 ? (mechanicTasks.filter(t => t.status !== 'COMPLETED').map(task => (
-                                          <TableRow key={task.id}>
-                                              <TableCell className="font-semibold">{task.vehicle.hullNumber}</TableCell>
-                                              <TableCell className="max-w-[200px] truncate">{task.mechanicRepairDescription || task.vehicle.repairDescription}</TableCell>
-                                              <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
-                                              <TableCell><Badge variant={task.status === 'PENDING' ? 'secondary' : task.status === 'DELAYED' ? 'destructive' : 'default'}>{task.status}</Badge></TableCell>
-                                              <TableCell>{format(new Date(task.vehicle.targetDate), 'dd MMM')} @ {task.vehicle.targetTime}</TableCell>
-                                              <TableCell className="text-right">
-                                                  <DropdownMenu>
-                                                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><Pencil className="h-4 w-4" /></Button></DropdownMenuTrigger>
-                                                      <DropdownMenuContent align="end">
-                                                          {task.status === 'PENDING' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task.id, 'IN_PROGRESS')}>Mulai Perbaikan</DropdownMenuItem>}
-                                                          {task.status === 'IN_PROGRESS' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task.id, 'DELAYED')}>Tunda Perbaikan</DropdownMenuItem>}
-                                                          {task.status === 'DELAYED' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task.id, 'IN_PROGRESS')}>Lanjutkan Perbaikan</DropdownMenuItem>}
-                                                          {task.status !== 'PENDING' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task.id, 'COMPLETED')}>Selesaikan Perbaikan</DropdownMenuItem>}
-                                                          <DropdownMenuSeparator />
-                                                          <DropdownMenuItem onSelect={() => setTaskToDescribe(task)}>Edit Deskripsi</DropdownMenuItem>
-                                                      </DropdownMenuContent>
-                                                  </DropdownMenu>
-                                              </TableCell>
-                                          </TableRow>
-                                      ))) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada work order yang aktif.</TableCell></TableRow>)}
-                              </TableBody>
-                          </Table>
-                      </div>
-                  </CardContent>
-              </Card>
-          );
+            );
+        case 'Histori Perbaikan Alat':
+            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />
         case 'Anggota Mekanik': {
           const mekanikUsers = users.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK") && u.lokasi === userInfo?.lokasi);
           return (
@@ -988,11 +1337,11 @@ export default function KepalaMekanikPage() {
             </Card>
           );
         }
-        case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         case 'Pesan Masuk':
-            const unreadReports = reports.filter(r => r.overallStatus === 'rusak' && !mechanicTasks.some(t => t.vehicle?.triggeringReportId === r.id))
-                                       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            const unreadReports = reports
+              .filter(r => (r.overallStatus === 'rusak' || r.overallStatus === 'perlu perhatian') && !mechanicTasks.some(t => t.vehicle?.triggeringReportId === r.id))
+              .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
             return (
               <Card>
                 <CardHeader>
@@ -1017,7 +1366,7 @@ export default function KepalaMekanikPage() {
                             </p>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {formatRelative(new Date(report.timestamp), new Date(), { locale: localeID })}
+                            {format(new Date(report.timestamp), 'dd MMM yyyy, HH:mm', { locale: localeID })}
                           </p>
                         </div>
                         <p className="mt-2 text-sm italic">"{report.description}"</p>
@@ -1025,7 +1374,9 @@ export default function KepalaMekanikPage() {
                     ))
                   ) : (
                     <div className="text-center py-10 text-muted-foreground">
-                      Tidak ada pesan baru.
+                      <Inbox className="mx-auto h-12 w-12 text-gray-400" />
+                      <p className="mt-2 text-sm font-medium">Tidak ada pesan baru.</p>
+                      <p className="text-xs">Semua laporan kerusakan sudah ditangani.</p>
                     </div>
                   )}
                 </CardContent>
@@ -1036,7 +1387,7 @@ export default function KepalaMekanikPage() {
     }
   }
 
-  if (isLoading || !userInfo) {
+  if (!userInfo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -1055,7 +1406,9 @@ export default function KepalaMekanikPage() {
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>Tunda Pekerjaan</AlertDialogTitle>
-                <AlertDialogDescription>Masukkan alasan mengapa pekerjaan untuk <strong>{taskToDelay?.vehicle.hullNumber}</strong> ditunda. Ini akan menjeda penghitungan waktu kerja efektif.</AlertDialogDescription>
+                <AlertDialogDescription>
+                    Masukkan alasan mengapa pekerjaan untuk <strong>{taskToDelay?.vehicle.hullNumber}</strong> ditunda. Ini akan menjeda penghitungan waktu kerja efektif.
+                </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="py-4">
                 <Textarea 
@@ -1070,7 +1423,7 @@ export default function KepalaMekanikPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
-
+      
     <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
@@ -1117,41 +1470,26 @@ export default function KepalaMekanikPage() {
         </DialogContent>
       </Dialog>
       
-        <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
-         <AlertDialogContent>
-             <AlertDialogHeader>
-                 <AlertDialogTitle>Konfirmasi Status Karantina</AlertDialogTitle>
-                 <AlertDialogDescription>
-                    Anda yakin ingin {quarantineTarget?.statusKarantina ? 'mengeluarkan' : 'memasukkan'} kendaraan <strong>{quarantineTarget?.nomorLambung}</strong> {quarantineTarget?.statusKarantina ? 'dari' : 'ke dalam'} karantina?
-                 </AlertDialogDescription>
-             </AlertDialogHeader>
-             <AlertDialogFooter>
-                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                 <AlertDialogAction>
-                     Ya, Konfirmasi
-                 </AlertDialogAction>
-             </AlertDialogFooter>
-         </AlertDialogContent>
-     </AlertDialog>
-
-
     <SidebarProvider>
       <div className="flex min-h-screen bg-background text-foreground">
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Workshop</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.name}>
                     <SidebarMenuButton
                         isActive={activeMenu === item.name}
-                        onClick={() => setActiveMenu(item.name as ActiveMenu)}
-                        className="h-9"
+                        onClick={() => handleMenuClick(item.name as ActiveMenu)}
+                        className="h-9 relative"
                     >
                         <item.icon className="h-4 w-4" />
                         <span className="text-sm">{item.name}</span>
+                         {item.name === 'Pesan Masuk' && hasNewMessage && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
+                         )}
                     </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -1162,9 +1500,6 @@ export default function KepalaMekanikPage() {
                         <SidebarMenuButton className="h-9 relative" onClick={() => handleMenuClick(item.name as ActiveMenu)}>
                                <item.icon className="h-4 w-4" />
                              <span className="text-sm">{item.name}</span>
-                               {item.name === 'Pesan Masuk' && hasNewMessage && (
-                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
-                               )}
                         </SidebarMenuButton>
                     </Link>
                 </SidebarMenuItem>
@@ -1181,18 +1516,18 @@ export default function KepalaMekanikPage() {
         <SidebarInset>
           <div className="flex-1 p-6 lg:p-10">
             <header className="flex justify-between items-start mb-8">
-                <div className="flex items-center gap-4">
+                <div className='flex items-center gap-4'>
                     <SidebarTrigger/>
                     <div>
-                          <h1 className="text-3xl font-bold text-foreground">
-                             {activeMenu}
-                          </h1>
-                          <p className="text-sm text-muted-foreground flex items-center gap-4">
-                               <span>{userInfo.username}</span>
-                               <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
-                               <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
-                               <span>Lokasi: {userInfo.lokasi}</span>
-                          </p>
+                         <h1 className="text-3xl font-bold text-foreground">
+                            {activeMenu}
+                         </h1>
+                         <p className="text-sm text-muted-foreground flex items-center gap-4">
+                             <span>{userInfo.username}</span>
+                             <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
+                             <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
+                             <span>Lokasi: {userInfo.lokasi}</span>
+                         </p>
                     </div>
                 </div>
             </header>
