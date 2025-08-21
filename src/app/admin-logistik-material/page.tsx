@@ -293,7 +293,7 @@ export default function AdminLogistikPage() {
         volumeTerbongkar: 0,
         sisaVolume: jobCreationData.totalVolume,
         bbmPerRit: jobCreationData.bbmPerRit,
-        status: 'Proses', // Langsung 'Proses' karena sudah siap bongkar
+        status: 'Proses',
         jamMulai: new Date().toISOString(),
         totalWaktuTunda: 0,
         riwayatTunda: [],
@@ -523,7 +523,7 @@ export default function AdminLogistikPage() {
 
         setIsFetchingHistory(true);
         const fromDate = startOfDay(dateRange.from);
-        const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+        const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(fromDate);
         
         const filtered = allPemasukan.filter(entry => {
             const entryDate = new Date(entry.timestamp);
