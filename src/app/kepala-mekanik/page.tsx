@@ -682,6 +682,23 @@ export default function KepalaMekanikPage() {
       })[0];
   }, []);
 
+  const getStatusBadge = useCallback((status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
+    switch (status) {
+      case 'baik':
+        return <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-300">Baik</Badge>;
+      case 'perlu perhatian':
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Perlu Perhatian</Badge>;
+      case 'rusak':
+        return <Badge variant="destructive">Rusak</Badge>;
+       case 'Karantina':
+        return <Badge variant="destructive">Karantina</Badge>;
+      case 'Tanpa Operator':
+          return <Badge variant="secondary">Tanpa Operator</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  }, []);
+
   useEffect(() => {
     const userString = localStorage.getItem('user');
     if (!userString) {
@@ -751,26 +768,38 @@ export default function KepalaMekanikPage() {
             return [];
         }
     
-        return Array.from(alat.values()).map(vehicle => {
-            const latestReport = getLatestReport(vehicle.nomorLambung, reports);
-            if (latestReport && (latestReport.overallStatus === 'rusak' || latestReport.overallStatus === 'perlu perhatian')) {
-                const hasActiveTask = mechanicTasks.some(task => 
-                    task.vehicle?.triggeringReportId === latestReport.id || 
-                    (task.vehicle?.hullNumber === vehicle.nomorLambung && task.status !== 'COMPLETED')
-                );
-                if (!hasActiveTask) {
-                    return latestReport;
+        return reports
+            .filter(report => {
+                const latestReportForVehicle = getLatestReport(report.vehicleId, reports);
+                if (latestReportForVehicle?.id !== report.id) {
+                    return false;
                 }
-            }
-            return null;
-        }).filter((report): report is Report => report !== null)
-          .sort((a, b) => {
-            const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-            const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-            return dateB - dateA;
-        });
-
-    }, [reports, alat, mechanicTasks, getLatestReport]);
+    
+                const isProblematic = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
+                if (!isProblematic) {
+                    return false;
+                }
+    
+                const hasActiveTask = mechanicTasks.some(task => 
+                    task.vehicle?.triggeringReportId === report.id
+                );
+                if (hasActiveTask) {
+                    return false;
+                }
+                
+                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+                if (userInfo?.lokasi && vehicle?.lokasi !== userInfo.lokasi) {
+                    return false;
+                }
+    
+                return true;
+            })
+            .sort((a, b) => {
+                const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                return dateB - dateA;
+            });
+    }, [reports, alat, mechanicTasks, userInfo, getLatestReport]);
 
     const activeTasks = useMemo(() => {
     return mechanicTasks
@@ -1289,7 +1318,7 @@ export default function KepalaMekanikPage() {
     }
   }
 
-  if (isFetchingData || !userInfo) {
+  if (!userInfo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -1372,30 +1401,12 @@ export default function KepalaMekanikPage() {
         </DialogContent>
       </Dialog>
       
-       <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
-         <AlertDialogContent>
-             <AlertDialogHeader>
-                 <AlertDialogTitle>Konfirmasi Status Karantina</AlertDialogTitle>
-                 <AlertDialogDescription>
-                    Anda yakin ingin {quarantineTarget?.statusKarantina ? 'mengeluarkan' : 'memasukkan'} kendaraan <strong>{quarantineTarget?.nomorLambung}</strong> {quarantineTarget?.statusKarantina ? 'dari' : 'ke dalam'} karantina?
-                 </AlertDialogDescription>
-             </AlertDialogHeader>
-             <AlertDialogFooter>
-                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                 <AlertDialogAction>
-                     Ya, Konfirmasi
-                 </AlertDialogAction>
-             </AlertDialogFooter>
-         </AlertDialogContent>
-     </AlertDialog>
-
-
     <SidebarProvider>
       <div className="flex min-h-screen bg-background text-foreground">
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Workshop</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
@@ -1407,17 +1418,25 @@ export default function KepalaMekanikPage() {
                     >
                         <item.icon className="h-4 w-4" />
                         <span className="text-sm">{item.name}</span>
-                         {item.name === 'Pesan Masuk' && hasNewMessage && (
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
-                         )}
                     </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+                <SidebarSeparator className="my-2" />
+                {secondaryMenuItems.map((item) => (
+                <SidebarMenuItem key={item.name}>
+                    <Link href={item.href} passHref>
+                        <SidebarMenuButton className="h-9 relative" onClick={() => handleMenuClick(item.name as ActiveMenu)}>
+                               <item.icon className="h-4 w-4" />
+                             <span className="text-sm">{item.name}</span>
+                               {item.name === 'Pesan Masuk' && hasNewMessage && (
+                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
+                               )}
+                        </SidebarMenuButton>
+                    </Link>
+                </SidebarMenuItem>
+                ))}
             </SidebarMenu>
-            <SidebarFooter className="p-2 space-y-2">
-                 <div className="text-center p-4 border rounded-lg">
-                    <h3 className="font-bold text-lg">Logo PT Farika Riau Perkasa</h3>
-                 </div>
+            <SidebarFooter>
                 <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-muted-foreground">
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
