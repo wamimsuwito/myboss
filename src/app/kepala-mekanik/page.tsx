@@ -416,7 +416,7 @@ const calculateDelayDetails = (task: MechanicTask) => {
     return { details, total };
 };
 
-const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
+const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
     const [tasks, setTasks] = useState<MechanicTask[]>([]);
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
@@ -673,6 +673,10 @@ export default function KepalaMekanikPage() {
   const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
+
+  // Quarantine State
+  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
+  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
   
   const getStatusBadge = useCallback((status: Report['overallStatus'] | 'Belum Checklist' | 'Karantina' | 'Tanpa Operator') => {
     switch (status) {
@@ -799,7 +803,7 @@ export default function KepalaMekanikPage() {
     }, [mechanicTasks, alat, userInfo?.lokasi]);
     
   const statsData = useMemo(() => {
-    const defaultStats = { count: '0', list: [], vehicleNames: '' };
+    const defaultStats = { count: '0', list: [] };
     if (isFetchingData || !userInfo?.lokasi) {
         return { totalAlat: defaultStats, sudahChecklist: defaultStats, belumChecklist: defaultStats, alatBaik: defaultStats, perluPerhatian: defaultStats, alatRusak: defaultStats, alatRusakBerat: defaultStats, alatTdkAdaOperator: defaultStats };
     }
@@ -857,14 +861,14 @@ export default function KepalaMekanikPage() {
     const alatRusakList = Array.from(latestReportsMap.values()).filter(r => r.overallStatus === 'rusak' && !hasActiveTask(r.id)).map(r => alat.find(a => a.nomorLambung === r.vehicleId)).filter(Boolean) as AlatData[];
 
     return {
-        totalAlat: { count: String(alatInLocation.length), list: mapToDetailFormat(alatInLocation, 'latest') },
-        sudahChecklist: { count: String(sudahChecklistList.length), list: mapToDetailFormat(sudahChecklistList, 'latest') },
-        belumChecklist: { count: String(belumChecklistList.length), list: mapToDetailFormat(belumChecklistList, 'belum') },
-        alatBaik: { count: String(alatBaikList.length), list: mapToDetailFormat(alatBaikList, 'latest') },
-        perluPerhatian: { count: String(perluPerhatianList.length), list: mapToDetailFormat(perluPerhatianList, 'latest') },
-        alatRusak: { count: String(alatRusakList.length), list: mapToDetailFormat(alatRusakList, 'latest') },
-        alatRusakBerat: { count: String(alatRusakBeratList.length), list: mapToDetailFormat(alatRusakBeratList, 'karantina') },
-        alatTdkAdaOperator: { count: String(alatTdkAdaOperatorList.length), list: mapToDetailFormat(alatTdkAdaOperatorList, 'unpaired') },
+      totalAlat: { count: String(alatInLocation.length), list: mapToDetailFormat(alatInLocation, 'latest') },
+      sudahChecklist: { count: String(sudahChecklistList.length), list: mapToDetailFormat(sudahChecklistList, 'latest') },
+      belumChecklist: { count: String(belumChecklistList.length), list: mapToDetailFormat(belumChecklistList, 'belum') },
+      alatBaik: { count: String(alatBaikList.length), list: mapToDetailFormat(alatBaikList, 'latest') },
+      perluPerhatian: { count: String(perluPerhatianList.length), list: mapToDetailFormat(perluPerhatianList, 'latest') },
+      alatRusak: { count: String(alatRusakList.length), list: mapToDetailFormat(alatRusakList, 'latest') },
+      alatRusakBerat: { count: String(alatRusakBeratList.length), list: mapToDetailFormat(alatRusakBeratList, 'karantina') },
+      alatTdkAdaOperator: { count: String(alatTdkAdaOperatorList.length), list: mapToDetailFormat(alatTdkAdaOperatorList, 'unpaired') },
     };
 }, [alat, userInfo?.lokasi, reports, pairings, mechanicTasks, isFetchingData, getLatestReport]);
 
@@ -1132,6 +1136,26 @@ export default function KepalaMekanikPage() {
     }
   };
 
+  const handleConfirmQuarantine = async () => {
+    if (!quarantineTarget) return;
+    const isQuarantining = !quarantineTarget.statusKarantina;
+    
+    try {
+      const alatDocRef = doc(db, 'alat', quarantineTarget.id);
+      await updateDoc(alatDocRef, { statusKarantina: isQuarantining });
+      
+      toast({ 
+        title: `Status Karantina Diperbarui`,
+        description: `${quarantineTarget.nomorLambung} telah ${isQuarantining ? 'dimasukkan ke' : 'dilepaskan dari'} karantina.`
+      });
+      
+    } catch(e) {
+      toast({ title: 'Gagal Memperbarui Status Karantina', variant: 'destructive'});
+    } finally {
+      setIsQuarantineConfirmOpen(false);
+    }
+  };
+
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1300,7 +1324,7 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         case 'Absensi':
              if (!userInfo) return null;
              return <Card><CardHeader><CardTitle>Absensi</CardTitle></CardHeader><CardContent><p>Halaman absensi.</p></CardContent></Card>;
