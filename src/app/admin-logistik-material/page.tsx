@@ -101,7 +101,6 @@ export default function AdminLogistikPage() {
     } else {
       router.push('/login');
     }
-    setIsLoading(false);
   }, [router]);
 
   useEffect(() => {
@@ -193,6 +192,12 @@ export default function AdminLogistikPage() {
     return () => unsubscribers.forEach(unsub => unsub());
 
   }, [userInfo, dateRange]);
+
+  useEffect(() => {
+    if (!isLoading && !userInfo) {
+        setIsLoading(false);
+    }
+  }, [isLoading, userInfo]);
 
   const activeJobs = useMemo(() => jobs.filter(job => job.status === 'Proses' || job.status === 'Menunggu'), [jobs]);
 
@@ -523,7 +528,7 @@ export default function AdminLogistikPage() {
 
         setIsFetchingHistory(true);
         const fromDate = startOfDay(dateRange.from);
-        const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(fromDate);
+        const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
         
         const filtered = allPemasukan.filter(entry => {
             const entryDate = new Date(entry.timestamp);
