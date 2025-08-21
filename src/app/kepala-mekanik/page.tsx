@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -97,13 +98,11 @@ type ActiveMenu =
   | 'Manajemen Work Order'
   | 'Histori Perbaikan Alat' 
   | 'Anggota Mekanik'
-  | 'Sopir & Batangan'
-  | 'Alat Rusak Berat/Karantina' 
-  | 'Laporan Logistik'
-  | 'Manajemen Pengguna'
+  | 'Absensi'
+  | 'Kegiatan'
+  | 'Riwayat Kegiatan'
   | 'Riwayat Penalti'
-  | 'Komplain dari Sopir'
-  | 'Usulan / Saran dari Sopir'
+  | 'Riwayat Reward'
   | 'Pesan Masuk';
 
 const menuItems = [
@@ -114,9 +113,14 @@ const menuItems = [
 ];
 
 const secondaryMenuItems = [
+    { name: 'Absensi', icon: ClipboardCheck, href: '/absensi' },
+    { name: 'Kegiatan', icon: FileText, href: '/kegiatan' },
+    { name: 'Riwayat Kegiatan', icon: History, href: '/riwayat-kegiatan' },
     { name: 'Riwayat Penalti', icon: ShieldX, href: '/riwayat-saya?type=penalty' },
+    { name: 'Riwayat Reward', icon: Star, href: '/riwayat-saya?type=reward' },
     { name: 'Pesan Masuk', icon: Mail, href: '#' },
 ];
+
 
 const taskFormSchema = z.object({
   mechanics: z.array(z.object({ id: z.string(), name: z.string() })).min(1, "Pilih minimal satu mekanik."),
@@ -125,7 +129,6 @@ const taskFormSchema = z.object({
 });
 
 type TaskFormData = z.infer<typeof taskFormSchema>;
-
 
 const StatCard = ({ title, value, description, icon: Icon, color, onClick }: { title: string, value: string, description: string, icon: React.ElementType, color: string, onClick?: () => void }) => (
     <Card className="hover:bg-accent/50 transition-colors cursor-pointer" onClick={onClick}>
@@ -205,102 +208,102 @@ const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { 
                         Pilih mekanik dan tentukan target penyelesaian perbaikan.
                     </DialogDescription>
                 </DialogHeader>
-                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
-                     <FormField
-                      control={form.control}
-                      name="mechanics"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Pilih Mekanik</FormLabel>
-                           <Popover>
-                              <PopoverTrigger asChild>
-                                 <Button variant="outline" className="w-full justify-start">
-                                    <PlusCircle className="mr-2"/>
-                                    {field.value.length > 0 ? field.value.map(m => m.name).join(', ') : "Pilih mekanik"}
-                                 </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                  <Command>
-                                    <CommandInput placeholder="Cari mekanik..." />
-                                    <CommandList>
-                                        <CommandEmpty>Tidak ada mekanik.</CommandEmpty>
-                                        <CommandGroup>
-                                            {mechanics.filter(m => m.jabatan?.toUpperCase().includes('MEKANIK')).map((mechanic) => {
-                                                const isSelected = field.value.some(m => m.id === mechanic.id);
-                                                return (
-                                                    <CommandItem
-                                                        key={mechanic.id}
-                                                        onSelect={() => {
-                                                            const currentMechanics = field.value;
-                                                            if (isSelected) {
-                                                                form.setValue("mechanics", currentMechanics.filter(m => m.id !== mechanic.id));
-                                                            } else {
-                                                                form.setValue("mechanics", [...currentMechanics, { id: mechanic.id, name: mechanic.username }]);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
-                                                            <Check className="h-4 w-4" />
-                                                        </div>
-                                                        <span>{mechanic.username}</span>
-                                                    </CommandItem>
-                                                )
-                                            })}
-                                        </CommandGroup>
-                                    </CommandList>
-                                  </Command>
-                              </PopoverContent>
-                           </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                            control={form.control}
-                            name="targetDate"
-                            render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                                <FormLabel>Target Selesai</FormLabel>
-                                <Popover>
-                                <PopoverTrigger asChild>
-                                    <FormControl>
-                                    <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                                        {field.value ? format(field.value, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
-                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                   <Form {...form}>
+                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
+                       <FormField
+                       control={form.control}
+                       name="mechanics"
+                       render={({ field }) => (
+                         <FormItem>
+                           <FormLabel>Pilih Mekanik</FormLabel>
+                             <Popover>
+                                 <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-start">
+                                       <PlusCircle className="mr-2"/>
+                                       {field.value.length > 0 ? field.value.map(m => m.name).join(', ') : "Pilih mekanik"}
                                     </Button>
-                                    </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                                </PopoverContent>
-                                </Popover>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                         <FormField
-                            control={form.control}
-                            name="targetTime"
-                            render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                                <FormLabel>Waktu Target</FormLabel>
-                                <Input type="time" {...field} />
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                    </div>
-                    <DialogFooter>
-                        <DialogClose asChild><Button variant="outline">Batal</Button></DialogClose>
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2" />}
-                             Buat Work Order
-                        </Button>
-                    </DialogFooter>
-                  </form>
-                </Form>
+                                 </PopoverTrigger>
+                                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                     <Command>
+                                       <CommandInput placeholder="Cari mekanik..." />
+                                       <CommandList>
+                                         <CommandEmpty>Tidak ada mekanik.</CommandEmpty>
+                                         <CommandGroup>
+                                             {mechanics.filter(m => m.jabatan?.toUpperCase().includes('MEKANIK')).map((mechanic) => {
+                                                 const isSelected = field.value.some(m => m.id === mechanic.id);
+                                                 return (
+                                                     <CommandItem
+                                                         key={mechanic.id}
+                                                         onSelect={() => {
+                                                             const currentMechanics = field.value;
+                                                             if (isSelected) {
+                                                                 form.setValue("mechanics", currentMechanics.filter(m => m.id !== mechanic.id));
+                                                             } else {
+                                                                 form.setValue("mechanics", [...currentMechanics, { id: mechanic.id, name: mechanic.username }]);
+                                                             }
+                                                         }}
+                                                     >
+                                                         <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
+                                                             <Check className="h-4 w-4" />
+                                                         </div>
+                                                         <span>{mechanic.username}</span>
+                                                     </CommandItem>
+                                                 )
+                                             })}
+                                         </CommandGroup>
+                                       </CommandList>
+                                     </Command>
+                                 </PopoverContent>
+                             </Popover>
+                           <FormMessage />
+                         </FormItem>
+                       )}
+                       />
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                           <FormField
+                               control={form.control}
+                               name="targetDate"
+                               render={({ field }) => (
+                               <FormItem className="flex flex-col">
+                                   <FormLabel>Target Selesai</FormLabel>
+                                   <Popover>
+                                   <PopoverTrigger asChild>
+                                       <FormControl>
+                                       <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                           {field.value ? format(field.value, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
+                                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                       </Button>
+                                       </FormControl>
+                                   </PopoverTrigger>
+                                   <PopoverContent className="w-auto p-0" align="start">
+                                       <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                   </PopoverContent>
+                                   </Popover>
+                                   <FormMessage />
+                               </FormItem>
+                               )}
+                           />
+                             <FormField
+                               control={form.control}
+                               name="targetTime"
+                               render={({ field }) => (
+                               <FormItem className="flex flex-col">
+                                   <FormLabel>Waktu Target</FormLabel>
+                                   <Input type="time" {...field} />
+                                   <FormMessage />
+                               </FormItem>
+                               )}
+                           />
+                       </div>
+                       <DialogFooter>
+                           <DialogClose asChild><Button variant="outline">Batal</Button></DialogClose>
+                           <Button type="submit" disabled={isSubmitting}>
+                               {isSubmitting ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2" />}
+                                 Buat Work Order
+                           </Button>
+                       </DialogFooter>
+                     </form>
+                   </Form>
             </DialogContent>
         </Dialog>
     );
@@ -592,9 +595,9 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
                                             <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
                                             <TableCell>
                                                 <div className="text-xs space-y-1">
-                                                       {task.startedAt && <p><b>Mulai:</b> {format(new Date(task.startedAt), 'dd/MM HH:mm')}</p>}
-                                                       <p><b>Target:</b> {format(new Date(`${task.vehicle.targetDate}T${task.vehicle.targetTime}`), 'dd/MM HH:mm')}</p>
-                                                       {task.completedAt && <p><b>Realisasi:</b> {format(new Date(task.completedAt), 'dd/MM HH:mm')}</p>}
+                                                    {task.startedAt && <p><b>Mulai:</b> {format(new Date(task.startedAt), 'dd/MM HH:mm')}</p>}
+                                                    <p><b>Target:</b> {format(new Date(`${task.vehicle.targetDate}T${task.vehicle.targetTime}`), 'dd/MM HH:mm')}</p>
+                                                    {task.completedAt && <p><b>Realisasi:</b> {format(new Date(task.completedAt), 'dd/MM HH:mm')}</p>}
                                                 </div>
                                             </TableCell>
                                              <TableCell>
@@ -679,7 +682,7 @@ export default function KepalaMekanikPage() {
        case 'Karantina':
         return <Badge variant="destructive">Karantina</Badge>;
       case 'Tanpa Operator':
-        return <Badge variant="secondary">Tanpa Operator</Badge>;
+          return <Badge variant="secondary">Tanpa Operator</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -863,7 +866,7 @@ export default function KepalaMekanikPage() {
     };
 }, [alat, userInfo?.lokasi, reports, pairings, isFetchingData, getLatestReport, mechanicTasks]);
 
-  const sopirOptions = useMemo(() => {
+    const sopirOptions = useMemo(() => {
       return users.filter(u => (u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR')) && u.lokasi === userInfo?.lokasi);
     }, [users, userInfo?.lokasi]);
   
@@ -897,7 +900,6 @@ export default function KepalaMekanikPage() {
       return;
     }
     setUserInfo(userData);
-    setIsLoading(false);
   }, [router, toast]);
   
     useEffect(() => {
@@ -979,13 +981,6 @@ export default function KepalaMekanikPage() {
     router.push('/login');
   };
   
-  const handleMenuClick = (menuName: ActiveMenu) => {
-    if (menuName === 'Pesan Masuk') {
-      setHasNewMessage(false);
-    }
-    setActiveMenu(menuName);
-  };
-  
   const optimisticTaskUpdate = (taskId: string, updatedProps: Partial<MechanicTask>) => {
     setMechanicTasks(prevTasks =>
         prevTasks.map(t =>
@@ -1036,7 +1031,7 @@ export default function KepalaMekanikPage() {
             riwayatTunda: (finalUpdateData.riwayatTunda || task.riwayatTunda || []).map(item => ({
                 ...item,
                 waktuMulai: item.waktuMulai instanceof Date ? Timestamp.fromDate(item.waktuMulai) : item.waktuMulai,
-                waktuSelesai: null,
+                waktuSelesai: item.waktuSelesai instanceof Date ? Timestamp.fromDate(item.waktuSelesai) : item.waktuSelesai,
             })),
         });
         toast({ title: 'Status Work Order Diperbarui' });
@@ -1122,17 +1117,24 @@ export default function KepalaMekanikPage() {
     }
   };
 
+  const handleMenuClick = (menuName: ActiveMenu) => {
+    if (menuName === 'Pesan Masuk') {
+      setHasNewMessage(false);
+    }
+    setActiveMenu(menuName);
+  };
+  
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
             return (
               <main>
-                   <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-6 mb-8">
-                     {isFetchingData ? (
-                        Array.from({ length: 8 }).map((_, i) => (
+                 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-6 mb-8">
+                   {isFetchingData ? (
+                       Array.from({ length: 8 }).map((_, i) => (
                           <Card key={i}><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><Skeleton className="h-5 w-2/4" /><Skeleton className="h-6 w-6 rounded-full" /></CardHeader><CardContent><Skeleton className="h-12 w-1/4 mt-2" /><Skeleton className="h-4 w-3/4 mt-2" /></CardContent></Card>
-                        ))
-                    ) : statCards.map(card => (<StatCard key={card.title} {...card} onClick={() => handleStatCardClick(card.title)}/>))}
+                       ))
+                   ) : statCards.map(card => (<StatCard key={card.title} {...card} onClick={() => handleStatCardClick(card.title)}/>))}
                 </div>
               </main>
             );
@@ -1366,7 +1368,7 @@ export default function KepalaMekanikPage() {
                             </p>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            {format(new Date(report.timestamp), 'dd MMM yyyy, HH:mm', { locale: localeID })}
+                            {formatRelative(new Date(report.timestamp), new Date(), { locale: localeID })}
                           </p>
                         </div>
                         <p className="mt-2 text-sm italic">"{report.description}"</p>
@@ -1470,6 +1472,24 @@ export default function KepalaMekanikPage() {
         </DialogContent>
       </Dialog>
       
+        <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
+         <AlertDialogContent>
+             <AlertDialogHeader>
+                 <AlertDialogTitle>Konfirmasi Status Karantina</AlertDialogTitle>
+                 <AlertDialogDescription>
+                    Anda yakin ingin {quarantineTarget?.statusKarantina ? 'mengeluarkan' : 'memasukkan'} kendaraan <strong>{quarantineTarget?.nomorLambung}</strong> {quarantineTarget?.statusKarantina ? 'dari' : 'ke dalam'} karantina?
+                 </AlertDialogDescription>
+             </AlertDialogHeader>
+             <AlertDialogFooter>
+                 <AlertDialogCancel>Batal</AlertDialogCancel>
+                 <AlertDialogAction>
+                     Ya, Konfirmasi
+                 </AlertDialogAction>
+             </AlertDialogFooter>
+         </AlertDialogContent>
+     </AlertDialog>
+
+
     <SidebarProvider>
       <div className="flex min-h-screen bg-background text-foreground">
         <Sidebar>
@@ -1493,19 +1513,11 @@ export default function KepalaMekanikPage() {
                     </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-                <SidebarSeparator className="my-2" />
-                {secondaryMenuItems.map((item) => (
-                <SidebarMenuItem key={item.name}>
-                    <Link href={item.href} passHref>
-                        <SidebarMenuButton className="h-9 relative" onClick={() => handleMenuClick(item.name as ActiveMenu)}>
-                               <item.icon className="h-4 w-4" />
-                             <span className="text-sm">{item.name}</span>
-                        </SidebarMenuButton>
-                    </Link>
-                </SidebarMenuItem>
-                ))}
             </SidebarMenu>
-            <SidebarFooter>
+            <SidebarFooter className="p-2 space-y-2">
+                 <div className="text-center p-4 border rounded-lg">
+                    <h3 className="font-bold text-lg">Logo PT Farika Riau Perkasa</h3>
+                 </div>
                 <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-muted-foreground">
                     <LogOut className="mr-2 h-4 w-4" />
                     Logout
