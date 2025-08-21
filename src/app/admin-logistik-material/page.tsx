@@ -101,6 +101,7 @@ export default function AdminLogistikPage() {
     } else {
       router.push('/login');
     }
+    setIsLoading(false);
   }, [router]);
 
   useEffect(() => {
@@ -192,12 +193,6 @@ export default function AdminLogistikPage() {
     return () => unsubscribers.forEach(unsub => unsub());
 
   }, [userInfo, dateRange]);
-
-  useEffect(() => {
-    if (!isLoading && !userInfo) {
-        setIsLoading(false);
-    }
-  }, [isLoading, userInfo]);
 
   const activeJobs = useMemo(() => jobs.filter(job => job.status === 'Proses' || job.status === 'Menunggu'), [jobs]);
 
@@ -741,7 +736,7 @@ export default function AdminLogistikPage() {
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'status'} onClick={() => setActiveMenu('status')}><ActivitySquare />Status Bongkaran Hari Ini</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'rencana'} onClick={() => setActiveMenu('rencana')}><FileClock />Rencana Pemasukan Material</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'bongkar'} onClick={() => setActiveMenu('bongkar')}><Anchor />Bongkar Batu &amp; Pasir Hari Ini (WO-Sopir DT)</SidebarMenuButton></SidebarMenuItem>
-            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'riwayat-bongkar'} onClick={() => setActiveMenu('riwayat-bongkar')}><Archive />Riwayat Bongkar</SidebarMenuButton></SidebarMenuItem>
+            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'riwayat-bongkar'} onClick={()={() => setActiveMenu('riwayat-bongkar')}}><Archive />Riwayat Bongkar</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'pemasukan'} onClick={() => setActiveMenu('pemasukan')}><PackagePlus />Pemasukan Material</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'riwayat'} onClick={() => setActiveMenu('riwayat')}><History />Riwayat Pemasukan</SidebarMenuButton></SidebarMenuItem>
             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'daftar-kendaraan'} onClick={() => setActiveMenu('daftar-kendaraan')}><Truck />Daftar Kendaraan</SidebarMenuButton></SidebarMenuItem>
@@ -866,7 +861,7 @@ export default function AdminLogistikPage() {
                                     
                                     {newRencana.jenisMaterial !== 'SEMEN' && (
                                         <>
-                                            <div className="space-y-1"><Label>Volume Estimasi (M³)</Label><Input type="number" value={newRencana.estimasiMuatan || ''} onChange={e => handleNewRencanaChange('estimasiMuatan', Number(e.target.value))} placeholder="0" /></div>
+                                            <div className="space-y-1"><Label>Volume Muatan (Aktual M³)</Label><Input type="number" value={newRencana.estimasiMuatan || ''} onChange={e => handleNewRencanaChange('estimasiMuatan', Number(e.target.value))} placeholder="0" /></div>
                                             <div className="space-y-1"><Label>Nomor SPB</Label><Input value={newRencana.noSpb || ''} onChange={e => handleNewRencanaChange('noSpb', e.target.value.toUpperCase())} placeholder="Nomor Surat Jalan" /></div>
                                         </>
                                     )}
