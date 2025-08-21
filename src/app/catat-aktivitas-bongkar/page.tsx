@@ -367,7 +367,7 @@ export default function CatatAktivitasBongkarPage() {
           material: activeJob.jenisMaterial,
           noSpb: Object.values(activeJob.spbPerTank || {}).join(', '),
           namaKapal: activeJob.namaKapal,
-          namaSopir: activeJob.namaSopir,
+          namaSopir: activeJob.namaSopir || '',
           jumlah: totalAmount,
           unit: 'KG',
           keterangan: `Selesai bongkar otomatis dari ${selectedUnit}.`,
