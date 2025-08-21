@@ -318,6 +318,7 @@ export default function AdminLogistikPage() {
             updateData.jamMulai = new Date().toISOString();
         } else if (newStatus === 'Selesai' && !jobData.jamSelesai) {
              const ritasiSelesai = (allTripHistories[jobId] || []).length;
+             // The "actual" volume is now stored in totalVolume. `volumeTerbongkar` is just an estimate for display.
              const finalVolumeTerbongkar = ritasiSelesai * MUATAN_PER_RIT;
              
              updateData.volumeTerbongkar = finalVolumeTerbongkar;
@@ -335,14 +336,14 @@ export default function AdminLogistikPage() {
                         noSpb: rencanaData.noSpb,
                         namaKapal: jobData.namaKapal,
                         namaSopir: rencanaData.namaSopir || '',
-                        jumlah: finalVolumeTerbongkar,
+                        jumlah: jobData.totalVolume, // Use the actual volume from the WO
                         unit: 'M³',
                         keterangan: `Selesai bongkar otomatis dari WO.`,
                         lokasi: userInfo?.lokasi,
                     };
                     await addDoc(collection(db, 'arsip_pemasukan_material_semua'), logEntry);
                     await updateDoc(rencanaDocRef, { status: 'Selesai Bongkar' });
-                    toast({ title: "Pemasukan Material Dicatat", description: `${finalVolumeTerbongkar} M³ ${jobData.material} telah dicatat.` });
+                    toast({ title: "Pemasukan Material Dicatat", description: `${jobData.totalVolume} M³ ${jobData.material} telah dicatat.` });
                 }
             }
 
@@ -611,7 +612,7 @@ export default function AdminLogistikPage() {
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Terbitkan Perintah Bongkar untuk {selectedRencanaForJob?.namaKapal}</DialogTitle>
-                    <DialogDescription>Konfirmasi detail untuk pekerjaan bongkar. Data diambil dari rencana pemasukan.</DialogDescription>
+                    <DialogDescription>Konfirmasi detail untuk pekerjaan bongkar. Data ini akan menjadi acuan volume aktual.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <div className="space-y-1">
@@ -623,7 +624,7 @@ export default function AdminLogistikPage() {
                         <Input value={selectedRencanaForJob?.jenisMaterial} disabled />
                     </div>
                      <div className="space-y-1">
-                        <Label htmlFor="totalVolume">Volume Muatan (Estimasi M³)</Label>
+                        <Label htmlFor="totalVolume">Volume Muatan (Aktual M³)</Label>
                         <Input id="totalVolume" name="totalVolume" type="number" value={jobCreationData.totalVolume} onChange={e => setJobCreationData(d => ({...d, totalVolume: Number(e.target.value)}))} />
                     </div>
                     <div className="space-y-1">

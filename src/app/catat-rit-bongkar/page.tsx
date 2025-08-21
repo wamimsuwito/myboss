@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import type { Job, TripLog, UserData } from '@/lib/types';
 import { db, collection, getDocs, doc, updateDoc, addDoc, onSnapshot, query, where, setDoc, getDoc } from '@/lib/firebase';
 
-const MUATAN_PER_RIT = 20; // m3
+const MUATAN_PER_RIT_ESTIMASI = 20; // m3
 
 const getStepDetails = (step: 'idle' | 'departed_from_bp' | 'arrived_at_destination' | 'loading_started' | 'loading_finished' | 'departed_from_destination', destination: string) => {
     switch (step) {
@@ -49,8 +49,6 @@ export default function CatatRitBongkarPage() {
         if (activeJob.material === 'Pasir') return 'Dermaga Buffer Silo';
         return '';
     }, [activeJob]);
-    
-    const todayKey = useMemo(() => activeJob && userInfo ? `trip_history_${activeJob.id}_${userInfo.id}_${format(new Date(), 'yyyy-MM-dd')}` : '', [activeJob, userInfo]);
 
     const loadStateFromFirestore = useCallback(async (userId: string) => {
         const stateDocQuery = await getDocs(query(collection(db, 'driver_states'), where('userId', '==', userId)));
@@ -72,7 +70,7 @@ export default function CatatRitBongkarPage() {
                     ));
                     const userHistoryToday = historySnapshot.docs
                         .map(d => d.data() as TripLog)
-                        .filter(t => t.departFromBp && format(new Date(t.departFromBp), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd'));
+                        .sort((a, b) => a.tripNumber - b.tripNumber);
                     setTripHistory(userHistoryToday);
                 }
             }
@@ -82,12 +80,12 @@ export default function CatatRitBongkarPage() {
 
     useEffect(() => {
         setIsLoading(true);
-        // Simulate getting user info, in a real app this would come from a context or auth service
-        const dummyUser: UserData = JSON.parse(localStorage.getItem('user') || '{}');
-        if (!dummyUser.id) {
+        const userString = localStorage.getItem('user');
+        if (!userString) {
             router.push('/login');
             return;
         }
+        const dummyUser: UserData = JSON.parse(userString);
         setUserInfo(dummyUser);
         
         if(dummyUser.id) {
@@ -103,13 +101,11 @@ export default function CatatRitBongkarPage() {
                 const jobsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Job[];
                 setAvailableJobs(jobsData);
 
-                // If there's an active job, find its updated version and update the state
                 if (activeJob?.id) {
                     const updatedActiveJob = jobsData.find(j => j.id === activeJob.id);
                     if (updatedActiveJob) {
                         setActiveJob(updatedActiveJob);
                     } else {
-                        // Job might be completed and removed
                         handleJobStop();
                     }
                 }
@@ -124,7 +120,7 @@ export default function CatatRitBongkarPage() {
                 unsub();
             })();
         };
-    }, [activeJob?.id]); // Rerun when activeJob ID changes
+    }, [activeJob?.id]);
 
     const saveStateToFirestore = useCallback(async () => {
         if (!userInfo) return;
@@ -142,12 +138,21 @@ export default function CatatRitBongkarPage() {
         saveStateToFirestore();
     }, [saveStateToFirestore]);
 
-    const handleJobStart = (job: Job) => {
-        const newActiveJob = { ...job };
-        setActiveJob(newActiveJob);
-        
+    const handleJobStart = async (job: Job) => {
         if (!userInfo) return;
-        setTripHistory([]);
+        setActiveJob(job);
+        
+        // Fetch existing history for this job and this driver
+        const historySnapshot = await getDocs(query(
+            collection(db, 'all_trip_histories'),
+            where('sopirId', '==', userInfo.id),
+            where('jobId', '==', job.id)
+        ));
+        const userHistoryForJob = historySnapshot.docs
+            .map(d => d.data() as TripLog)
+            .sort((a,b) => a.tripNumber - b.tripNumber);
+        
+        setTripHistory(userHistoryForJob);
         setCurrentStep('idle');
         setCurrentTripLog({ jobId: job.id });
     };
@@ -212,11 +217,12 @@ export default function CatatRitBongkarPage() {
                     await addDoc(collection(db, 'all_trip_histories'), finalTripLog);
                     
                     const jobDocRef = doc(db, 'available_jobs', activeJob.id);
-                    const newSisaVolume = activeJob.sisaVolume - MUATAN_PER_RIT;
-                    const newVolumeTerbongkar = (activeJob.volumeTerbongkar || 0) + MUATAN_PER_RIT;
+                    const newVolumeTerbongkar = (activeJob.volumeTerbongkar || 0) + MUATAN_PER_RIT_ESTIMASI;
+                    const newSisaVolume = activeJob.totalVolume - newVolumeTerbongkar;
+
                     await updateDoc(jobDocRef, {
-                        sisaVolume: newSisaVolume < 0 ? 0 : newSisaVolume,
                         volumeTerbongkar: newVolumeTerbongkar,
+                        sisaVolume: newSisaVolume,
                     });
                     
                     updatedLog = { jobId: activeJob.id };
@@ -235,6 +241,8 @@ export default function CatatRitBongkarPage() {
     };
 
     const ritasiSelesai = tripHistory.length;
+    const estimasiVolumeTerbongkar = ritasiSelesai * MUATAN_PER_RIT_ESTIMASI;
+    const estimasiSisaVolume = activeJob ? activeJob.totalVolume - estimasiVolumeTerbongkar : 0;
     const pemakaianBBM = activeJob ? ritasiSelesai * activeJob.bbmPerRit : 0;
 
     const { title, buttonText } = getStepDetails(currentStep, destination);
@@ -272,7 +280,7 @@ export default function CatatRitBongkarPage() {
                                             Bongkar {job.material}
                                         </p>
                                         <p className="text-sm text-muted-foreground">Kapal: {job.namaKapal}</p>
-                                        <p className="text-sm text-muted-foreground">Sisa Volume: {job.sisaVolume} M³</p>
+                                        <p className="text-sm text-muted-foreground">Total Aktual: {job.totalVolume} M³</p>
                                     </div>
                                     <Button onClick={() => handleJobStart(job)} disabled={!!activeJob || job.status !== 'Proses'}>
                                         {job.status === 'Selesai' ? 'Selesai' : <><Play className="mr-2"/> Mulai</>}
@@ -291,9 +299,9 @@ export default function CatatRitBongkarPage() {
                             <CardTitle>Dasbor: Bongkar {activeJob.material}</CardTitle>
                         </CardHeader>
                         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                            <Card className="p-3"><CardDescription>Total Muatan</CardDescription><p className="text-2xl font-bold">{activeJob.totalVolume.toLocaleString()} M³</p></Card>
-                            <Card className="p-3"><CardDescription>Sisa Muatan</CardDescription><p className="text-2xl font-bold">{activeJob.sisaVolume.toLocaleString()} M³</p></Card>
+                            <Card className="p-3"><CardDescription>Total Aktual</CardDescription><p className="text-2xl font-bold">{activeJob.totalVolume.toLocaleString()} M³</p></Card>
                             <Card className="p-3"><CardDescription>Ritasi Saya</CardDescription><p className="text-2xl font-bold">{ritasiSelesai}</p></Card>
+                            <Card className="p-3"><CardDescription>Estimasi Sisa</CardDescription><p className="text-2xl font-bold">{estimasiSisaVolume.toLocaleString()} M³</p></Card>
                             <Card className="p-3"><CardDescription>Pakai BBM</CardDescription><p className="text-2xl font-bold">{pemakaianBBM} L</p></Card>
                         </CardContent>
                     </Card>
@@ -348,5 +356,3 @@ export default function CatatRitBongkarPage() {
         </div>
     );
 }
-
-    
