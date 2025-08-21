@@ -285,7 +285,7 @@ export default function AdminLogistikPage() {
   
   const handleCreateJobFromRencana = async () => {
     if (!selectedRencanaForJob) return;
-    
+
     const jobData: Omit<Job, 'id'> = {
         namaKapal: selectedRencanaForJob.namaKapal,
         material: selectedRencanaForJob.jenisMaterial as 'Batu' | 'Pasir',
@@ -293,19 +293,20 @@ export default function AdminLogistikPage() {
         volumeTerbongkar: 0,
         sisaVolume: jobCreationData.totalVolume,
         bbmPerRit: jobCreationData.bbmPerRit,
-        status: 'Menunggu',
+        status: 'Proses', // Langsung 'Proses' karena sudah siap bongkar
+        jamMulai: new Date().toISOString(),
         totalWaktuTunda: 0,
         riwayatTunda: [],
         rencanaId: selectedRencanaForJob.id,
     };
-    
+
     try {
         await addDoc(collection(db, "available_jobs"), jobData);
         await updateDoc(doc(db, "rencana_pemasukan", selectedRencanaForJob.id), { status: 'Siap Untuk Dibongkar' });
         toast({ title: "Perintah Bongkar Diterbitkan" });
         setIsCreateJobDialogOpen(false);
         setSelectedRencanaForJob(null);
-    } catch(e) {
+    } catch (e) {
         toast({ title: 'Gagal Terbitkan WO', variant: 'destructive' });
     }
   };
@@ -320,12 +321,6 @@ export default function AdminLogistikPage() {
         if (newStatus === 'Proses' && !jobData.jamMulai) {
             updateData.jamMulai = new Date().toISOString();
         } else if (newStatus === 'Selesai' && !jobData.jamSelesai) {
-             const ritasiSelesai = (allTripHistories[jobId] || []).length;
-             const muatanPerRit = jobData.material === 'Pasir' ? MUATAN_PER_RIT_ESTIMASI_PASIR : MUATAN_PER_RIT_ESTIMASI_BATU;
-             const finalVolumeTerbongkar = ritasiSelesai * muatanPerRit;
-             
-             updateData.volumeTerbongkar = finalVolumeTerbongkar;
-             updateData.sisaVolume = Math.max(0, jobData.totalVolume - finalVolumeTerbongkar);
              updateData.jamSelesai = new Date().toISOString();
 
             if (jobData.rencanaId) {
@@ -339,7 +334,7 @@ export default function AdminLogistikPage() {
                         noSpb: rencanaData.noSpb,
                         namaKapal: jobData.namaKapal,
                         namaSopir: rencanaData.namaSopir || '',
-                        jumlah: jobData.totalVolume, // Use the actual volume from the WO
+                        jumlah: jobData.totalVolume,
                         unit: 'M³',
                         keterangan: `Selesai bongkar otomatis dari WO.`,
                         lokasi: userInfo?.lokasi,
@@ -358,7 +353,6 @@ export default function AdminLogistikPage() {
                 return; // User cancelled
             }
         } else if (newStatus === 'Proses' && jobData.status === 'Tunda') {
-            // Logic for resuming
             const lastTunda = jobData.riwayatTunda?.[jobData.riwayatTunda.length - 1];
             if (lastTunda && !lastTunda.waktuSelesai) {
                 lastTunda.waktuSelesai = new Date().toISOString();
