@@ -94,7 +94,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 
 
 type ActiveMenu = 
-  | 'Dashboard' 
+  | 'Dasbor' 
   | 'Manajemen Work Order'
   | 'Histori Perbaikan Alat' 
   | 'Anggota Mekanik'
@@ -108,7 +108,7 @@ type ActiveMenu =
   | 'Pesan Masuk';
 
 const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard },
+    { name: 'Dasbor', icon: LayoutDashboard },
     { name: 'Manajemen Work Order', icon: ClipboardList },
     { name: 'Histori Perbaikan Alat', icon: History },
     { name: 'Anggota Mekanik', icon: Users },
@@ -639,7 +639,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
 export default function KepalaMekanikPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dashboard');
+  const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dasbor');
   const [userInfo, setUserInfo] = useState<UserData | null>(null);
   
   const [isFetchingData, setIsFetchingData] = useState(true);
@@ -649,8 +649,6 @@ export default function KepalaMekanikPage() {
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
   const [locations, setLocations] = useState<LocationData[]>([]);
-  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
-  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
   
   // Delay Dialog State
   const [isDelayDialogOpen, setIsDelayDialogOpen] = useState(false);
@@ -671,17 +669,6 @@ export default function KepalaMekanikPage() {
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
 
-  const getLatestReport = useCallback((vehicleId: string, allReports: Report[]): Report | undefined => {
-    if (!Array.isArray(allReports)) return undefined;
-    return allReports
-      .filter(r => r.vehicleId === vehicleId)
-      .sort((a, b) => {
-          const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-          const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-          return dateB - dateA;
-      })[0];
-  }, []);
-
   const getStatusBadge = useCallback((status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
     switch (status) {
       case 'baik':
@@ -699,57 +686,49 @@ export default function KepalaMekanikPage() {
     }
   }, []);
 
-  useEffect(() => {
-    const userString = localStorage.getItem('user');
-    if (!userString) {
-      router.replace('/login');
-      return;
-    }
-    const userData = JSON.parse(userString);
-     if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
-      toast({
-        variant: 'destructive',
-        title: 'Akses Ditolak',
-        description: 'Anda tidak memiliki hak untuk mengakses halaman ini.',
-      });
-      router.replace('/login');
-      return;
-    }
-    setUserInfo(userData);
-  }, [router, toast]);
+  const getLatestReport = useCallback((vehicleId: string, allReports: Report[]): Report | undefined => {
+    if (!Array.isArray(allReports)) return undefined;
+    return allReports
+      .filter(r => r.vehicleId === vehicleId)
+      .sort((a, b) => {
+          const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return dateB - dateA;
+      })[0];
+  }, []);
   
-    const dataTransformer = useCallback((docData: any) => {
-        const transformedData = { ...docData };
-    
-        const timestampFieldsToMillis = ['createdAt', 'startedAt', 'completedAt'];
-        timestampFieldsToMillis.forEach(field => {
-            if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
-              transformedData[field] = transformedData[field].toDate().getTime();
-            }
-        });
-
-        const timestampFieldsToDate = ['timestamp'];
-        timestampFieldsToDate.forEach(field => {
-            if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
-              transformedData[field] = transformedData[field].toDate();
-            }
-        });
-    
-        if (transformedData.riwayatTunda && Array.isArray(transformedData.riwayatTunda)) {
-          transformedData.riwayatTunda = transformedData.riwayatTunda.map((tundaItem: any) => {
-            const newTundaItem = { ...tundaItem };
-            if (newTundaItem.waktuMulai && typeof newTundaItem.waktuMulai.toDate === 'function') {
-              newTundaItem.waktuMulai = newTundaItem.waktuMulai.toDate();
-            }
-            if (newTundaItem.waktuSelesai && typeof newTundaItem.waktuSelesai.toDate === 'function') {
-              newTundaItem.waktuSelesai = newTundaItem.waktuSelesai.toDate();
-            }
-            return newTundaItem;
-          });
+  const dataTransformer = useCallback((docData: any) => {
+    const transformedData = { ...docData };
+  
+    const timestampFieldsToMillis = ['createdAt', 'startedAt', 'completedAt'];
+    timestampFieldsToMillis.forEach(field => {
+        if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
+          transformedData[field] = transformedData[field].toDate().getTime();
         }
-    
-        return transformedData;
-    }, []);
+    });
+
+    const timestampFieldsToDate = ['timestamp'];
+    timestampFieldsToDate.forEach(field => {
+        if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
+          transformedData[field] = transformedData[field].toDate();
+        }
+    });
+  
+    if (transformedData.riwayatTunda && Array.isArray(transformedData.riwayatTunda)) {
+      transformedData.riwayatTunda = transformedData.riwayatTunda.map((tundaItem: any) => {
+        const newTundaItem = { ...tundaItem };
+        if (newTundaItem.waktuMulai && typeof newTundaItem.waktuMulai.toDate === 'function') {
+          newTundaItem.waktuMulai = newTundaItem.waktuMulai.toDate();
+        }
+        if (newTundaItem.waktuSelesai && typeof newTundaItem.waktuSelesai.toDate === 'function') {
+          newTundaItem.waktuSelesai = newTundaItem.waktuSelesai.toDate();
+        }
+        return newTundaItem;
+      });
+    }
+  
+    return transformedData;
+  }, []);
   
   const setupListener = useCallback((collectionName: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
         const q = query(collection(db, collectionName));
@@ -885,10 +864,6 @@ export default function KepalaMekanikPage() {
     };
 }, [alat, userInfo?.lokasi, reports, pairings, isFetchingData, getLatestReport, mechanicTasks]);
 
-    const sopirOptions = useMemo(() => {
-      return users.filter(u => (u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR')) && u.lokasi === userInfo?.lokasi);
-    }, [users, userInfo?.lokasi]);
-  
   const statCards = useMemo(() => {
     return [
       { title: 'Total Alat', value: statsData.totalAlat.count, description: 'Total alat di lokasi Anda', icon: Copy, color: 'text-blue-400' },
@@ -919,7 +894,6 @@ export default function KepalaMekanikPage() {
       return;
     }
     setUserInfo(userData);
-    setIsFetchingData(false);
   }, [router, toast]);
   
     useEffect(() => {
@@ -1146,7 +1120,7 @@ export default function KepalaMekanikPage() {
 
   const renderContent = () => {
     switch (activeMenu) {
-        case 'Dashboard':
+        case 'Dasbor':
             return (
               <main>
                  <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-6 mb-8">
@@ -1318,7 +1292,7 @@ export default function KepalaMekanikPage() {
     }
   }
 
-  if (!userInfo) {
+  if (isFetchingData || !userInfo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
