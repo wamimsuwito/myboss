@@ -888,26 +888,7 @@ export default function WorkshopPage() {
   }, [statsData]);
 
   useEffect(() => {
-    const userString = localStorage.getItem('user');
-    if (!userString) {
-      router.replace('/login');
-      return;
-    }
-    const userData = JSON.parse(userString);
-     if (userData.jabatan.toUpperCase() !== 'KEPALA WORKSHOP') {
-      toast({
-        variant: 'destructive',
-        title: 'Akses Ditolak',
-        description: 'Anda tidak memiliki hak untuk mengakses halaman ini.',
-      });
-      router.replace('/login');
-      return;
-    }
-    setUserInfo(userData);
-  }, [router, toast]);
-  
-    useEffect(() => {
-        if (!userInfo) return;
+    if (!userInfo) return;
     
         setIsFetchingData(true);
         isInitialLoad.current = true;
@@ -916,28 +897,27 @@ export default function WorkshopPage() {
             setupListener('users', setUsers),
             setupListener('alat', setAlat),
             setupListener('locations', setLocations),
-            setupListener('sopir_batangan', setPairings),
+            setupListener('mechanic_tasks', setMechanicTasks),
         ];
         
-        const taskUnsub = onSnapshot(query(collection(db, 'mechanic_tasks')), (snapshot) => {
+        const pairingUnsub = onSnapshot(query(collection(db, "sopir_batangan")), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
-            setMechanicTasks(data);
+            setPairings(data);
+            setIsFetchingData(false);
         }, (error) => {
-            console.error(`Error fetching mechanic_tasks:`, error);
-            toast({ variant: 'destructive', title: `Gagal Memuat Work Orders` });
+            console.error(`Error fetching sopir_batangan:`, error);
+            toast({ variant: 'destructive', title: `Gagal Memuat sopir_batangan` });
+            setIsFetchingData(false);
         });
-        unsubscribers.push(taskUnsub);
+        unsubscribers.push(pairingUnsub);
         
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
              if (isInitialLoad.current) {
-                const initialDamaged = new Set(data.filter(r => r.overallStatus === 'rusak' || r.overallStatus === 'perlu perhatian').map(r => r.id));
+                const initialDamaged = new Set(data.filter(r => r.overallStatus === 'rusak').map(r => r.id));
                 setSeenDamagedReports(initialDamaged);
             } else {
-                const newDamagedReports = data.filter(r => 
-                    (r.overallStatus === 'rusak' || r.overallStatus === 'perlu perhatian') && 
-                    !seenDamagedReports.has(r.id)
-                );
+                const newDamagedReports = data.filter(r => r.overallStatus === 'rusak' && !seenDamagedReports.has(r.id));
                 if (newDamagedReports.length > 0) {
                     audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
                     setHasNewMessage(true);
@@ -945,9 +925,6 @@ export default function WorkshopPage() {
                 }
             }
             setReports(data);
-        }, (error) => {
-            console.error(`Error fetching checklist_reports:`, error);
-            toast({ variant: 'destructive', title: `Gagal Memuat Laporan` });
         });
         unsubscribers.push(reportsUnsub);
         
@@ -992,181 +969,6 @@ export default function WorkshopPage() {
     setActiveMenu(menuName);
   };
   
-  const optimisticTaskUpdate = (taskId: string, updatedProps: Partial<MechanicTask>) => {
-    setMechanicTasks(prevTasks =>
-        prevTasks.map(t =>
-            t.id === taskId ? { ...t, ...updatedProps } : t
-        )
-    );
-  };
-  
-  const handleTaskStatusChange = async (taskId: string, newStatus: MechanicTask['status']) => {
-    const task = mechanicTasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    let finalUpdateData: Partial<MechanicTask> = { status: newStatus };
-
-    if (newStatus === 'IN_PROGRESS') {
-        const isResuming = task.status === 'DELAYED';
-        if (isResuming && task.riwayatTunda) {
-            const lastDelayIndex = task.riwayatTunda.length - 1;
-            const lastDelay = task.riwayatTunda[lastDelayIndex];
-            if (lastDelay && !lastDelay.waktuSelesai) {
-                const updatedRiwayat = [...task.riwayatTunda];
-                updatedRiwayat[lastDelayIndex] = { ...lastDelay, waktuSelesai: new Date() };
-                
-                const totalDelay = updatedRiwayat.reduce((acc, curr) => {
-                     if (curr.waktuMulai && curr.waktuSelesai) {
-                        const start = curr.waktuMulai instanceof Date ? curr.waktuMulai.getTime() : new Date(curr.waktuMulai).getTime();
-                        const end = curr.waktuSelesai instanceof Date ? curr.waktuSelesai.getTime() : new Date(curr.waktuSelesai).getTime();
-                        return acc + (end - start);
-                    }
-                    return acc;
-                }, 0);
-
-                finalUpdateData = { ...finalUpdateData, riwayatTunda: updatedRiwayat, totalDelayDuration: totalDelay };
-            }
-        } else {
-            finalUpdateData = { ...finalUpdateData, startedAt: new Date().getTime() };
-        }
-    } else if (newStatus === 'COMPLETED') {
-        finalUpdateData = { ...finalUpdateData, completedAt: new Date().getTime() };
-    }
-    
-    optimisticTaskUpdate(taskId, finalUpdateData);
-
-    const taskDocRef = doc(db, 'mechanic_tasks', taskId);
-    try {
-        await updateDoc(taskDocRef, {
-            ...finalUpdateData,
-            riwayatTunda: (finalUpdateData.riwayatTunda || task.riwayatTunda || []).map(item => ({
-                ...item,
-                waktuMulai: item.waktuMulai instanceof Date ? Timestamp.fromDate(item.waktuMulai) : item.waktuMulai,
-                waktuSelesai: item.waktuSelesai instanceof Date ? Timestamp.fromDate(item.waktuSelesai) : item.waktuSelesai,
-            })),
-        });
-        toast({ title: 'Status Work Order Diperbarui' });
-
-        if (newStatus === 'COMPLETED' && userInfo) {
-            const vehicle = alat.find(a => a.nomorLambung === task.vehicle.hullNumber);
-            if (vehicle) {
-                const newReport: Omit<Report, 'id'> = {
-                    timestamp: Timestamp.now(),
-                    vehicleId: vehicle.nomorLambung,
-                    operatorName: 'SISTEM (PERBAIKAN)',
-                    operatorId: userInfo.id,
-                    location: vehicle.lokasi,
-                    overallStatus: 'baik',
-                    description: `Perbaikan untuk WO ${task.id} telah selesai. Deskripsi: ${task.mechanicRepairDescription || task.vehicle.repairDescription}`,
-                    photo: [],
-                };
-                await addDoc(collection(db, 'checklist_reports'), newReport);
-                toast({ title: 'Status Alat Diperbarui', description: `Laporan "Baik" otomatis dibuat untuk ${vehicle.nomorLambung}.` });
-            }
-        }
-
-    } catch(e) {
-        console.error("Error updating status:", e);
-        toast({ title: 'Gagal Memperbarui Status', variant: 'destructive' });
-        setMechanicTasks(prev => prev.map(t => t.id === taskId ? task : t)); // Revert on failure
-    }
-};
-  
-  const handleSaveDescription = async (taskId: string, description: string) => {
-      if (!taskId) {
-        setTaskToDescribe(null);
-        return;
-      }
-      const taskDocRef = doc(db, 'mechanic_tasks', taskId);
-      try {
-          await updateDoc(taskDocRef, { mechanicRepairDescription: description });
-          toast({ title: 'Deskripsi Perbaikan Disimpan' });
-          optimisticTaskUpdate(taskId, { mechanicRepairDescription: description });
-          setTaskToDescribe(null);
-      } catch (e) {
-          toast({ title: 'Gagal Menyimpan Deskripsi', variant: 'destructive' });
-      }
-  };
-  
-  const handleConfirmDelay = async () => {
-    if (!taskToDelay || !delayReason) {
-        toast({ title: 'Alasan penundaan harus diisi', variant: 'destructive' });
-        return;
-    }
-
-    const newDelayEntry = {
-        alasan: delayReason,
-        waktuMulai: new Date(),
-        waktuSelesai: null
-    };
-
-    const updatedTaskData = {
-        status: 'DELAYED' as const,
-        riwayatTunda: [...(taskToDelay.riwayatTunda || []), newDelayEntry]
-    };
-    
-    const taskId = taskToDelay.id;
-    optimisticTaskUpdate(taskId, updatedTaskData);
-    setIsDelayDialogOpen(false);
-    setDelayReason('');
-    setTaskToDelay(null);
-
-    const taskDocRef = doc(db, 'mechanic_tasks', taskId);
-    try {
-        await updateDoc(taskDocRef, {
-            status: 'DELAYED',
-            riwayatTunda: updatedTaskData.riwayatTunda.map(item => ({
-                ...item,
-                waktuMulai: item.waktuMulai instanceof Date ? Timestamp.fromDate(item.waktuMulai) : item.waktuMulai,
-                waktuSelesai: null,
-            }))
-        });
-        toast({ title: 'Pekerjaan Ditunda' });
-    } catch(e) {
-        toast({ title: 'Gagal Menunda Pekerjaan', variant: 'destructive' });
-        setMechanicTasks(prev => prev.map(t => t.id === taskId ? taskToDelay : t));
-    }
-  };
-
-  const handleConfirmQuarantine = async () => {
-    if (!quarantineTarget) return;
-    const isQuarantining = !quarantineTarget.statusKarantina;
-    
-    try {
-      const alatDocRef = doc(db, 'alat', quarantineTarget.id);
-      await updateDoc(alatDocRef, { statusKarantina: isQuarantining });
-      
-      toast({ 
-        title: `Status Karantina Diperbarui`,
-        description: `${quarantineTarget.nomorLambung} telah ${isQuarantining ? 'dimasukkan ke' : 'dilepaskan dari'} karantina.`
-      });
-      
-    } catch(e) {
-      toast({ title: 'Gagal Memperbarui Status Karantina', variant: 'destructive'});
-    } finally {
-      setIsQuarantineConfirmOpen(false);
-    }
-  };
-
-  const renderLaporanLogistik = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Laporan Pemakaian Barang</CardTitle>
-        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
-            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
-            <Button>Simpan Laporan</Button>
-        </form>
-        <div className="mt-6 text-center text-muted-foreground">
-            <p>(Fitur masih dalam pengembangan)</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-  
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1181,61 +983,8 @@ export default function WorkshopPage() {
                 </div>
               </main>
             );
-        case 'Alat Rusak Berat/Karantina':
-            return (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Alat Rusak Berat / Karantina</CardTitle>
-                        <CardDescription>Daftar alat yang ditandai sebagai rusak berat atau sedang dalam masa karantina.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                         <div className="overflow-x-auto border rounded-lg">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Nomor Lambung</TableHead>
-                                        <TableHead>Nomor Polisi</TableHead>
-                                        <TableHead>Jenis Kendaraan</TableHead>
-                                        <TableHead>Laporan Terakhir</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className='text-right'>Aksi</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isFetchingData ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : statsData.alatRusakBerat.list.length > 0 ? (statsData.alatRusakBerat.list.map((item:any) => {
-                                        const latestReport = getLatestReport(item.nomorLambung, reports);
-                                        return (
-                                        <TableRow key={item.id}>
-                                            <TableCell className="font-medium">{item.nomorLambung}</TableCell>
-                                            <TableCell>{item.nomorPolisi}</TableCell>
-                                            <TableCell>{alat.find(a => a.id === item.id)?.jenisKendaraan}</TableCell>
-                                            <TableCell>
-                                                <p>{latestReport?.description || 'N/A'}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {latestReport?.timestamp ? format(new Date(latestReport.timestamp), 'dd MMM yyyy', {locale: localeID}) : 'N/A'}
-                                                </p>
-                                            </TableCell>
-                                            <TableCell>{getStatusBadge('Karantina')}</TableCell>
-                                            <TableCell className='text-right'>
-                                                <div className="flex flex-col items-end gap-2">
-                                                    <div className="space-y-1">
-                                                         <h4 className="font-semibold text-xs text-right">Karantina</h4>
-                                                         <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
-                                                            Lepas Karantina
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    )})) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
-                                </TableBody>
-                            </Table>
-                         </div>
-                    </CardContent>
-                </Card>
-            );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
         case 'Laporan Logistik':
              return renderLaporanLogistik();
         default:
@@ -1254,31 +1003,6 @@ export default function WorkshopPage() {
   return (
     <>
      <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
-    <EditDescriptionDialog 
-        task={taskToDescribe}
-        onSave={handleSaveDescription}
-    />
-    <AlertDialog open={isDelayDialogOpen} onOpenChange={setIsDelayDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Tunda Pekerjaan</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Masukkan alasan mengapa pekerjaan untuk <strong>{taskToDelay?.vehicle.hullNumber}</strong> ditunda. Ini akan menjeda penghitungan waktu kerja efektif.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="py-4">
-                <Textarea 
-                    placeholder="Contoh: Menunggu spare part, istirahat, dll." 
-                    value={delayReason} 
-                    onChange={(e) => setDelayReason(e.target.value)} 
-                />
-            </div>
-            <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setDelayReason('')}>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirmDelay}>Simpan & Tunda</AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
       
     <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
         <DialogContent className="max-w-3xl">
@@ -1336,7 +1060,7 @@ export default function WorkshopPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirmQuarantine}>
+                <AlertDialogAction>
                     Ya, Konfirmasi
                 </AlertDialogAction>
             </AlertDialogFooter>
