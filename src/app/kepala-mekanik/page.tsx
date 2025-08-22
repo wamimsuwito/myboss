@@ -751,11 +751,9 @@ export default function KepalaMekanikPage() {
                     return false;
                 }
     
-                if (task.status === 'COMPLETED') {
-                    // Only show if completed today
-                    return task.completedAt ? isSameDay(new Date(task.completedAt), new Date()) : false;
-                }
-                return true; // Show all other statuses (PENDING, IN_PROGRESS, DELAYED)
+                if (task.status === 'COMPLETED') return false;
+
+                return true; 
             })
             .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
     }, [mechanicTasks, alat, userInfo?.lokasi]);
