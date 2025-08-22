@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -726,24 +727,41 @@ export default function KepalaMekanikPage() {
     }, [dataTransformer, toast]);
 
     const damagedVehicleReports = useMemo(() => {
-        const handledReportIds = new Set(
-            mechanicTasks.map(task => task.vehicle.triggeringReportId)
-        );
+    const handledReportIds = new Set(
+        mechanicTasks.map(task => task.vehicle.triggeringReportId)
+    );
 
-        return reports
-            .filter(report => {
-                const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
-                if (!isDamaged) return false;
+    const vehicleLastReports = new Map<string, Report>();
 
-                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-                if (!vehicle || (userInfo?.lokasi && vehicle.lokasi !== userInfo.lokasi)) {
-                    return false;
-                }
-                
-                return !handledReportIds.has(report.id);
-            })
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
+    // Sort reports by timestamp descending to easily find the latest
+    const sortedReports = [...reports].sort((a, b) => {
+        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return timeB - timeA;
+    });
+
+    for (const report of sortedReports) {
+        if (!vehicleLastReports.has(report.vehicleId)) {
+            vehicleLastReports.set(report.vehicleId, report);
+        }
+    }
+
+    const reportsToShow: Report[] = [];
+    for (const report of vehicleLastReports.values()) {
+        const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
+        const isHandled = handledReportIds.has(report.id);
+
+        const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+        const isInLocation = vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
+
+        if (isDamaged && !isHandled && isInLocation) {
+            reportsToShow.push(report);
+        }
+    }
+
+    return reportsToShow;
+
+}, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
 
     const activeTasks = useMemo(() => {
@@ -878,9 +896,9 @@ export default function KepalaMekanikPage() {
         
         ['users', 'alat', 'mechanic_tasks'].forEach(col => {
             let setter;
-            if (col === 'users') setter = setUsers;
-            else if (col === 'alat') setter = setAlat;
-            else if (col === 'mechanic_tasks') setter = setMechanicTasks;
+            if (col === 'users') setUsers;
+            else if (col === 'alat') setAlat;
+            else if (col === 'mechanic_tasks') setMechanicTasks;
 
             if (setter) {
                 unsubscribers.push(setupListener(col, setter));
@@ -1338,7 +1356,7 @@ export default function KepalaMekanikPage() {
 
   return (
     <>
-    <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
+     <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
     <EditDescriptionDialog 
         task={taskToDescribe}
         onSave={handleSaveDescription}
@@ -1379,7 +1397,7 @@ export default function KepalaMekanikPage() {
                         <TableRow>
                             <TableHead>No. Polisi</TableHead>
                             <TableHead>No. Lambung</TableHead>
-                            <TableHead>Sopir (Batangan)</TableHead>
+                            <TableHead>Sopir/Pelapor</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
