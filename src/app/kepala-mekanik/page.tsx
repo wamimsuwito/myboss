@@ -91,6 +91,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarInset, SidebarTrigger, SidebarSeparator } from '@/components/ui/sidebar';
 import HistoryPrintLayout from "@/components/history-print-layout";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 
 type ActiveMenu = 
@@ -106,7 +107,8 @@ type ActiveMenu =
   | 'Pesan Masuk'
   | 'Absensi'
   | 'Kegiatan'
-  | 'Riwayat Kegiatan';
+  | 'Riwayat Kegiatan'
+  | 'Sopir & Batangan';
 
 const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
@@ -1125,6 +1127,25 @@ export default function WorkshopPage() {
     }
   };
   
+  const renderLaporanLogistik = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1393,3 +1414,5 @@ export default function WorkshopPage() {
     </>
   );
 }
+
+    
