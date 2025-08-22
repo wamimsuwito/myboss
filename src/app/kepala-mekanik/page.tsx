@@ -641,6 +641,25 @@ const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { use
     );
 }
 
+const renderLaporanLogistik = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+      </CardContent>
+    </Card>
+);
+
 export default function WorkshopPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -652,6 +671,9 @@ export default function WorkshopPage() {
   const [alat, setAlat] = useState<AlatData[]>([]);
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
+  const sopirOptions = useMemo(() => {
+    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
+  }, [users]);
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(true);
@@ -982,25 +1004,6 @@ export default function WorkshopPage() {
     setActiveMenu(menuName);
   };
   
-  const renderLaporanLogistik = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Laporan Pemakaian Barang</CardTitle>
-        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
-            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
-            <Button>Simpan Laporan</Button>
-        </form>
-        <div className="mt-6 text-center text-muted-foreground">
-            <p>(Fitur masih dalam pengembangan)</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
   const handleAddAlat = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!userInfo?.lokasi) {
@@ -1220,6 +1223,10 @@ export default function WorkshopPage() {
     }
   };
 
+  const usersInLocation = useMemo(() => {
+    if (!userInfo?.lokasi) return users;
+    return users.filter(user => user.lokasi === userInfo.lokasi);
+  }, [users, userInfo?.lokasi]);
   
   const renderContent = () => {
     switch (activeMenu) {
@@ -1430,6 +1437,5 @@ export default function WorkshopPage() {
     </>
   );
 }
-
 
     
