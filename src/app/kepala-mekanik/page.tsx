@@ -316,11 +316,10 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     const targetDateTime = new Date(`${task.vehicle.targetDate}T${task.vehicle.targetTime}`);
     const completedDateTime = new Date(task.completedAt);
     
-    const totalDelayDuration = task.totalDelayDuration || 0;
-    const diffMinutesWithDelay = differenceInMinutes(completedDateTime, targetDateTime) - (totalDelayDuration / 60000);
+    let totalDelayDuration = task.totalDelayDuration || 0;
 
-    
-    const diffAbs = Math.abs(diffMinutesWithDelay);
+    const diffMinutes = differenceInMinutes(completedDateTime, targetDateTime) - (totalDelayDuration / 60000);
+    const diffAbs = Math.abs(diffMinutes);
     const hours = Math.floor(diffAbs / 60);
     const minutes = Math.round(diffAbs % 60);
     
@@ -329,91 +328,11 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     if (minutes > 0) timeText += `${minutes}m`;
     if (timeText.trim() === '') timeText = '0m';
 
-    if (diffMinutesWithDelay <= 5) {
-        return <Badge className="bg-green-100 text-green-800">Tepat Waktu {diffMinutesWithDelay <= 0 ? `(Lebih Cepat ${timeText})` : ''}</Badge>;
+    if (diffMinutes <= 5) {
+        return <Badge className="bg-green-100 text-green-800">Tepat Waktu {diffMinutes <= 0 ? `(Lebih Cepat ${timeText})` : ''}</Badge>;
     } else {
         return <Badge variant="destructive">Terlambat ${timeText}</Badge>;
     }
-};
-
-const EditDescriptionDialog = ({ task, onSave }: { task: MechanicTask | null, onSave: (taskId: string, description: string) => Promise<void> }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [description, setDescription] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
-
-    useEffect(() => {
-        if (task) {
-            setDescription(task.mechanicRepairDescription || '');
-            setIsOpen(true);
-        } else {
-            setIsOpen(false);
-        }
-    }, [task]);
-
-    const handleSave = async () => {
-        if (!task) return;
-        setIsSaving(true);
-        await onSave(task.id, description);
-        setIsSaving(false);
-        setIsOpen(false);
-    };
-
-    return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onSave('', '')}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Deskripsi Perbaikan Mekanik</DialogTitle>
-                    <DialogDescription>
-                        Tambahkan atau ubah deskripsi perbaikan untuk kendaraan ${task?.vehicle.hullNumber}.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="py-4">
-                    <Textarea 
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Contoh: Ganti oli, perbaikan rem, las sasis bagian..."
-                        rows={5}
-                    />
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onSave('', '')}>Batal</Button>
-                    <Button onClick={handleSave} disabled={isSaving}>
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
-                        Simpan Deskripsi
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-const calculateDelayDetails = (task: MechanicTask) => {
-    if (!task.riwayatTunda || task.riwayatTunda.length === 0) {
-        return { details: [], total: '-' };
-    }
-
-    const details = task.riwayatTunda.map((delay, index) => {
-        const duration = delay.waktuSelesai
-            ? formatDistanceStrict(new Date(delay.waktuSelesai), new Date(delay.waktuMulai), { locale: localeID })
-            : 'berlangsung';
-        return {
-            text: `Tunda #${index + 1}: ${duration}`,
-            reason: delay.alasan,
-        };
-    });
-
-    const totalMs = task.totalDelayDuration || task.riwayatTunda.reduce((acc, curr) => {
-        if (curr.waktuMulai && curr.waktuSelesai) {
-            const start = curr.waktuMulai instanceof Date ? curr.waktuMulai.getTime() : new Date(curr.waktuMulai).getTime();
-            const end = curr.waktuSelesai instanceof Date ? curr.waktuSelesai.getTime() : new Date(curr.waktuSelesai).getTime();
-            return acc + (end - start);
-        }
-        return acc;
-    }, 0);
-
-    const total = totalMs > 0 ? formatDistanceStrict(0, totalMs, { locale: localeID }) : '-';
-
-    return { details, total };
 };
 
 const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
@@ -424,16 +343,16 @@ const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { use
       from: subDays(new Date(), 29),
       to: new Date(),
     });
-
-    useEffect(() => {
-        setTasks(allTasks.filter(t => t.status === 'COMPLETED'));
-    }, [allTasks]);
-    
     const sopirOptions = useMemo(() => {
         return allUsers.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'))
             .filter(u => user?.lokasi ? u.lokasi === user.lokasi : true)
             .sort((a,b) => a.username.localeCompare(b.username));
     }, [allUsers, user]);
+
+    useEffect(() => {
+        setTasks(allTasks.filter(t => t.status === 'COMPLETED'));
+    }, [allTasks]);
+    
 
     const filteredTasks = useMemo(() => {
         const fromDate = date?.from ? startOfDay(date.from) : null;
@@ -571,7 +490,35 @@ const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { use
                                         const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
                                         const reportDate = triggeringReport?.timestamp ? new Date(triggeringReport.timestamp) : null;
                                         const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
-                                        const { details: delayDetails, total: totalDelay } = calculateDelayDetails(task);
+                                        const calculateTotalDelay = (task: MechanicTask) => {
+                                            if (!task.riwayatTunda || task.riwayatTunda.length === 0) {
+                                                return { details: [], total: '-' };
+                                            }
+                                        
+                                            const details = task.riwayatTunda.map((delay, index) => {
+                                                const duration = delay.waktuSelesai
+                                                    ? formatDistanceStrict(new Date(delay.waktuSelesai), new Date(delay.waktuMulai), { locale: localeID })
+                                                    : 'berlangsung';
+                                                return {
+                                                    text: `Tunda #${index + 1}: ${duration}`,
+                                                    reason: delay.alasan,
+                                                };
+                                            });
+                                        
+                                            const totalMs = task.totalDelayDuration || task.riwayatTunda.reduce((acc, curr) => {
+                                                if (curr.waktuMulai && curr.waktuSelesai) {
+                                                    const start = curr.waktuMulai instanceof Date ? curr.waktuMulai.getTime() : new Date(curr.waktuMulai).getTime();
+                                                    const end = curr.waktuSelesai instanceof Date ? curr.waktuSelesai.getTime() : new Date(curr.waktuSelesai).getTime();
+                                                    return acc + (end - start);
+                                                }
+                                                return acc;
+                                            }, 0);
+                                        
+                                            const total = totalMs > 0 ? formatDistanceStrict(0, totalMs, { locale: localeID }) : '-';
+                                        
+                                            return { details, total };
+                                        };
+                                        const { details: delayDetails, total: totalDelay } = calculateTotalDelay(task);
                                         const photos = Array.isArray(triggeringReport?.photo) ? triggeringReport?.photo : (triggeringReport?.photo ? [triggeringReport.photo] : []);
                                         
                                         return (
@@ -671,12 +618,12 @@ export default function WorkshopPage() {
   const [alat, setAlat] = useState<AlatData[]>([]);
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
-  const sopirOptions = useMemo(() => {
-    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
-  }, [users]);
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(true);
+  const sopirOptions = useMemo(() => {
+    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
+  }, [users]);
 
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
@@ -1164,7 +1111,7 @@ export default function WorkshopPage() {
 
   const handleEditPairing = (pairing: SopirBatanganData) => {
     setEditingPairing(pairing);
-    setSelectedSopir(sopirOptions.find(s => s.id === pairing.userId) || null);
+    setSelectedSopir(users.find(s => s.id === pairing.userId) || null);
     setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
     setKeterangan(pairing.keterangan);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1222,11 +1169,6 @@ export default function WorkshopPage() {
         setQuarantineTarget(null);
     }
   };
-
-  const usersInLocation = useMemo(() => {
-    if (!userInfo?.lokasi) return users;
-    return users.filter(user => user.lokasi === userInfo.lokasi);
-  }, [users, userInfo?.lokasi]);
   
   const renderContent = () => {
     switch (activeMenu) {
@@ -1244,8 +1186,27 @@ export default function WorkshopPage() {
             );
         case 'Histori Perbaikan Alat':
              return <HistoriContent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
-        case 'Laporan Logistik':
-             return renderLaporanLogistik();
+        case 'Laporan Logistik': {
+            const renderLaporanLogistik = () => (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Laporan Pemakaian Barang</CardTitle>
+                    <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+                        <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+                        <Button>Simpan Laporan</Button>
+                    </form>
+                    <div className="mt-6 text-center text-muted-foreground">
+                        <p>(Fitur masih dalam pengembangan)</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            return renderLaporanLogistik();
+        }
         case 'Manajemen Pengguna':
             return (
                 <main>
@@ -1437,5 +1398,3 @@ export default function WorkshopPage() {
     </>
   );
 }
-
-    
