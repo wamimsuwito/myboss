@@ -806,7 +806,7 @@ export default function WorkshopPage() {
 
   const statsData = useMemo(() => {
     const defaultStats = { count: '0', list: [] };
-    if (isLoading || !userInfo?.lokasi) {
+    if (isLoading) {
         return { totalAlat: defaultStats, sudahChecklist: defaultStats, belumChecklist: defaultStats, alatBaik: defaultStats, perluPerhatian: defaultStats, alatRusak: defaultStats, alatRusakBerat: defaultStats, alatTdkAdaOperator: defaultStats };
     }
     const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
@@ -1160,7 +1160,7 @@ export default function WorkshopPage() {
                                         if (!vehicle) return null;
                                         return (
                                             <TableRow key={report.id}>
-                                                <TableCell>{format(new Date(report.timestamp), 'dd MMM, HH:mm', { locale: localeID })}</TableCell>
+                                                <TableCell>{report.timestamp ? format(new Date(report.timestamp), 'dd MMM, HH:mm', { locale: localeID }) : '-'}</TableCell>
                                                 <TableCell>{vehicle.nomorLambung}</TableCell>
                                                 <TableCell>{operator?.username || report.operatorName}</TableCell>
                                                 <TableCell className="max-w-[250px] truncate">{report.description}</TableCell>
@@ -1410,4 +1410,3 @@ export default function WorkshopPage() {
     </>
   );
 }
-
