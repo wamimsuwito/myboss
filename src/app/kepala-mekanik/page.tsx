@@ -335,7 +335,7 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     }
 };
 
-const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
+const HistoriContent = ({ user, allTasks, allUsers, allReports, allAlat }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
     const [tasks, setTasks] = useState<MechanicTask[]>([]);
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
@@ -621,9 +621,6 @@ export default function WorkshopPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(true);
-  const sopirOptions = useMemo(() => {
-    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
-  }, [users]);
 
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
@@ -735,146 +732,28 @@ export default function WorkshopPage() {
         });
     }, [dataTransformer, toast]);
 
-
-    const damagedVehicleReports = useMemo(() => {
-        return reports
-            .filter(report => {
-                const latestReportForVehicle = getLatestReport(report.vehicleId, reports);
-                if (latestReportForVehicle?.id !== report.id) {
-                    return false;
-                }
+    useEffect(() => {
+        const userString = localStorage.getItem('user');
+        if (!userString) {
+          router.replace('/login');
+          return;
+        }
+        const userData = JSON.parse(userString);
+         if (userData.jabatan.toUpperCase() !== 'KEPALA WORKSHOP') {
+          toast({
+            variant: 'destructive',
+            title: 'Akses Ditolak',
+            description: 'Anda tidak memiliki hak untuk mengakses halaman ini.',
+          });
+          router.replace('/login');
+          return;
+        }
+        setUserInfo(userData);
+      }, [router, toast]);
     
-                const isProblematic = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
-                if (!isProblematic) {
-                    return false;
-                }
+    useEffect(() => {
+        if (!userInfo) return;
     
-                const hasActiveTask = mechanicTasks.some(task => 
-                    task.vehicle?.triggeringReportId === report.id && task.status !== 'COMPLETED'
-                );
-                if (hasActiveTask) {
-                    return false;
-                }
-                
-                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-                if (userInfo?.lokasi && vehicle?.lokasi !== userInfo.lokasi) {
-                    return false;
-                }
-    
-                return true;
-            })
-            .sort((a, b) => {
-                const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-                const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-                return dateB - dateA;
-            });
-    }, [reports, alat, mechanicTasks, userInfo, getLatestReport]);
-
-    const activeTasks = useMemo(() => {
-        return mechanicTasks
-            .filter(task => {
-                const vehicle = alat.find(a => a.nomorLambung === task.vehicle?.hullNumber);
-                if (!vehicle || (userInfo?.lokasi && vehicle.lokasi !== userInfo.lokasi)) {
-                    return false;
-                }
-    
-                if (task.status === 'COMPLETED') {
-                    // Only show if completed today
-                    return task.completedAt ? isSameDay(new Date(task.completedAt), new Date()) : false;
-                }
-                return true; // Show all other statuses (PENDING, IN_PROGRESS, DELAYED)
-            })
-            .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-    }, [mechanicTasks, alat, userInfo?.lokasi]);
-    
-  const statsData = useMemo(() => {
-    const defaultStats = { count: '0', list: [] };
-    if (isFetchingData || !userInfo?.lokasi) {
-        return { totalAlat: defaultStats, sudahChecklist: defaultStats, belumChecklist: defaultStats, alatBaik: defaultStats, perluPerhatian: defaultStats, alatRusak: defaultStats, alatRusakBerat: defaultStats, alatTdkAdaOperator: defaultStats };
-    }
-    
-    const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
-    const alatRusakBeratList = alatInLocation.filter(a => a.statusKarantina);
-    const alatOperasional = alatInLocation.filter(a => !a.statusKarantina);
-    
-    const mapToDetailFormat = (items: AlatData[], statusSource: 'latest' | 'belum' | 'karantina' | 'unpaired') => {
-        return items.map(item => {
-            const latestReport = getLatestReport(item.nomorLambung, reports);
-            let status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina' = 'Belum Checklist';
-            let operatorName = 'N/A';
-
-            if (statusSource === 'karantina') {
-                status = 'Karantina';
-            } else if (statusSource === 'unpaired' || !pairings.some(p => p.nomorLambung === item.nomorLambung)) {
-                status = 'Tanpa Operator';
-            } else if (latestReport) {
-                status = latestReport.overallStatus;
-                operatorName = latestReport.operatorName;
-            } else {
-                 const pairing = pairings.find(p => p.nomorLambung === item.nomorLambung);
-                 operatorName = pairing?.namaSopir || 'N/A';
-            }
-
-            return { 
-                id: item.id, 
-                nomorPolisi: item.nomorPolisi || 'N/A', 
-                nomorLambung: item.nomorLambung, 
-                operatorPelapor: operatorName,
-                status
-            };
-        });
-    };
-    
-    const checkedVehicleIdsToday = new Set(reports.filter(r => r.timestamp && isSameDay(new Date(r.timestamp), new Date())).map(r => r.vehicleId));
-    const sudahChecklistList = alatOperasional.filter(a => checkedVehicleIdsToday.has(a.nomorLambung));
-
-    const pairedAlatIds = new Set(pairings.map(p => p.nomorLambung));
-    const belumChecklistList = alatOperasional.filter(a => pairedAlatIds.has(a.nomorLambung) && !checkedVehicleIdsToday.has(a.nomorLambung));
-
-    const alatTdkAdaOperatorList = alatOperasional.filter(a => !pairedAlatIds.has(a.nomorLambung));
-
-    const latestReportsMap = new Map<string, Report>();
-    alatOperasional.forEach(a => {
-        const report = getLatestReport(a.nomorLambung, reports);
-        if (report) latestReportsMap.set(a.nomorLambung, report);
-    });
-
-    const hasActiveTask = (reportId: string) => mechanicTasks.some(task => task.vehicle.triggeringReportId === reportId && task.status !== 'COMPLETED');
-    
-    const alatBaikList = Array.from(latestReportsMap.values()).filter(r => r.overallStatus === 'baik').map(r => alat.find(a => a.nomorLambung === r.vehicleId)).filter(Boolean) as AlatData[];
-    const perluPerhatianList = Array.from(latestReportsMap.values()).filter(r => r.overallStatus === 'perlu perhatian' && !hasActiveTask(r.id)).map(r => alat.find(a => a.nomorLambung === r.vehicleId)).filter(Boolean) as AlatData[];
-    const alatRusakList = Array.from(latestReportsMap.values()).filter(r => r.overallStatus === 'rusak' && !hasActiveTask(r.id)).map(r => alat.find(a => a.nomorLambung === r.vehicleId)).filter(Boolean) as AlatData[];
-
-    return {
-      totalAlat: { count: String(alatInLocation.length), list: mapToDetailFormat(alatInLocation, 'latest') },
-      sudahChecklist: { count: String(sudahChecklistList.length), list: mapToDetailFormat(sudahChecklistList, 'latest') },
-      belumChecklist: { count: String(belumChecklistList.length), list: mapToDetailFormat(belumChecklistList, 'belum') },
-      alatBaik: { count: String(alatBaikList.length), list: mapToDetailFormat(alatBaikList, 'latest') },
-      perluPerhatian: { count: String(perluPerhatianList.length), list: mapToDetailFormat(perluPerhatianList, 'latest') },
-      alatRusak: { count: String(alatRusakList.length), list: mapToDetailFormat(alatRusakList, 'latest') },
-      alatRusakBerat: { count: String(alatRusakBeratList.length), list: mapToDetailFormat(alatRusakBeratList, 'karantina') },
-      alatTdkAdaOperator: { count: String(alatTdkAdaOperatorList.length), list: mapToDetailFormat(alatTdkAdaOperatorList, 'unpaired') },
-    };
-}, [alat, userInfo?.lokasi, reports, pairings, mechanicTasks, isFetchingData, getLatestReport]);
-
-
-  const statCards = useMemo(() => {
-    return [
-      { title: 'Total Alat', value: statsData.totalAlat.count, description: 'Total alat di lokasi Anda', icon: Copy, color: 'text-blue-400' },
-      { title: 'Alat Sudah Checklist', value: statsData.sudahChecklist.count, description: 'Alat yang sudah dicek hari ini', icon: CheckCircle, color: 'text-green-400' },
-      { title: 'Alat Belum Checklist', value: statsData.belumChecklist.count, description: 'Alat (dengan sopir) yang belum dicek', icon: AlertTriangle, color: 'text-yellow-400' },
-      { title: 'Alat Baik', value: statsData.alatBaik.count, description: 'Status terakhir "Baik"', icon: CheckCircle, color: 'text-green-400' },
-      { title: 'Perlu Perhatian', value: statsData.perluPerhatian.count, description: 'Status terakhir "Perlu Perhatian"', icon: AlertTriangle, color: 'text-yellow-400' },
-      { title: 'Alat Rusak', value: statsData.alatRusak.count, description: 'Status terakhir "Rusak"', icon: WrenchIcon, color: 'text-red-400' },
-      { title: 'Alat Rusak Berat', value: statsData.alatRusakBerat.count, description: 'Alat yang dikarantina', icon: ShieldAlert, color: 'text-destructive' },
-      { title: 'Alat Tdk Ada Operator', value: statsData.alatTdkAdaOperator.count, description: 'Alat tanpa sopir/operator', icon: UserX, color: 'text-orange-400' },
-    ];
-  }, [statsData]);
-
-  useEffect(() => {
-    if (!userInfo) return;
-    
-        setIsFetchingData(true);
         isInitialLoad.current = true;
     
         const unsubscribers = [
@@ -895,7 +774,8 @@ export default function WorkshopPage() {
         
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
-             if (isInitialLoad.current) {
+            
+            if (isInitialLoad.current) {
                 const initialDamaged = new Set(data.filter(r => r.overallStatus === 'rusak').map(r => r.id));
                 setSeenDamagedReports(initialDamaged);
             } else {
@@ -911,16 +791,99 @@ export default function WorkshopPage() {
         unsubscribers.push(reportsUnsub);
         
         const timer = setTimeout(() => {
-            setIsFetchingData(false);
+            setIsLoading(false);
             isInitialLoad.current = false;
-        }, 2000);
+        }, 1500); 
         unsubscribers.push(() => clearTimeout(timer));
     
         return () => unsubscribers.forEach(unsub => unsub());
     }, [userInfo, setupListener, dataTransformer, toast]);
 
+  const filteredAlatByLocation = useMemo(() => {
+    if (!userInfo?.lokasi) return alat.filter(item => !item.statusKarantina); 
+    return alat.filter(item => item.lokasi === userInfo.lokasi && !item.statusKarantina);
+  }, [alat, userInfo?.lokasi]);
+  
+  const usersInLocation = useMemo(() => {
+    if (!userInfo?.lokasi) return users;
+    return users.filter(user => user.lokasi === userInfo.lokasi);
+  }, [users, userInfo?.lokasi]);
+
+  const sopirOptions = useMemo(() => {
+    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
+  }, [users]);
+  
+  const statsData = useMemo(() => {
+    const defaultStats = { count: '0', list: [] };
+    if (isLoading || !userInfo?.lokasi) {
+        return { totalAlat: defaultStats, sudahChecklist: defaultStats, belumChecklist: defaultStats, alatBaik: defaultStats, perluPerhatian: defaultStats, alatRusak: defaultStats, alatRusakBerat: defaultStats, alatTdkAdaOperator: defaultStats };
+    }
+    const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
+    const existingAlatIds = new Set(alatInLocation.map(a => a.nomorLambung));
+
+    const validReports = reports.filter(r => r.vehicleId && existingAlatIds.has(r.vehicleId));
+
+    const reportsToday = validReports.filter(r => r.timestamp && isSameDay(new Date(r.timestamp), new Date()));
+    const checkedVehicleIdsToday = new Set(reportsToday.map(r => r.vehicleId));
+    
+    const pairedAlatInLocation = alatInLocation.filter(a => pairings.some(p => p.nomorLambung === a.nomorLambung));
+    const alatBelumChecklistList = pairedAlatInLocation.filter(a => !checkedVehicleIdsToday.has(a.nomorLambung));
+
+    const getLatestReportForAlat = (vehicleId: string) => getLatestReport(vehicleId, validReports);
+    
+    const alatBaikList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'baik');
+    const perluPerhatianList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'perlu perhatian');
+    const alatRusakList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'rusak');
+
+    const alatRusakBeratList = alat.filter(a => a.statusKarantina === true);
+    const alatTdkAdaOperatorList = alatInLocation.filter(a => !pairings.some(p => p.nomorLambung === a.nomorLambung) && !a.statusKarantina);
+
+
+    const mapToDetailFormat = (items: AlatData[], statusSource: 'latest' | 'belum' | 'karantina' | 'unpaired') => {
+      return items.map(item => {
+        let status: Report['overallStatus'] | 'Belum Checklist' | 'Karantina' | 'Tanpa Operator' = 'Belum Checklist';
+        
+        if (statusSource === 'latest') {
+          const report = getLatestReportForAlat(item.nomorLambung);
+          status = report?.overallStatus || 'Belum Checklist';
+        } else if (statusSource === 'karantina') {
+          status = 'Karantina';
+        } else if (statusSource === 'unpaired') {
+          status = 'Tanpa Operator';
+        }
+
+        const pairing = pairings.find(p => p.nomorLambung === item.nomorLambung);
+        return { id: item.id, nomorPolisi: item.nomorPolisi || 'N/A', nomorLambung: item.nomorLambung, operatorPelapor: pairing?.namaSopir || 'Belum Ada Sopir', status: status };
+      });
+    };
+
+    return {
+      totalAlat: { count: String(alatInLocation.length), list: mapToDetailFormat(alatInLocation, 'latest') },
+      sudahChecklist: { count: String(checkedVehicleIdsToday.size), list: mapToDetailFormat(alatInLocation.filter(a => checkedVehicleIdsToday.has(a.nomorLambung)), 'latest') },
+      belumChecklist: { count: String(alatBelumChecklistList.length), list: mapToDetailFormat(alatBelumChecklistList, 'belum') },
+      alatBaik: { count: String(alatBaikList.length), list: mapToDetailFormat(alatBaikList, 'latest') },
+      perluPerhatian: { count: String(perluPerhatianList.length), list: mapToDetailFormat(perluPerhatianList, 'latest') },
+      alatRusak: { count: String(alatRusakList.length), list: mapToDetailFormat(alatRusakList, 'latest') },
+      alatRusakBerat: { count: String(alatRusakBeratList.length), list: mapToDetailFormat(alatRusakBeratList, 'karantina') },
+      alatTdkAdaOperator: { count: String(alatTdkAdaOperatorList.length), list: mapToDetailFormat(alatTdkAdaOperatorList, 'unpaired') },
+    };
+}, [alat, userInfo?.lokasi, reports, pairings, isLoading, getLatestReport]);
+  
+  const statCards = useMemo(() => {
+    return [
+      { title: 'Total Alat', value: statsData.totalAlat.count, description: 'Total alat di lokasi Anda', icon: Copy, color: 'text-blue-400' },
+      { title: 'Alat Sudah Checklist', value: statsData.sudahChecklist.count, description: 'Alat yang sudah dicek hari ini', icon: CheckCircle, color: 'text-green-400' },
+      { title: 'Alat Belum Checklist', value: statsData.belumChecklist.count, description: 'Alat (dengan sopir) yang belum dicek', icon: AlertTriangle, color: 'text-yellow-400' },
+      { title: 'Alat Baik', value: statsData.alatBaik.count, description: 'Status terakhir "Baik"', icon: CheckCircle, color: 'text-green-400' },
+      { title: 'Perlu Perhatian', value: statsData.perluPerhatian.count, description: 'Status terakhir "Perlu Perhatian"', icon: AlertTriangle, color: 'text-yellow-400' },
+      { title: 'Alat Rusak', value: statsData.alatRusak.count, description: 'Status terakhir "Rusak"', icon: WrenchIcon, color: 'text-red-400' },
+      { title: 'Alat Rusak Berat', value: statsData.alatRusakBerat.count, description: 'Alat yang dikarantina', icon: ShieldAlert, color: 'text-destructive' },
+      { title: 'Alat Tdk Ada Operator', value: statsData.alatTdkAdaOperator.count, description: 'Alat tanpa sopir/operator', icon: UserX, color: 'text-orange-400' },
+    ];
+  }, [statsData]);
+
   const handleStatCardClick = (title: string) => {
-    if (isFetchingData || !userInfo?.lokasi) return;
+    if (isLoading || !userInfo?.lokasi) return;
 
     setDetailListTitle(title);
     
@@ -942,13 +905,6 @@ export default function WorkshopPage() {
   const handleLogout = () => {
     localStorage.removeItem('user');
     router.push('/login');
-  };
-  
-  const handleMenuClick = (menuName: ActiveMenu) => {
-    if (menuName === 'Pesan Masuk') {
-      setHasNewMessage(false);
-    }
-    setActiveMenu(menuName);
   };
   
   const handleAddAlat = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -1176,7 +1132,7 @@ export default function WorkshopPage() {
             return (
               <main>
                  <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-6 mb-8">
-                   {isFetchingData ? (
+                   {isLoading ? (
                        Array.from({ length: 8 }).map((_, i) => (
                           <Card key={i}><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><Skeleton className="h-5 w-2/4" /><Skeleton className="h-6 w-6 rounded-full" /></CardHeader><CardContent><Skeleton className="h-12 w-1/4 mt-2" /><Skeleton className="h-4 w-3/4 mt-2" /></CardContent></Card>
                        ))
@@ -1186,27 +1142,8 @@ export default function WorkshopPage() {
             );
         case 'Histori Perbaikan Alat':
              return <HistoriContent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
-        case 'Laporan Logistik': {
-            const renderLaporanLogistik = () => (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Laporan Pemakaian Barang</CardTitle>
-                    <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
-                        <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
-                        <Button>Simpan Laporan</Button>
-                    </form>
-                    <div className="mt-6 text-center text-muted-foreground">
-                        <p>(Fitur masih dalam pengembangan)</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            return renderLaporanLogistik();
-        }
+        case 'Laporan Logistik':
+             return renderLaporanLogistik();
         case 'Manajemen Pengguna':
             return (
                 <main>
@@ -1228,7 +1165,7 @@ export default function WorkshopPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {isFetchingData ? (
+                                        {isLoading ? (
                                             <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
                                         ) : usersInLocation.length > 0 ? (
                                             usersInLocation.map(user => (
@@ -1250,6 +1187,65 @@ export default function WorkshopPage() {
                                         ) : (
                                             <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada data pengguna.</TableCell></TableRow>
                                         )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
+            );
+        case 'Sopir & Batangan':
+            return (
+                <main className="space-y-8">
+                    <Card><CardHeader><CardTitle className="flex items-center gap-3"><PlusCircle />{editingPairing ? 'Edit' : 'Tambah'} Pasangan Sopir & Batangan</CardTitle><CardDescription>Pasangkan sopir dengan kendaraan yang akan dioperasikan.</CardDescription></CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                                <div className="md:col-span-2 space-y-2"><Label>Nama Sopir</Label>
+                                    <Select value={selectedSopir?.id || ''} onValueChange={(val) => setSelectedSopir(sopirOptions.find(s => s.id === val) || null)}>
+                                        <SelectTrigger><SelectValue placeholder="Pilih Sopir..." /></SelectTrigger>
+                                        <SelectContent>{sopirOptions.map(s => <SelectItem key={s.id} value={s.id}>{s.username}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>NIK</Label><Input value={selectedSopir?.nik || ''} disabled className="bg-muted" /></div>
+                                <div className="space-y-2"><Label>Nomor Polisi</Label>
+                                     <Select value={selectedAlat?.id || ''} onValueChange={(val) => setSelectedAlat(alat.find(a => a.id === val) || null)}>
+                                        <SelectTrigger><SelectValue placeholder="Pilih Kendaraan..." /></SelectTrigger>
+                                        <SelectContent>{filteredAlatByLocation.map(a => <SelectItem key={a.id} value={a.id}>{a.nomorPolisi}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>Nomor Lambung</Label><Input value={selectedAlat?.nomorLambung || ''} disabled className="bg-muted" /></div>
+                                <div className="md:col-span-3 space-y-2"><Label>Keterangan</Label><Input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Keterangan (jika ada)..." /></div>
+                                <div className="md:col-span-3 flex gap-2">
+                                <Button className="w-full" onClick={handleSavePairing} disabled={isSubmitting}><Save className="mr-2" />{editingPairing ? 'Update' : 'Simpan'}</Button>
+                                    {editingPairing && <Button className="w-full" variant="outline" onClick={() => { setEditingPairing(null); setSelectedSopir(null); setSelectedAlat(null); setKeterangan(''); }}>Batal</Button>}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card><CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <Table><TableHeader><TableRow><TableHead>Nama Sopir</TableHead><TableHead>NIK</TableHead><TableHead>Nomor Polisi</TableHead><TableHead>Nomor Lambung</TableHead><TableHead>Keterangan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {isLoading ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => {
+                                                const vehicle = alat.find(a => a.id === p.vehicleId);
+                                                return (
+                                                <TableRow key={p.id}>
+                                                    <TableCell>{p.namaSopir}</TableCell>
+                                                    <TableCell>{p.nik}</TableCell>
+                                                    <TableCell>{p.nomorPolisi}</TableCell>
+                                                    <TableCell>{p.nomorLambung}</TableCell>
+                                                    <TableCell>{p.keterangan}</TableCell>
+                                                    <TableCell className="text-right space-x-1">
+                                                        <Button size="icon" variant="ghost" onClick={() => handleEditPairing(p)}><Pencil className="h-4 w-4 text-amber-500" /></Button>
+                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(vehicle)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>}
+                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(vehicle)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>}
+                                                        <Button size="icon" variant="ghost" onClick={() => handleDeleteRequest(p, 'pairing')}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                                )
+                                            })) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>)}
                                     </TableBody>
                                 </Table>
                             </div>
@@ -1398,3 +1394,5 @@ export default function WorkshopPage() {
     </>
   );
 }
+
+    
