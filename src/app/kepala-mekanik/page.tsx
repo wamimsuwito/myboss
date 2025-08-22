@@ -497,7 +497,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
       <>
         <div className='hidden'>
             <div id="history-print-area">
-                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
+                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={users} location={user?.lokasi} />
             </div>
         </div>
         <Card>
@@ -727,9 +727,11 @@ export default function KepalaMekanikPage() {
         const alatInLocation = alat.filter(a => !userInfo?.lokasi || a.lokasi === userInfo.lokasi);
         const reportsByVehicle: Record<string, Report> = {};
 
-        // Get the latest report for each vehicle
         for (const report of reports) {
-            if (!reportsByVehicle[report.vehicleId] || report.timestamp > reportsByVehicle[report.vehicleId].timestamp) {
+            const reportTime = report.timestamp ? new Date(report.timestamp).getTime() : 0;
+            const existingReportTime = reportsByVehicle[report.vehicleId]?.timestamp ? new Date(reportsByVehicle[report.vehicleId].timestamp).getTime() : 0;
+            
+            if (!reportsByVehicle[report.vehicleId] || reportTime > existingReportTime) {
                 reportsByVehicle[report.vehicleId] = report;
             }
         }
@@ -742,8 +744,11 @@ export default function KepalaMekanikPage() {
                 const isHandled = handledReportIds.has(report.id);
                 return isDamaged && !isHandled;
             })
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
+            .sort((a, b) => {
+                const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                return timeB - timeA;
+            });
     }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
 
@@ -875,10 +880,11 @@ export default function KepalaMekanikPage() {
         isInitialLoad.current = true;
         const unsubscribers: (() => void)[] = [];
         
-        ['users', 'alat', 'mechanic_tasks'].forEach(col => {
+        ['users', 'alat', 'locations', 'mechanic_tasks'].forEach(col => {
             let setter;
             if (col === 'users') setter = setUsers;
             else if (col === 'alat') setter = setAlat;
+            else if (col === 'locations') setter = setLocations;
             else if (col === 'mechanic_tasks') setter = setMechanicTasks;
 
             if (setter) {
@@ -888,6 +894,18 @@ export default function KepalaMekanikPage() {
         
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
+            
+            if (isInitialLoad.current) {
+                const initialDamaged = new Set(data.filter(r => r.overallStatus === 'rusak').map(r => r.id));
+                setSeenDamagedReports(initialDamaged);
+            } else {
+                const newDamagedReports = data.filter(r => r.overallStatus === 'rusak' && !seenDamagedReports.has(r.id));
+                if (newDamagedReports.length > 0) {
+                    audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+                    setHasNewMessage(true);
+                    setSeenDamagedReports(prev => new Set([...Array.from(prev), ...newDamagedReports.map(r => r.id)]));
+                }
+            }
             setReports(data);
         }, (error) => {
             console.error(`Error fetching checklist_reports:`, error);
@@ -1319,13 +1337,13 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />
+            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} alat={alat} allReports={reports} />
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
   }
 
-  if (!userInfo) {
+  if (isLoading || !userInfo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -1335,7 +1353,7 @@ export default function KepalaMekanikPage() {
 
   return (
     <>
-    <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
+     <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
     <EditDescriptionDialog 
         task={taskToDescribe}
         onSave={handleSaveDescription}
@@ -1376,7 +1394,7 @@ export default function KepalaMekanikPage() {
                         <TableRow>
                             <TableHead>No. Polisi</TableHead>
                             <TableHead>No. Lambung</TableHead>
-                            <TableHead>Sopir/Pelapor</TableHead>
+                            <TableHead>Sopir (Batangan)</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -1431,27 +1449,14 @@ export default function KepalaMekanikPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Workshop</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.name}>
                     <SidebarMenuButton
                         isActive={activeMenu === item.name}
-                        onClick={() => handleMenuClick(item.name as ActiveMenu)}
-                        className="h-9 relative"
-                    >
-                        <item.icon className="h-4 w-4" />
-                        <span className="text-sm">{item.name}</span>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-                <SidebarSeparator/>
-                {secondaryMenuItems.map((item) => (
-                <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton
-                        isActive={activeMenu === item.name}
-                        onClick={() => handleMenuClick(item.name as ActiveMenu)}
+                        onClick={() => setActiveMenu(item.name as ActiveMenu)}
                         className="h-9 relative"
                     >
                         <item.icon className="h-4 w-4" />
@@ -1462,7 +1467,6 @@ export default function KepalaMekanikPage() {
                     </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-
             </SidebarMenu>
             <SidebarFooter className="p-2 space-y-2">
                  <div className="text-center p-4 border rounded-lg">
@@ -1478,19 +1482,16 @@ export default function KepalaMekanikPage() {
         <SidebarInset>
           <div className="flex-1 p-6 lg:p-10">
             <header className="flex justify-between items-start mb-8">
-                <div className='flex items-center gap-4'>
-                    <SidebarTrigger/>
-                    <div>
-                         <h1 className="text-3xl font-bold text-foreground">
-                            {activeMenu}
-                         </h1>
-                         <p className="text-sm text-muted-foreground flex items-center gap-4">
-                             <span>{userInfo.username}</span>
-                             <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
-                             <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
-                             <span>Lokasi: {userInfo.lokasi}</span>
-                         </p>
-                    </div>
+                <div>
+                     <h1 className="text-3xl font-bold text-foreground">
+                        {activeMenu}
+                     </h1>
+                     <p className="text-sm text-muted-foreground flex items-center gap-4">
+                         <span>{userInfo.username}</span>
+                         <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
+                         <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
+                         <span>Lokasi: {userInfo.lokasi}</span>
+                     </p>
                 </div>
             </header>
             
@@ -1522,4 +1523,6 @@ function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | '
     }
   };
   
+    
+
     
