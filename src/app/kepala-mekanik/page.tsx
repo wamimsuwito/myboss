@@ -723,23 +723,27 @@ export default function KepalaMekanikPage() {
     }, [dataTransformer, toast]);
 
     const damagedVehicleReports = useMemo(() => {
-        const handledReportIds = new Set(
-            mechanicTasks.map(task => task.vehicle.triggeringReportId)
-        );
+        const handledReportIds = new Set(mechanicTasks.map(task => task.vehicle.triggeringReportId));
+        const alatInLocation = alat.filter(a => !userInfo?.lokasi || a.lokasi === userInfo.lokasi);
+        const reportsByVehicle: Record<string, Report> = {};
 
-        return reports
-            .filter(report => {
+        // Get the latest report for each vehicle
+        for (const report of reports) {
+            if (!reportsByVehicle[report.vehicleId] || report.timestamp > reportsByVehicle[report.vehicleId].timestamp) {
+                reportsByVehicle[report.vehicleId] = report;
+            }
+        }
+
+        return alatInLocation
+            .map(vehicle => reportsByVehicle[vehicle.nomorLambung])
+            .filter((report): report is Report => {
+                if (!report) return false;
                 const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
-                if (!isDamaged) return false;
-
-                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-                if (!vehicle || (userInfo?.lokasi && vehicle.lokasi !== userInfo.lokasi)) {
-                    return false;
-                }
-                
-                return !handledReportIds.has(report.id);
+                const isHandled = handledReportIds.has(report.id);
+                return isDamaged && !isHandled;
             })
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
     }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
 
@@ -1517,3 +1521,5 @@ function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | '
         return <Badge>{status}</Badge>;
     }
   };
+  
+    
