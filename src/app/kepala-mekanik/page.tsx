@@ -616,7 +616,6 @@ export default function WorkshopPage() {
   const { toast } = useToast();
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dashboard');
   const [userInfo, setUserInfo] = useState<UserData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [alat, setAlat] = useState<AlatData[]>([]);
@@ -699,7 +698,6 @@ export default function WorkshopPage() {
       return;
     }
     setUserInfo(userData);
-    setIsLoading(false);
   }, [router, toast]);
   
     const dataTransformer = useCallback((docData: any): any => {
@@ -1332,7 +1330,7 @@ export default function WorkshopPage() {
     }
   }
 
-  if (isLoading || !userInfo) {
+  if (isFetchingData || !userInfo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -1542,3 +1540,5 @@ export default function WorkshopPage() {
     </>
   );
 }
+
+    
