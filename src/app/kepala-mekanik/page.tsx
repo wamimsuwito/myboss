@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -90,6 +91,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarInset, SidebarTrigger, SidebarSeparator } from '@/components/ui/sidebar';
 import HistoryPrintLayout from "@/components/history-print-layout";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 
 type ActiveMenu = 
@@ -781,7 +783,7 @@ export default function KepalaMekanikPage() {
     const mapToDetailFormat = (items: AlatData[], statusSource: 'latest' | 'belum') => {
       return items.map(item => {
         const report = getLatestReportForAlat(item.nomorLambung);
-        const reporter = users.find(u => u.id === report?.operatorId);
+        const pairing = pairings.find(p => p.nomorLambung === item.nomorLambung);
         
         let status: Report['overallStatus'] | 'Belum Checklist' = 'Belum Checklist';
         if (statusSource === 'latest' && report) {
@@ -792,11 +794,12 @@ export default function KepalaMekanikPage() {
             id: item.id, 
             nomorPolisi: item.nomorPolisi || 'N/A', 
             nomorLambung: item.nomorLambung, 
-            operatorPelapor: reporter?.username || 'Belum Ada Laporan',
+            operatorPelapor: pairing?.namaSopir || 'Belum Ada Sopir',
             status: status
         };
       });
     };
+
     const mapToDetailFormatSpecial = (items: AlatData[], status: 'Karantina' | 'Tanpa Operator') => {
         return items.map(item => {
             const pairing = pairings.find(p => p.nomorLambung === item.nomorLambung);
@@ -1211,7 +1214,7 @@ export default function KepalaMekanikPage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right">
-                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={(newTask) => setMechanicTasks(prev => [newTask, ...prev])} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
+                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={(newTask: any) => setMechanicTasks(prev => [newTask, ...prev])} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
                                                         </TableCell>
                                                     </TableRow>
                                                 )
