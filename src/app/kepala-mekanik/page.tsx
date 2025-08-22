@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -91,6 +90,7 @@ import { DateRange } from "react-day-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarInset, SidebarTrigger, SidebarSeparator } from '@/components/ui/sidebar';
 import HistoryPrintLayout from "@/components/history-print-layout";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 
 type ActiveMenu = 
@@ -641,25 +641,6 @@ const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { use
     );
 }
 
-const renderLaporanLogistik = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Laporan Pemakaian Barang</CardTitle>
-        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
-            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
-            <Button>Simpan Laporan</Button>
-        </form>
-        <div className="mt-6 text-center text-muted-foreground">
-            <p>(Fitur masih dalam pengembangan)</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-
 export default function WorkshopPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -677,7 +658,6 @@ export default function WorkshopPage() {
 
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
-  const [isFetchingPairings, setIsFetchingPairings] = useState(true);
   const [selectedSopir, setSelectedSopir] = useState<UserData | null>(null);
   const [selectedAlat, setSelectedAlat] = useState<AlatData | null>(null);
   const [keterangan, setKeterangan] = useState('');
@@ -703,7 +683,7 @@ export default function WorkshopPage() {
   const [detailListData, setDetailListData] = useState<any[]>([]);
   const [isDetailListOpen, setIsDetailListOpen] = useState(false);
 
-  // Quarantine State
+  // Karantina State
   const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
   const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
   
@@ -714,7 +694,7 @@ export default function WorkshopPage() {
   const isInitialLoad = useRef(true);
 
 
-  const getStatusBadge = useCallback((status: Report['overallStatus'] | 'Belum Checklist' | 'Karantina' | 'Tanpa Operator') => {
+  const getStatusBadge = useCallback((status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
     switch (status) {
       case 'baik':
         return <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-300">Baik</Badge>;
@@ -1002,7 +982,245 @@ export default function WorkshopPage() {
     setActiveMenu(menuName);
   };
   
+  const renderLaporanLogistik = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
+  const handleAddAlat = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!userInfo?.lokasi) {
+        toast({ title: 'Lokasi Pengguna Tidak Ditemukan', variant: 'destructive' });
+        return;
+    }
+
+    setIsSubmitting(true);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const newAlatData: Omit<AlatData, 'id'> = {
+      nomorLambung: (formData.get('nomorLambung') as string).toUpperCase(),
+      nomorPolisi: (formData.get('nomorPolisi') as string).toUpperCase(),
+      jenisKendaraan: (formData.get('jenisKendaraan') as string).toUpperCase(),
+      lokasi: userInfo.lokasi,
+      statusKarantina: false,
+    };
+
+    if (!newAlatData.nomorLambung || !newAlatData.nomorPolisi || !newAlatData.jenisKendaraan) {
+        toast({ title: 'Input Tidak Lengkap', variant: 'destructive' });
+        setIsSubmitting(false);
+        return;
+    }
+
+    try {
+        await addDoc(collection(db, 'alat'), newAlatData);
+        toast({ title: 'Alat Ditambahkan' });
+        form.reset();
+    } catch(error) {
+        toast({ title: 'Error', description: 'Gagal menambahkan alat.', variant: 'destructive'});
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleMutasiRequest = (alatToMutate: AlatData) => {
+    setMutasiTarget(alatToMutate);
+    setIsMutasiDialogOpen(true);
+  };
+  
+  const handleConfirmMutasi = async () => {
+    if (!mutasiTarget || !newLocationForMutasi) {
+        toast({ title: 'Lokasi Tujuan Diperlukan', variant: 'destructive' });
+        return;
+    }
+    setIsMutating(true);
+    
+    try {
+        const alatDocRef = doc(db, 'alat', mutasiTarget.id);
+        await updateDoc(alatDocRef, { lokasi: newLocationForMutasi });
+        toast({ title: 'Mutasi Berhasil' });
+    } catch (error) {
+        toast({ title: 'Mutasi Gagal', variant: 'destructive' });
+    } finally {
+        setIsMutating(false);
+        setIsMutasiDialogOpen(false);
+        setMutasiTarget(null);
+        setNewLocationForMutasi('');
+    }
+  };
+
+  const handleDeleteRequest = (item: AlatData | SopirBatanganData, type: 'alat' | 'pairing') => {
+    setItemToDelete(item);
+    setDeleteType(type);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete || !deleteType) return;
+    setIsSubmitting(true);
+    try {
+        const collectionName = deleteType === 'alat' ? 'alat' : 'sopir_batangan';
+        const docRef = doc(db, collectionName, itemToDelete.id);
+        await deleteDoc(docRef);
+        toast({ title: 'Data Dihapus' });
+    } catch (error) {
+        toast({ title: 'Gagal Menghapus', variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+        setIsDeleteDialogOpen(false);
+        setItemToDelete(null);
+        setDeleteType(null);
+    }
+  };
+
+  const handleEditRequest = (alatToEdit: AlatData) => {
+    setEditingAlat(alatToEdit);
+  };
+
+  const handleConfirmEdit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingAlat) return;
+    setIsEditing(true);
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    
+    const updatedAlatData = {
+      nomorLambung: (formData.get('editNomorLambung') as string).toUpperCase(),
+      nomorPolisi: (formData.get('editNomorPolisi') as string).toUpperCase(),
+      jenisKendaraan: (formData.get('editJenisKendaraan') as string).toUpperCase(),
+    };
+    
+    try {
+        const alatDocRef = doc(db, 'alat', editingAlat.id);
+        await updateDoc(alatDocRef, updatedAlatData);
+        toast({ title: 'Alat Diperbarui' });
+        setEditingAlat(null);
+    } catch (error) {
+        toast({ title: 'Error', variant: 'destructive' });
+    } finally {
+        setIsEditing(false);
+    }
+  };
+
+  // Sopir & Batangan Handlers
+  const handleSavePairing = async () => {
+    if (!selectedSopir || !selectedAlat || !userInfo?.lokasi) {
+        toast({ title: 'Data Tidak Lengkap', description: 'Pilih sopir dan alat terlebih dahulu.', variant: 'destructive' });
+        return;
+    }
+    setIsSubmitting(true);
+
+    const pairingData: Omit<SopirBatanganData, 'id' | 'timestamp'> = {
+        userId: selectedSopir.id,
+        namaSopir: selectedSopir.username,
+        nik: selectedSopir.nik,
+        vehicleId: selectedAlat.id,
+        nomorPolisi: selectedAlat.nomorPolisi,
+        nomorLambung: selectedAlat.nomorLambung,
+        keterangan: keterangan,
+        lokasi: userInfo.lokasi,
+    };
+    
+    try {
+        if (editingPairing) {
+            const pairingDocRef = doc(db, 'sopir_batangan', editingPairing.id);
+            await updateDoc(pairingDocRef, pairingData);
+            toast({ title: "Pasangan Diperbarui" });
+        } else {
+            const finalData = { ...pairingData, timestamp: Timestamp.now() };
+            await addDoc(collection(db, 'sopir_batangan'), finalData);
+            toast({ title: 'Pasangan Disimpan' });
+        }
+        // Reset form
+        setSelectedSopir(null);
+        setSelectedAlat(null);
+        setKeterangan('');
+        setEditingPairing(null);
+    } catch (error) {
+        toast({ title: 'Gagal Menyimpan', variant: 'destructive' });
+        console.error(error);
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
+
+  const handleEditPairing = (pairing: SopirBatanganData) => {
+    setEditingPairing(pairing);
+    setSelectedSopir(sopirOptions.find(s => s.id === pairing.userId) || null);
+    setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
+    setKeterangan(pairing.keterangan);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const handleQuarantineRequest = (item: AlatData) => {
+      setQuarantineTarget(item);
+      setIsQuarantineConfirmOpen(true);
+  }
+
+  const handleConfirmQuarantine = async () => {
+    if (!quarantineTarget) return;
+    setIsSubmitting(true);
+    const newStatus = !quarantineTarget.statusKarantina;
+    
+    try {
+        const alatDocRef = doc(db, 'alat', quarantineTarget.id);
+        await updateDoc(alatDocRef, { statusKarantina: newStatus });
+        
+        if (newStatus) { // if the vehicle is being quarantined
+            const q = query(collection(db, "sopir_batangan"), where("nomorLambung", "==", quarantineTarget.nomorLambung));
+            const pairingSnapshot = await getDocs(q);
+            if (!pairingSnapshot.empty) {
+                const pairingDoc = pairingSnapshot.docs[0];
+                await deleteDoc(doc(db, "sopir_batangan", pairingDoc.id));
+                toast({ title: 'Sopir Dilepaskan', description: `Sopir untuk ${quarantineTarget.nomorLambung} telah dilepaskan.` });
+            }
+             toast({
+                title: `Alat Dikarantina`,
+                description: `${quarantineTarget.nomorLambung} telah dimasukkan ke karantina.`
+            });
+        } else { // if the vehicle is being RELEASED from quarantine
+            const dummyReport: Omit<Report, 'id' | 'timestamp'> & { timestamp: any } = {
+                timestamp: Timestamp.now(),
+                vehicleId: quarantineTarget.nomorLambung,
+                operatorName: 'SISTEM',
+                operatorId: 'SISTEM',
+                location: quarantineTarget.lokasi,
+                overallStatus: 'rusak',
+                description: 'Alat ini baru dilepas dari karantina dan membutuhkan pengecekan serta perbaikan menyeluruh.',
+                photo: '',
+            };
+            await addDoc(collection(db, 'checklist_reports'), dummyReport);
+            toast({
+                title: `Alat Dilepas dari Karantina`,
+                description: `${quarantineTarget.nomorLambung} telah dilepas dan WO baru telah dibuat otomatis.`
+            });
+        }
+    } catch (error) {
+        console.error("Error toggling quarantine status:", error);
+        toast({ title: 'Gagal Memperbarui Status', variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+        setIsQuarantineConfirmOpen(false);
+        setQuarantineTarget(null);
+    }
+  };
+
+  
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1018,7 +1236,7 @@ export default function WorkshopPage() {
               </main>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
         case 'Laporan Logistik':
              return renderLaporanLogistik();
         case 'Manajemen Pengguna':
@@ -1044,8 +1262,8 @@ export default function WorkshopPage() {
                                     <TableBody>
                                         {isFetchingData ? (
                                             <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                        ) : users.filter(u=>u.lokasi === userInfo?.lokasi).length > 0 ? (
-                                            users.filter(u=>u.lokasi === userInfo?.lokasi).map(user => (
+                                        ) : usersInLocation.length > 0 ? (
+                                            usersInLocation.map(user => (
                                                 <TableRow key={user.id}>
                                                     <TableCell>
                                                         <div className="flex items-center gap-3">
@@ -1144,7 +1362,7 @@ export default function WorkshopPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction>
+                <AlertDialogAction onClick={handleConfirmQuarantine}>
                     Ya, Konfirmasi
                 </AlertDialogAction>
             </AlertDialogFooter>
@@ -1212,3 +1430,6 @@ export default function WorkshopPage() {
     </>
   );
 }
+
+
+    
