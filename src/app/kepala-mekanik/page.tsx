@@ -114,10 +114,10 @@ const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
     { name: 'Manajemen Work Order', icon: ClipboardList },
     { name: 'Histori Perbaikan Alat', icon: History },
+    { name: 'Sopir & Batangan', icon: Users },
+    { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert },
     { name: 'Anggota Mekanik', icon: Users },
-    { name: 'Absensi', icon: ClipboardCheck },
-    { name: 'Kegiatan', icon: FileText },
-    { name: 'Riwayat Kegiatan', icon: History },
+    { name: 'Laporan Logistik', icon: Truck },
 ];
 
 const secondaryMenuItems = [
@@ -590,25 +590,6 @@ const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { use
     );
 }
 
-const renderLaporanLogistik = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Laporan Pemakaian Barang</CardTitle>
-        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
-            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
-            <Button>Simpan Laporan</Button>
-        </form>
-        <div className="mt-6 text-center text-muted-foreground">
-            <p>(Fitur masih dalam pengembangan)</p>
-        </div>
-      </CardContent>
-    </Card>
-);
-
 export default function WorkshopPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -623,6 +604,10 @@ export default function WorkshopPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
 
+  const sopirOptions = useMemo(() => {
+    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
+  }, [users]);
+  
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
   const [selectedSopir, setSelectedSopir] = useState<UserData | null>(null);
@@ -740,7 +725,7 @@ export default function WorkshopPage() {
           return;
         }
         const userData = JSON.parse(userString);
-         if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
+         if (userData.jabatan.toUpperCase() !== 'KEPALA WORKSHOP') {
           toast({
             variant: 'destructive',
             title: 'Akses Ditolak',
@@ -810,10 +795,6 @@ export default function WorkshopPage() {
     return users.filter(user => user.lokasi === userInfo.lokasi);
   }, [users, userInfo?.lokasi]);
 
-  const sopirOptions = useMemo(() => {
-    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
-  }, [users]);
-  
   const statsData = useMemo(() => {
     const defaultStats = { count: '0', list: [] };
     if (isLoading || !userInfo?.lokasi) {
@@ -1160,59 +1141,58 @@ export default function WorkshopPage() {
                 </div>
               </main>
             );
-        case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
-        case 'Laporan Logistik':
-             return renderLaporanLogistik();
-        case 'Manajemen Pengguna':
+        case 'Alat Rusak Berat/Karantina':
             return (
-                <main>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Manajemen Pengguna</CardTitle>
-                            <CardDescription>Daftar semua pengguna yang terdaftar di lokasi Anda.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="overflow-x-auto border rounded-lg">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Nama</TableHead>
-                                            <TableHead>Username</TableHead>
-                                            <TableHead>NIK</TableHead>
-                                            <TableHead>Jabatan</TableHead>
-                                            <TableHead>Lokasi</TableHead>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Alat Rusak Berat / Karantina</CardTitle>
+                        <CardDescription>Daftar alat yang ditandai sebagai rusak berat atau sedang dalam masa karantina.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                         <div className="overflow-x-auto border rounded-lg">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Nomor Lambung</TableHead>
+                                        <TableHead>Nomor Polisi</TableHead>
+                                        <TableHead>Jenis Kendaraan</TableHead>
+                                        <TableHead>Laporan Terakhir</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className='text-right'>Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isLoading ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : statsData.alatRusakBerat.list.length > 0 ? (statsData.alatRusakBerat.list.map((item:any) => {
+                                        const latestReport = getLatestReport(item.nomorLambung, reports);
+                                        return (
+                                        <TableRow key={item.id}>
+                                            <TableCell className="font-medium">{item.nomorLambung}</TableCell>
+                                            <TableCell>{item.nomorPolisi}</TableCell>
+                                            <TableCell>{alat.find(a => a.id === item.id)?.jenisKendaraan}</TableCell>
+                                            <TableCell>
+                                                <p>{latestReport?.description || 'N/A'}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {latestReport?.timestamp ? format(new Date(latestReport.timestamp), 'dd MMM yyyy', {locale: localeID}) : 'N/A'}
+                                                </p>
+                                            </TableCell>
+                                            <TableCell>{getStatusBadge('Karantina')}</TableCell>
+                                            <TableCell className='text-right'>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <div className="space-y-1">
+                                                         <h4 className="font-semibold text-xs text-right">Karantina</h4>
+                                                         <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
+                                                            Lepas Karantina
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
                                         </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {isLoading ? (
-                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                        ) : usersInLocation.length > 0 ? (
-                                            usersInLocation.map(user => (
-                                                <TableRow key={user.id}>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-3">
-                                                            <Avatar>
-                                                                <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
-                                                            </Avatar>
-                                                            <span className="font-medium">{user.username}</span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>{user.username}</TableCell>
-                                                    <TableCell>{user.nik}</TableCell>
-                                                    <TableCell>{user.jabatan}</TableCell>
-                                                    <TableCell>{user.lokasi}</TableCell>
-                                                </TableRow>
-                                            ))
-                                        ) : (
-                                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada data pengguna.</TableCell></TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </main>
+                                    )})) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
+                                </TableBody>
+                            </Table>
+                         </div>
+                    </CardContent>
+                </Card>
             );
         case 'Sopir & Batangan':
             return (
@@ -1273,6 +1253,60 @@ export default function WorkshopPage() {
                     </Card>
                 </main>
             );
+        case 'Histori Perbaikan Alat':
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
+        case 'Laporan Logistik':
+             return renderLaporanLogistik();
+        case 'Manajemen Pengguna':
+            return (
+                <main>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Manajemen Pengguna</CardTitle>
+                            <CardDescription>Daftar semua pengguna yang terdaftar di lokasi Anda.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Nama</TableHead>
+                                            <TableHead>Username</TableHead>
+                                            <TableHead>NIK</TableHead>
+                                            <TableHead>Jabatan</TableHead>
+                                            <TableHead>Lokasi</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isLoading ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                        ) : usersInLocation.length > 0 ? (
+                                            usersInLocation.map(user => (
+                                                <TableRow key={user.id}>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar>
+                                                                <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="font-medium">{user.username}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>{user.username}</TableCell>
+                                                    <TableCell>{user.nik}</TableCell>
+                                                    <TableCell>{user.jabatan}</TableCell>
+                                                    <TableCell>{user.lokasi}</TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada data pengguna.</TableCell></TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
+            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1289,8 +1323,82 @@ export default function WorkshopPage() {
   return (
     <>
      <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
-      
-    <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Anda yakin akan menghapus data ini secara permanen? Tindakan ini tidak dapat diurungkan.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmDelete} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Ya, Hapus
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+     <Dialog open={isMutasiDialogOpen} onOpenChange={setIsMutasiDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Konfirmasi Mutasi Alat: {mutasiTarget?.nomorLambung}</DialogTitle>
+                <DialogDescription>
+                    Pindahkan alat dari lokasi <strong>{mutasiTarget?.lokasi}</strong> ke lokasi baru. Pastikan Anda yakin sebelum melanjutkan.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Label htmlFor="mutasi-location">Pilih Lokasi Tujuan</Label>
+                <Select value={newLocationForMutasi} onValueChange={setNewLocationForMutasi}>
+                    <SelectTrigger id="mutasi-location">
+                        <SelectValue placeholder="Pilih lokasi..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {locations.filter(l => l.name !== mutasiTarget?.lokasi).map(loc => (
+                            <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setIsMutasiDialogOpen(false)}>Batal</Button>
+                <Button onClick={handleConfirmMutasi} disabled={isMutating}>
+                    {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Konfirmasi & Pindahkan
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+     <Dialog open={!!editingAlat} onOpenChange={(isOpen) => !isOpen && setEditingAlat(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Edit Alat</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleConfirmEdit} className="space-y-4 pt-4">
+                <div>
+                    <Label htmlFor="editNomorLambung">Nomor Lambung</Label>
+                    <Input id="editNomorLambung" name="editNomorLambung" defaultValue={editingAlat?.nomorLambung} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <div>
+                    <Label htmlFor="editNomorPolisi">Nomor Polisi</Label>
+                    <Input id="editNomorPolisi" name="editNomorPolisi" defaultValue={editingAlat?.nomorPolisi} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                 <div>
+                    <Label htmlFor="editJenisKendaraan">Jenis Kendaraan</Label>
+                    <Input id="editJenisKendaraan" name="editJenisKendaraan" defaultValue={editingAlat?.jenisKendaraan} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setEditingAlat(null)}>Batal</Button>
+                    <Button type="submit" disabled={isEditing}>
+                        {isEditing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+    
+      <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
                 <DialogTitle>Detail: {detailListTitle}</DialogTitle>
@@ -1392,16 +1500,19 @@ export default function WorkshopPage() {
         <SidebarInset>
           <div className="flex-1 p-6 lg:p-10">
             <header className="flex justify-between items-start mb-8">
-                <div>
-                     <h1 className="text-3xl font-bold text-foreground">
-                        {activeMenu}
-                     </h1>
-                     <p className="text-sm text-muted-foreground flex items-center gap-4">
-                         <span>{userInfo.username}</span>
-                         <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
-                         <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
-                         <span>Lokasi: {userInfo.lokasi}</span>
-                     </p>
+                <div className='flex items-center gap-4'>
+                    <SidebarTrigger />
+                    <div>
+                         <h1 className="text-3xl font-bold text-foreground">
+                            {activeMenu}
+                         </h1>
+                         <p className="text-sm text-muted-foreground flex items-center gap-4">
+                             <span>{userInfo.username}</span>
+                             <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
+                             <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
+                             <span>Lokasi: {userInfo.lokasi}</span>
+                         </p>
+                    </div>
                 </div>
             </header>
             
@@ -1414,5 +1525,3 @@ export default function WorkshopPage() {
     </>
   );
 }
-
-    
