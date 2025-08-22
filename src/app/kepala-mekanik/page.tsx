@@ -335,7 +335,7 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     }
 };
 
-const HistoriContent = ({ user, allTasks, allUsers, allReports, allAlat }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
+const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
     const [tasks, setTasks] = useState<MechanicTask[]>([]);
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
@@ -620,7 +620,6 @@ export default function WorkshopPage() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
-  const [isFetchingData, setIsFetchingData] = useState(true);
 
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
@@ -739,7 +738,7 @@ export default function WorkshopPage() {
           return;
         }
         const userData = JSON.parse(userString);
-         if (userData.jabatan.toUpperCase() !== 'KEPALA WORKSHOP') {
+         if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
           toast({
             variant: 'destructive',
             title: 'Akses Ditolak',
@@ -1394,5 +1393,3 @@ export default function WorkshopPage() {
     </>
   );
 }
-
-    
