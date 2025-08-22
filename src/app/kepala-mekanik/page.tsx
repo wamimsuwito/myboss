@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -97,7 +96,6 @@ type ActiveMenu =
   | 'Manajemen Work Order'
   | 'Histori Perbaikan Alat' 
   | 'Anggota Mekanik'
-  | 'Sopir & Batangan'
   | 'Alat Rusak Berat/Karantina'
   | 'Laporan Logistik'
   | 'Manajemen Pengguna'
@@ -114,7 +112,6 @@ const menuItems = [
     { name: 'Manajemen Work Order', icon: ClipboardList },
     { name: 'Histori Perbaikan Alat', icon: History },
     { name: 'Anggota Mekanik', icon: Users },
-    { name: 'Sopir & Batangan', icon: Truck },
     { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert }
 ];
 
@@ -1382,7 +1379,7 @@ export default function KepalaMekanikPage() {
                         <TableRow>
                             <TableHead>No. Polisi</TableHead>
                             <TableHead>No. Lambung</TableHead>
-                            <TableHead>Sopir/Pelapor</TableHead>
+                            <TableHead>Sopir (Batangan)</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
