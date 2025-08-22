@@ -1540,5 +1540,3 @@ export default function WorkshopPage() {
     </>
   );
 }
-
-    
