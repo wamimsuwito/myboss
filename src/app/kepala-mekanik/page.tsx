@@ -32,7 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { UserData, Report, AlatData, MechanicTask, SopirBatanganData, LocationData } from '@/lib/types';
 import { cn, printElement } from '@/lib/utils';
 import { db, collection, doc, updateDoc, onSnapshot, addDoc, query, where, Timestamp, deleteDoc, getDocs } from '@/lib/firebase';
-import { format, subDays, startOfDay, endOfDay, isAfter, isBefore, isSameDay, formatDistanceStrict, differenceInMinutes } from "date-fns";
+import { format, subDays, startOfDay, endOfDay, isAfter, isBefore, isSameDay, formatDistanceStrict, differenceInMinutes, differenceInMilliseconds, formatRelative } from "date-fns";
 import { id as localeID } from 'date-fns/locale';
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -725,30 +725,30 @@ export default function KepalaMekanikPage() {
     const damagedVehicleReports = useMemo(() => {
         const handledReportIds = new Set(mechanicTasks.map(task => task.vehicle.triggeringReportId));
         const alatInLocation = alat.filter(a => !userInfo?.lokasi || a.lokasi === userInfo.lokasi);
-        const reportsByVehicle: Record<string, Report> = {};
+        const reportsByVehicle: { [key: string]: Report } = {};
 
+        // Get the latest report for each vehicle
         for (const report of reports) {
             const reportTime = report.timestamp ? new Date(report.timestamp).getTime() : 0;
             const existingReportTime = reportsByVehicle[report.vehicleId]?.timestamp ? new Date(reportsByVehicle[report.vehicleId].timestamp).getTime() : 0;
-            
+
             if (!reportsByVehicle[report.vehicleId] || reportTime > existingReportTime) {
                 reportsByVehicle[report.vehicleId] = report;
             }
         }
 
-        return alatInLocation
-            .map(vehicle => reportsByVehicle[vehicle.nomorLambung])
-            .filter((report): report is Report => {
-                if (!report) return false;
-                const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
-                const isHandled = handledReportIds.has(report.id);
-                return isDamaged && !isHandled;
-            })
-            .sort((a, b) => {
-                const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-                const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-                return timeB - timeA;
-            });
+        return Object.values(reportsByVehicle).filter(report => {
+            if (!alatInLocation.some(a => a.nomorLambung === report.vehicleId)) {
+                return false;
+            }
+            const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
+            const isHandled = handledReportIds.has(report.id);
+            return isDamaged && !isHandled;
+        }).sort((a, b) => {
+            const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+            return timeB - timeA;
+        });
     }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
 
@@ -1337,13 +1337,65 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} alat={alat} allReports={reports} />
+             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} alat={alat} allReports={reports} />;
+        case 'Laporan Logistik':
+             return renderLaporanLogistik();
+        case 'Manajemen Pengguna':
+            return (
+                <main>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Manajemen Pengguna</CardTitle>
+                            <CardDescription>Daftar semua pengguna yang terdaftar di lokasi Anda.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Nama</TableHead>
+                                            <TableHead>Username</TableHead>
+                                            <TableHead>NIK</TableHead>
+                                            <TableHead>Jabatan</TableHead>
+                                            <TableHead>Lokasi</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isFetchingData ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                        ) : usersInLocation.length > 0 ? (
+                                            usersInLocation.map(user => (
+                                                <TableRow key={user.id}>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar>
+                                                                <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="font-medium">{user.username}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>{user.username}</TableCell>
+                                                    <TableCell>{user.nik}</TableCell>
+                                                    <TableCell>{user.jabatan}</TableCell>
+                                                    <TableCell>{user.lokasi}</TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada data pengguna.</TableCell></TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
+            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
   }
 
-  if (isLoading || !userInfo) {
+  if (isFetchingData || !userInfo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
