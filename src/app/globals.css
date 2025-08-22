@@ -108,10 +108,25 @@
     .print-only {
         display: none !important;
     }
+    .printable-area {
+        display: none;
+    }
 }
 
 
 @media print {
+    body {
+        background: white !important;
+        color: black !important;
+    }
+    
+    .printable-area, .printable-area * {
+        display: block !important;
+        color: black !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
     body.print-active > * {
         display: none !important;
     }
@@ -138,17 +153,6 @@
     @page {
         size: A4;
         margin: 0.5in;
-    }
-
-    body {
-        background: white !important;
-        color: black !important;
-    }
-
-    .printable-area, .printable-area * {
-        color: black !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
     }
 
     .print-header {

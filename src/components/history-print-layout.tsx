@@ -82,18 +82,18 @@ export default function HistoryPrintLayout({ data, allReports, users, location }
         </p>
 
       <main>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Kendaraan/Sopir</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Deskripsi Perbaikan</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Mekanik</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Waktu Pengerjaan</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Total Waktu Tunda</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Waktu Efektif</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Penyelesaian</TableHead>
-            </TableRow>
-          </TableHeader>
+        <table className="material-table w-full">
+          <thead>
+            <tr className="material-table">
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Kendaraan/Sopir</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs" style={{ width: '25%' }}>Deskripsi Perbaikan</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Mekanik</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Waktu Pengerjaan</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Total Waktu Tunda</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Waktu Efektif</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Penyelesaian</th>
+            </tr>
+          </thead>
           <TableBody>
             {data.map((task) => {
               const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
@@ -105,7 +105,7 @@ export default function HistoryPrintLayout({ data, allReports, users, location }
                         <p className="text-xs">{sopir?.username || 'N/A'}</p>
                         <p className="text-xs">NIK: {sopir?.nik || '-'}</p>
                     </TableCell>
-                    <TableCell className="border border-black p-1 text-left text-xs">{task.mechanicRepairDescription || "(Belum ada deskripsi)"}</TableCell>
+                    <TableCell className="border border-black p-1 text-left text-xs whitespace-pre-wrap">{task.mechanicRepairDescription || "(Belum ada deskripsi)"}</TableCell>
                     <TableCell className="border border-black p-1 text-center text-xs">{task.mechanics.map(m => m.name).join(', ')}</TableCell>
                     <TableCell className="border border-black p-1 text-center text-xs">
                         <p>Mulai: {task.startedAt ? format(new Date(task.startedAt), 'dd/MM HH:mm') : '-'}</p>
@@ -131,7 +131,7 @@ export default function HistoryPrintLayout({ data, allReports, users, location }
                 <TableRow><TableCell colSpan={7} className="h-24 text-center">Tidak ada data untuk dicetak.</TableCell></TableRow>
             )}
           </TableBody>
-        </Table>
+        </table>
       </main>
       <footer className="signature-section">
           <div>
