@@ -601,13 +601,12 @@ export default function WorkshopPage() {
   const [alat, setAlat] = useState<AlatData[]>([]);
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
-  const [reports, setReports] = useState<Report[]>([]);
-  const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
-
   const sopirOptions = useMemo(() => {
     return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
   }, [users]);
-  
+  const [reports, setReports] = useState<Report[]>([]);
+  const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
+
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
   const [selectedSopir, setSelectedSopir] = useState<UserData | null>(null);
@@ -725,7 +724,7 @@ export default function WorkshopPage() {
           return;
         }
         const userData = JSON.parse(userString);
-         if (userData.jabatan.toUpperCase() !== 'KEPALA WORKSHOP') {
+         if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
           toast({
             variant: 'destructive',
             title: 'Akses Ditolak',
@@ -1108,24 +1107,24 @@ export default function WorkshopPage() {
     }
   };
   
-  const renderLaporanLogistik = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Laporan Pemakaian Barang</CardTitle>
-        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
-            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
-            <Button>Simpan Laporan</Button>
-        </form>
-        <div className="mt-6 text-center text-muted-foreground">
-            <p>(Fitur masih dalam pengembangan)</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
+    const renderLaporanLogistik = () => (
+        <Card>
+        <CardHeader>
+            <CardTitle>Laporan Pemakaian Barang</CardTitle>
+            <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+                <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+                <Button>Simpan Laporan</Button>
+            </form>
+            <div className="mt-6 text-center text-muted-foreground">
+                <p>(Fitur masih dalam pengembangan)</p>
+            </div>
+        </CardContent>
+        </Card>
+    );
 
   const renderContent = () => {
     switch (activeMenu) {
