@@ -651,6 +651,7 @@ export default function KepalaMekanikPage() {
   
   const [isFetchingData, setIsFetchingData] = useState(true);
   const [alat, setAlat] = useState<AlatData[]>([]);
+  const [locations, setLocations] = useState<LocationData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
@@ -725,29 +726,26 @@ export default function KepalaMekanikPage() {
     const damagedVehicleReports = useMemo(() => {
         const handledReportIds = new Set(mechanicTasks.map(task => task.vehicle.triggeringReportId));
         const alatInLocation = alat.filter(a => !userInfo?.lokasi || a.lokasi === userInfo.lokasi);
-        const reportsByVehicle: { [key: string]: Report } = {};
+        
+        // This object will hold the latest report for each vehicle.
+        const latestReportsByVehicle: Record<string, Report> = {};
 
-        // Get the latest report for each vehicle
+        // Iterate through all reports to find the latest one for each vehicle.
         for (const report of reports) {
-            const reportTime = report.timestamp ? new Date(report.timestamp).getTime() : 0;
-            const existingReportTime = reportsByVehicle[report.vehicleId]?.timestamp ? new Date(reportsByVehicle[report.vehicleId].timestamp).getTime() : 0;
-
-            if (!reportsByVehicle[report.vehicleId] || reportTime > existingReportTime) {
-                reportsByVehicle[report.vehicleId] = report;
+            const reportTime = report.timestamp?.getTime() || 0;
+            const existingReportTime = latestReportsByVehicle[report.vehicleId]?.timestamp?.getTime() || 0;
+            if (reportTime > existingReportTime) {
+                latestReportsByVehicle[report.vehicleId] = report;
             }
         }
-
-        return Object.values(reportsByVehicle).filter(report => {
+        
+        return Object.values(latestReportsByVehicle).filter(report => {
             if (!alatInLocation.some(a => a.nomorLambung === report.vehicleId)) {
                 return false;
             }
             const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
             const isHandled = handledReportIds.has(report.id);
             return isDamaged && !isHandled;
-        }).sort((a, b) => {
-            const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-            const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-            return timeB - timeA;
         });
     }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
@@ -880,17 +878,19 @@ export default function KepalaMekanikPage() {
         isInitialLoad.current = true;
         const unsubscribers: (() => void)[] = [];
         
-        ['users', 'alat', 'locations', 'mechanic_tasks'].forEach(col => {
+        ['users', 'alat', 'mechanic_tasks'].forEach(col => {
             let setter;
             if (col === 'users') setter = setUsers;
             else if (col === 'alat') setter = setAlat;
-            else if (col === 'locations') setter = setLocations;
             else if (col === 'mechanic_tasks') setter = setMechanicTasks;
 
             if (setter) {
                 unsubscribers.push(setupListener(col, setter));
             }
         });
+
+        // Add this missing listener setup for locations
+        unsubscribers.push(setupListener('locations', setLocations));
         
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
@@ -1115,6 +1115,25 @@ export default function KepalaMekanikPage() {
 
   const handleConfirmQuarantine = async () => {};
 
+  const renderLaporanLogistik = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+  
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1337,7 +1356,7 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} alat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         case 'Laporan Logistik':
              return renderLaporanLogistik();
         case 'Manajemen Pengguna':
@@ -1578,3 +1597,4 @@ function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | '
     
 
     
+
