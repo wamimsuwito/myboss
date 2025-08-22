@@ -108,7 +108,8 @@ type ActiveMenu =
   | 'Absensi'
   | 'Kegiatan'
   | 'Riwayat Kegiatan'
-  | 'Sopir & Batangan';
+  | 'Sopir & Batangan'
+  | 'Alat Rusak Berat/Karantina';
 
 const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
@@ -590,6 +591,25 @@ const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { use
     );
 }
 
+const renderLaporanLogistik = () => (
+    <Card>
+    <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+    </CardHeader>
+    <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+    </CardContent>
+    </Card>
+);
+
 export default function WorkshopPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -1048,7 +1068,7 @@ export default function WorkshopPage() {
 
   const handleEditPairing = (pairing: SopirBatanganData) => {
     setEditingPairing(pairing);
-    setSelectedSopir(users.find(s => s.id === pairing.userId) || null);
+    setSelectedSopir(sopirOptions.find(s => s.id === pairing.userId) || null);
     setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
     setKeterangan(pairing.keterangan);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1107,25 +1127,6 @@ export default function WorkshopPage() {
     }
   };
   
-    const renderLaporanLogistik = () => (
-        <Card>
-        <CardHeader>
-            <CardTitle>Laporan Pemakaian Barang</CardTitle>
-            <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
-                <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
-                <Button>Simpan Laporan</Button>
-            </form>
-            <div className="mt-6 text-center text-muted-foreground">
-                <p>(Fitur masih dalam pengembangan)</p>
-            </div>
-        </CardContent>
-        </Card>
-    );
-
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1139,59 +1140,6 @@ export default function WorkshopPage() {
                    ) : statCards.map(card => (<StatCard key={card.title} {...card} onClick={() => handleStatCardClick(card.title)}/>))}
                 </div>
               </main>
-            );
-        case 'Alat Rusak Berat/Karantina':
-            return (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Alat Rusak Berat / Karantina</CardTitle>
-                        <CardDescription>Daftar alat yang ditandai sebagai rusak berat atau sedang dalam masa karantina.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                         <div className="overflow-x-auto border rounded-lg">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Nomor Lambung</TableHead>
-                                        <TableHead>Nomor Polisi</TableHead>
-                                        <TableHead>Jenis Kendaraan</TableHead>
-                                        <TableHead>Laporan Terakhir</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className='text-right'>Aksi</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : statsData.alatRusakBerat.list.length > 0 ? (statsData.alatRusakBerat.list.map((item:any) => {
-                                        const latestReport = getLatestReport(item.nomorLambung, reports);
-                                        return (
-                                        <TableRow key={item.id}>
-                                            <TableCell className="font-medium">{item.nomorLambung}</TableCell>
-                                            <TableCell>{item.nomorPolisi}</TableCell>
-                                            <TableCell>{alat.find(a => a.id === item.id)?.jenisKendaraan}</TableCell>
-                                            <TableCell>
-                                                <p>{latestReport?.description || 'N/A'}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {latestReport?.timestamp ? format(new Date(latestReport.timestamp), 'dd MMM yyyy', {locale: localeID}) : 'N/A'}
-                                                </p>
-                                            </TableCell>
-                                            <TableCell>{getStatusBadge('Karantina')}</TableCell>
-                                            <TableCell className='text-right'>
-                                                <div className="flex flex-col items-end gap-2">
-                                                    <div className="space-y-1">
-                                                         <h4 className="font-semibold text-xs text-right">Karantina</h4>
-                                                         <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
-                                                            Lepas Karantina
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    )})) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
-                                </TableBody>
-                            </Table>
-                         </div>
-                    </CardContent>
-                </Card>
             );
         case 'Sopir & Batangan':
             return (
