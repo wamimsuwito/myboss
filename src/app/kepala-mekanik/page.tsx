@@ -33,7 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { UserData, Report, AlatData, MechanicTask, SopirBatanganData, LocationData } from '@/lib/types';
 import { cn, printElement } from '@/lib/utils';
 import { db, collection, doc, updateDoc, onSnapshot, addDoc, query, where, Timestamp, deleteDoc, getDocs } from '@/lib/firebase';
-import { format, subDays, startOfDay, endOfDay, isAfter, isBefore, isSameDay, formatDistanceStrict, differenceInMinutes, differenceInMilliseconds } from "date-fns";
+import { format, subDays, startOfDay, endOfDay, isAfter, isBefore, isSameDay, formatDistanceStrict, differenceInMinutes, differenceInMilliseconds, formatRelative } from "date-fns";
 import { id as localeID } from 'date-fns/locale';
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -91,7 +91,6 @@ import { DateRange } from "react-day-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarInset, SidebarTrigger, SidebarSeparator } from '@/components/ui/sidebar';
 import HistoryPrintLayout from "@/components/history-print-layout";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 
 type ActiveMenu = 
@@ -642,43 +641,79 @@ const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports }: { use
     );
 }
 
+const renderLaporanLogistik = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
 export default function WorkshopPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dashboard');
   const [userInfo, setUserInfo] = useState<UserData | null>(null);
-  
-  const [isFetchingData, setIsFetchingData] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [alat, setAlat] = useState<AlatData[]>([]);
+  const [locations, setLocations] = useState<LocationData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
+  const [isFetchingData, setIsFetchingData] = useState(true);
+
+  // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
-  const [locations, setLocations] = useState<LocationData[]>([]);
+  const [isFetchingPairings, setIsFetchingPairings] = useState(true);
+  const [selectedSopir, setSelectedSopir] = useState<UserData | null>(null);
+  const [selectedAlat, setSelectedAlat] = useState<AlatData | null>(null);
+  const [keterangan, setKeterangan] = useState('');
+  const [editingPairing, setEditingPairing] = useState<SopirBatanganData | null>(null);
+
+  // Mutasi state
+  const [isMutasiDialogOpen, setIsMutasiDialogOpen] = useState(false);
+  const [mutasiTarget, setMutasiTarget] = useState<AlatData | null>(null);
+  const [newLocationForMutasi, setNewLocationForMutasi] = useState('');
+  const [isMutating, setIsMutating] = useState(false);
+
+  // Delete state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<AlatData | SopirBatanganData | null>(null);
+  const [deleteType, setDeleteType] = useState<'alat' | 'pairing' | null>(null);
+
+  // Edit Alat state
+  const [editingAlat, setEditingAlat] = useState<AlatData | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
   
-  // Delay Dialog State
-  const [isDelayDialogOpen, setIsDelayDialogOpen] = useState(false);
-  const [delayReason, setDelayReason] = useState('');
-  const [taskToDelay, setTaskToDelay] = useState<MechanicTask | null>(null);
-
-  // Description Dialog State
-  const [taskToDescribe, setTaskToDescribe] = useState<MechanicTask | null>(null);
-
   // Detail List Dialog state
   const [detailListTitle, setDetailListTitle] = useState('');
   const [detailListData, setDetailListData] = useState<any[]>([]);
   const [isDetailListOpen, setIsDetailListOpen] = useState(false);
 
+  // Quarantine State
+  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
+  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
+  
   // Notification state
   const audioRef = useRef<HTMLAudioElement>(null);
   const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
 
-  // Quarantine State
-  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
-  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
-  
+
   const getStatusBadge = useCallback((status: Report['overallStatus'] | 'Belum Checklist' | 'Karantina' | 'Tanpa Operator') => {
     switch (status) {
       case 'baik':
@@ -903,11 +938,9 @@ export default function WorkshopPage() {
         const pairingUnsub = onSnapshot(query(collection(db, "sopir_batangan")), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
             setPairings(data);
-            setIsFetchingPairings(false);
         }, (error) => {
             console.error(`Error fetching sopir_batangan:`, error);
             toast({ variant: 'destructive', title: `Gagal Memuat sopir_batangan` });
-            setIsFetchingPairings(false);
         });
         unsubscribers.push(pairingUnsub);
         
@@ -969,24 +1002,6 @@ export default function WorkshopPage() {
     setActiveMenu(menuName);
   };
   
-  const renderLaporanLogistik = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Laporan Pemakaian Barang</CardTitle>
-        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
-            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
-            <Button>Simpan Laporan</Button>
-        </form>
-        <div className="mt-6 text-center text-muted-foreground">
-            <p>(Fitur masih dalam pengembangan)</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   const renderContent = () => {
     switch (activeMenu) {
@@ -1003,9 +1018,59 @@ export default function WorkshopPage() {
               </main>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         case 'Laporan Logistik':
              return renderLaporanLogistik();
+        case 'Manajemen Pengguna':
+            return (
+                <main>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Manajemen Pengguna</CardTitle>
+                            <CardDescription>Daftar semua pengguna yang terdaftar di lokasi Anda.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Nama</TableHead>
+                                            <TableHead>Username</TableHead>
+                                            <TableHead>NIK</TableHead>
+                                            <TableHead>Jabatan</TableHead>
+                                            <TableHead>Lokasi</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isFetchingData ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                        ) : users.filter(u=>u.lokasi === userInfo?.lokasi).length > 0 ? (
+                                            users.filter(u=>u.lokasi === userInfo?.lokasi).map(user => (
+                                                <TableRow key={user.id}>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar>
+                                                                <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="font-medium">{user.username}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>{user.username}</TableCell>
+                                                    <TableCell>{user.nik}</TableCell>
+                                                    <TableCell>{user.jabatan}</TableCell>
+                                                    <TableCell>{user.lokasi}</TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada data pengguna.</TableCell></TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
+            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1099,7 +1164,7 @@ export default function WorkshopPage() {
                 <SidebarMenuItem key={item.name}>
                     <SidebarMenuButton
                         isActive={activeMenu === item.name}
-                        onClick={() => handleMenuClick(item.name as ActiveMenu)}
+                        onClick={() => setActiveMenu(item.name as ActiveMenu)}
                         className="h-9 relative"
                     >
                         <item.icon className="h-4 w-4" />
