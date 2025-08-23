@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -113,6 +112,7 @@ const menuItems = [
     { name: 'Manajemen Work Order', icon: ClipboardList },
     { name: 'Histori Perbaikan Alat', icon: History },
     { name: 'Anggota Mekanik', icon: Users },
+    { name: 'Sopir & Batangan', icon: Truck },
     { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert }
 ];
 
@@ -1551,5 +1551,3 @@ function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | '
         return <Badge>{status}</Badge>;
     }
   };
-
-    
