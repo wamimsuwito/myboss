@@ -571,7 +571,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
                                     {tasksOnDate.map((task) => {
                                         const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
                                         const reportDate = triggeringReport?.timestamp ? new Date(triggeringReport.timestamp) : null;
-                                        const sopir = users.find(u => u.id === triggeringReport?.operatorId);
+                                        const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
                                         const { details: delayDetails, total: totalDelay } = calculateDelayDetails(task);
                                         const photos = Array.isArray(triggeringReport?.photo) ? triggeringReport?.photo : (triggeringReport?.photo ? [triggeringReport.photo] : []);
                                         
@@ -650,7 +650,7 @@ export default function KepalaMekanikPage() {
   
   const [isFetchingData, setIsFetchingData] = useState(true);
   const [alat, setAlat] = useState<AlatData[]>([]);
-  const [users, setAllUsers] = useState<UserData[]>([]);
+  const [allUsers, setAllUsers] = useState<UserData[]>([]);
   const [allReports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
@@ -794,7 +794,7 @@ export default function KepalaMekanikPage() {
     const mapToDetailFormat = (items: AlatData[], statusSource: 'latest' | 'belum') => {
       return items.map(item => {
         const report = getLatestReportForAlat(item.nomorLambung);
-        const reporter = users.find(u => u.id === report?.operatorId);
+        const reporter = allUsers.find(u => u.id === report?.operatorId);
         
         let status: Report['overallStatus'] | 'Belum Checklist' = 'Belum Checklist';
         if (statusSource === 'latest' && report) {
@@ -845,7 +845,7 @@ export default function KepalaMekanikPage() {
       alatRusakBerat: { count: String(alatRusakBeratList.length), list: mapToDetailFormatSpecial(alatRusakBeratList, 'Karantina') },
       alatTdkAdaOperator: { count: String(alatTdkAdaOperatorList.length), list: mapToDetailFormatSpecial(alatTdkAdaOperatorList, 'Tanpa Operator') },
     };
-}, [alat, users, allReports, userInfo?.lokasi, isFetchingData, pairings]);
+}, [alat, allUsers, allReports, userInfo?.lokasi, isFetchingData, pairings]);
   
   const statCards = useMemo(() => {
     return [
@@ -1234,7 +1234,7 @@ export default function KepalaMekanikPage() {
                                 </TableHeader>
                                 <TableBody>
                                     {isFetchingData ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : statsData.alatRusakBerat.list.length > 0 ? (statsData.alatRusakBerat.list.map((item:any) => {
-                                        const latestReport = getLatestReport(item.nomorLambung, reports);
+                                        const latestReport = getLatestReport(item.nomorLambung, allReports);
                                         return (
                                         <TableRow key={item.id}>
                                             <TableCell className="font-medium">{item.nomorLambung}</TableCell>
