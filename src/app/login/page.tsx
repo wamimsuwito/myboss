@@ -55,7 +55,8 @@ export default function LoginPage() {
         
         const userData = data.user as UserData;
         
-        localStorage.setItem('user', JSON.stringify(userData));
+        // No longer need to save to localStorage
+        // localStorage.setItem('user', JSON.stringify(userData));
 
         toast({
             title: `Selamat Datang, ${userData.username}!`,
@@ -93,7 +94,6 @@ export default function LoginPage() {
                 description: 'Anda tidak memiliki halaman yang ditetapkan untuk jabatan Anda.',
             });
             await fetch('/api/logout'); 
-            localStorage.removeItem('user');
             setIsLoading(false);
             return;
         }

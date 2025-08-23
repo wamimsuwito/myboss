@@ -1,3 +1,4 @@
+
 import { NextResponse, type NextRequest } from 'next/server';
 import { getIronSession } from 'iron-session';
 import { sessionOptions, type SessionData } from '@/lib/session';
@@ -9,34 +10,15 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const publicPaths = ['/login'];
+  const isAccessingPublicPath = publicPaths.includes(pathname);
 
   // If user is not logged in and is trying to access a protected route
-  if (!user && !publicPaths.includes(pathname)) {
+  if (!user && !isAccessingPublicPath) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // If user is logged in and is trying to access the login page
-  if (user && pathname === '/login') {
-    // Redirect to their designated page instead of always to '/'
-    const userJabatan = user.jabatan.toUpperCase();
-    let userHomePage = '/'; // Default page
-    
-    if (userJabatan === 'SUPER ADMIN') userHomePage = '/admin';
-    else if (userJabatan === 'OWNER') userHomePage = '/owner';
-    else if (userJabatan.includes('SOPIR')) userHomePage = '/sopir';
-    else if (userJabatan.includes('KEPALA MEKANIK')) userHomePage = '/kepala-mekanik';
-    else if (userJabatan.includes('KEPALA WORKSHOP')) userHomePage = '/workshop';
-    else if (userJabatan.includes('ADMIN BP')) userHomePage = '/admin-bp';
-    else if (userJabatan.includes('ADMIN LOGISTIK MATERIAL')) userHomePage = '/admin-logistik-material';
-    else if (userJabatan.includes('QC')) userHomePage = '/qc';
-    else if (userJabatan.includes('PEKERJA BONGKAR SEMEN')) userHomePage = '/bongkar-semen';
-    else if (userJabatan.includes('HRD PUSAT')) userHomePage = '/hrd-pusat';
-    
-    return NextResponse.redirect(new URL(userHomePage, request.url));
-  }
-
   // Define role-based access control
-  const roleAccess: Record<string, string[]> = {
+  const roleAccess: { [key: string]: string[] } = {
     'SUPER ADMIN': ['/admin'],
     'OWNER': ['/owner'],
     'OPRATOR BP': ['/'],
@@ -50,43 +32,47 @@ export async function middleware(request: NextRequest) {
     'PEKERJA BONGKAR SEMEN': ['/bongkar-semen', '/catat-aktivitas-bongkar', '/riwayat-bongkar-semen', '/absensi', '/riwayat-saya', '/ubah-password'],
     'HRD PUSAT': ['/hrd-pusat'],
   };
+  
+  const getHomePageForRole = (jabatan: string): string => {
+    const role = jabatan.toUpperCase();
+    if (role.includes('SUPER ADMIN')) return '/admin';
+    if (role.includes('OWNER')) return '/owner';
+    if (role.includes('OPRATOR BP')) return '/';
+    if (role.includes('SOPIR')) return '/sopir'; // Catches both SOPIR and SOPIR DT
+    if (role.includes('KEPALA MEKANIK')) return '/kepala-mekanik';
+    if (role.includes('KEPALA WORKSHOP')) return '/workshop';
+    if (role.includes('ADMIN BP')) return '/admin-bp';
+    if (role.includes('ADMIN LOGISTIK MATERIAL')) return '/admin-logistik-material';
+    if (role.includes('QC')) return '/qc';
+    if (role.includes('PEKERJA BONGKAR SEMEN')) return '/bongkar-semen';
+    if (role.includes('HRD PUSAT')) return '/hrd-pusat';
+    return '/login'; // Fallback to login if no role matches
+  };
 
-  if(user) {
+
+  if (user) {
+    const userHomePage = getHomePageForRole(user.jabatan);
+
+    // If user is logged in and trying to access the login page, redirect them to their homepage.
+    if (isAccessingPublicPath) {
+      return NextResponse.redirect(new URL(userHomePage, request.url));
+    }
+
+    // Check if user is authorized to access the requested path
     const userJabatan = user.jabatan.toUpperCase();
     const allowedPaths = Object.entries(roleAccess)
       .filter(([jabatan, _]) => userJabatan.includes(jabatan))
       .flatMap(([_, paths]) => paths);
-
-    // If the root path '/' is not explicitly in allowedPaths, add it for roles that should default there.
-    // OPRATOR BP is already set to '/'
     
+    // Check if the current path starts with any of the allowed paths
     const isAuthorized = allowedPaths.some(allowedPath => pathname.startsWith(allowedPath));
-    const isPublic = publicPaths.includes(pathname);
 
-    // Check if the current path is the root path and if the user is not an Operator BP
-    // If so, redirect them to their specific dashboard
-    if (pathname === '/' && !userJabatan.includes('OPRATOR BP')) {
-      let userHomePage = '/login'; // Default to login if no specific page
-        if (userJabatan === 'SUPER ADMIN') userHomePage = '/admin';
-        else if (userJabatan === 'OWNER') userHomePage = '/owner';
-        else if (userJabatan.includes('SOPIR')) userHomePage = '/sopir';
-        else if (userJabatan.includes('KEPALA MEKANIK')) userHomePage = '/kepala-mekanik';
-        else if (userJabatan.includes('KEPALA WORKSHOP')) userHomePage = '/workshop';
-        else if (userJabatan.includes('ADMIN BP')) userHomePage = '/admin-bp';
-        else if (userJabatan.includes('ADMIN LOGISTIK MATERIAL')) userHomePage = '/admin-logistik-material';
-        else if (userJabatan.includes('QC')) userHomePage = '/qc';
-        else if (userJabatan.includes('PEKERJA BONGKAR SEMEN')) userHomePage = '/bongkar-semen';
-        else if (userJabatan.includes('HRD PUSAT')) userHomePage = '/hrd-pusat';
-        
+    if (!isAuthorized) {
+        // If not authorized, redirect to their designated home page
         return NextResponse.redirect(new URL(userHomePage, request.url));
     }
-
-
-    if (!isAuthorized && !isPublic) {
-        const rootRedirect = new URL('/', request.url);
-        return NextResponse.redirect(rootRedirect);
-    }
   }
+  
 
   return NextResponse.next();
 }
