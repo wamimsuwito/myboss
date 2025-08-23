@@ -1,8 +1,8 @@
 
-import type { IronSessionOptions } from 'iron-session';
+import type { SessionOptions } from 'iron-session';
 import type { UserData } from './types';
 
-export const sessionOptions: IronSessionOptions = {
+export const sessionOptions: SessionOptions = {
   password: process.env.SECRET_COOKIE_PASSWORD as string || "complex_password_at_least_32_characters_long_for_dev",
   cookieName: 'farika-app-session',
   // secure: true should be used in production (HTTPS) but can be false for development
