@@ -297,7 +297,10 @@ function OvertimeAttendanceTab({ userInfo }: { userInfo: UserData }) {
         return () => clearInterval(timer);
     }, []);
 
-    const canCheckInOvertime = useMemo(() => currentTime.getHours() >= 22, [currentTime]);
+    const canCheckInOvertime = useMemo(() => {
+        const currentHour = currentTime.getHours();
+        return currentHour >= 21 || currentHour < 4;
+    }, [currentTime]);
 
     const getLocation = useCallback(() => {
         setLocationError(null);
@@ -475,7 +478,7 @@ function OvertimeAttendanceTab({ userInfo }: { userInfo: UserData }) {
                 {status === 'masuk' ? 'Absen Masuk Lembur' : 'Absen Pulang Lembur'}
             </Button>
             {status === 'selesai' && <Alert className="text-center bg-green-500/10 border-green-500/20 text-green-700"><CheckCircle className="h-4 w-4" /><AlertTitle>Selesai</AlertTitle><AlertDescription>Anda sudah menyelesaikan absensi lembur hari ini.</AlertDescription></Alert>}
-            {!canCheckInOvertime && status === 'masuk' && <Alert variant="default" className="text-center"><Clock className="h-4 w-4 inline-block mr-2" />Absen lembur dapat dilakukan mulai jam 22:00.</Alert>}
+            {!canCheckInOvertime && status === 'masuk' && <Alert variant="default" className="text-center"><Clock className="h-4 w-4 inline-block mr-2" />Absen lembur dapat dilakukan mulai jam 21:00 hingga 04:00.</Alert>}
         </CardContent>
     );
 }
