@@ -419,6 +419,7 @@ const calculateDelayDetails = (task: MechanicTask) => {
 
 const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
     const [tasks, setTasks] = useState<MechanicTask[]>([]);
+    const [isFetchingData, setIsFetchingData] = useState(true);
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
     const [date, setDate] = useState<DateRange | undefined>({
@@ -428,6 +429,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
 
     useEffect(() => {
         setTasks(allTasks.filter(t => t.status === 'COMPLETED'));
+        setIsFetchingData(false);
     }, [allTasks]);
     
     const sopirOptions = useMemo(() => {
@@ -909,17 +911,24 @@ export default function KepalaMekanikPage() {
         isInitialLoad.current = true;
         const unsubscribers: (() => void)[] = [];
         
-        ['users', 'alat', 'mechanic_tasks'].forEach(col => {
+        ['alat', 'mechanic_tasks'].forEach(col => {
             let setter: React.Dispatch<React.SetStateAction<any[]>> | null = null;
-            if (col === 'users') setAllUsers;
-            else if (col === 'alat') setAlat;
-            else if (col === 'mechanic_tasks') setMechanicTasks;
+            if (col === 'alat') setter = setAlat;
+            else if (col === 'mechanic_tasks') setter = setMechanicTasks;
 
             if (setter) {
                 unsubscribers.push(setupListener(col, setter));
             }
         });
         
+        const usersUnsub = onSnapshot(query(collection(db, "users")), (snapshot) => {
+            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
+            setAllUsers(data);
+        }, (error) => {
+            console.error(`Error fetching users:`, error);
+        });
+        unsubscribers.push(usersUnsub);
+
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
             
@@ -1309,7 +1318,7 @@ export default function KepalaMekanikPage() {
                                                     <p className="font-semibold">{task.vehicle.licensePlate} ({task.vehicle.hullNumber})</p>
                                                     <p className="text-xs text-muted-foreground">{allUsers.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
                                                 </TableCell>
-                                                <TableCell className="max-w-[200px] whitespace-pre-wrap">{task.mechanicRepairDescription || triggeringReport?.description}</TableCell>
+                                                <TableCell className="max-w-[200px] truncate">{task.mechanicRepairDescription || task.vehicle.repairDescription}</TableCell>
                                                 <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
                                                 <TableCell>
                                                     <div className="text-xs space-y-1">
@@ -1421,7 +1430,7 @@ export default function KepalaMekanikPage() {
                         <TableRow>
                             <TableHead>No. Polisi</TableHead>
                             <TableHead>No. Lambung</TableHead>
-                            <TableHead>Sopir (Batangan)</TableHead>
+                            <TableHead>Sopir/Pelapor</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
