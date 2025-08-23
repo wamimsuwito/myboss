@@ -471,7 +471,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
             
             return true;
         })
-        .sort((a, b) => (b.completedAt || 0) - (b.completedAt || 0));
+        .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
     }, [tasks, date, selectedOperatorId, user, allAlat, allReports, searchNoPol]);
     
     const calculateEffectiveDuration = (task: MechanicTask) => {
@@ -1325,7 +1325,7 @@ export default function KepalaMekanikPage() {
                 </main>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={allUsers} alat={alat} allReports={allReports} />;
+             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={allUsers} allAlat={alat} allReports={allReports} />;
         case 'Laporan Logistik':
              return renderLaporanLogistik();
         case 'Manajemen Pengguna':
@@ -1593,3 +1593,5 @@ export default function KepalaMekanikPage() {
     </>
   );
 }
+
+    
