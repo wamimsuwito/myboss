@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -1218,7 +1217,7 @@ export default function KepalaMekanikPage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right">
-                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={(newTask: any) => setMechanicTasks(prev => [newTask, ...prev])} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
+                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={allUsers} onTaskCreated={(newTask: any) => setMechanicTasks(prev => [newTask, ...prev])} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
                                                         </TableCell>
                                                     </TableRow>
                                                 )
@@ -1264,7 +1263,7 @@ export default function KepalaMekanikPage() {
                                                 <TableCell>{reportDate ? format(reportDate, 'dd MMM, HH:mm') : '-'}</TableCell>
                                                 <TableCell>
                                                     <p className="font-semibold">{task.vehicle.licensePlate} ({task.vehicle.hullNumber})</p>
-                                                    <p className="text-xs text-muted-foreground">{users.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
+                                                    <p className="text-xs text-muted-foreground">{allUsers.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
                                                 </TableCell>
                                                 <TableCell className="max-w-[200px] whitespace-pre-wrap">{task.mechanicRepairDescription || task.vehicle.repairDescription}</TableCell>
                                                 <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
@@ -1321,7 +1320,7 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />
+            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={allUsers} allAlat={alat} allReports={reports} />;
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1452,7 +1451,8 @@ export default function KepalaMekanikPage() {
                 {secondaryMenuItems.map((item) => (
                 <SidebarMenuItem key={item.name}>
                     <SidebarMenuButton
-                        onClick={() => router.push(item.href)}
+                        isActive={activeMenu === item.name}
+                        onClick={() => handleMenuClick(item.name as ActiveMenu)}
                         className="h-9 relative"
                     >
                         <item.icon className="h-4 w-4" />
@@ -1519,4 +1519,3 @@ function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | '
         return <Badge>{status}</Badge>;
     }
   };
-
