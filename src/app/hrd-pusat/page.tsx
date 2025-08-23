@@ -119,6 +119,7 @@ export default function HrdPusatPage() {
     // Attendance History Filter States
     const [historyDateRange, setHistoryDateRange] = useState<DateRange | undefined>(getThisPeriod());
     const [historySelectedUser, setHistorySelectedUser] = useState<UserData | null>(null);
+    const [todayDashboardDate, setTodayDashboardDate] = useState<Date>(new Date());
 
     const isPenaltyPrintButtonDisabled = !selectedPenaltyUser || !penaltyPoin || !penaltyCause || !penaltyDescription;
     const isRewardPrintButtonDisabled = !selectedRewardUser || !rewardPoin || !rewardDescription;
@@ -178,10 +179,10 @@ export default function HrdPusatPage() {
     }, [userInfo, fetchAllData]);
 
     const { todayAttendance, todayOvertime } = useMemo(() => {
-        const todayStart = startOfDay(new Date());
+        const selectedDayStart = startOfDay(todayDashboardDate);
         return {
             todayAttendance: allAttendance
-                .filter(rec => rec.checkInTime && rec.checkInTime.toDate && isSameDay(rec.checkInTime.toDate(), todayStart))
+                .filter(rec => rec.checkInTime && rec.checkInTime.toDate && isSameDay(rec.checkInTime.toDate(), selectedDayStart))
                 .map(rec => {
                     const checkInTime = rec.checkInTime.toDate();
                     const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
@@ -189,9 +190,9 @@ export default function HrdPusatPage() {
                     return { ...rec, lateMinutes: lateMinutes > 0 ? lateMinutes : 0 };
                 })
                 .sort((a, b) => b.checkInTime.toDate().getTime() - a.checkInTime.toDate().getTime()),
-            todayOvertime: allOvertime.filter(rec => rec.checkInTime && rec.checkInTime.toDate && isSameDay(rec.checkInTime.toDate(), todayStart))
+            todayOvertime: allOvertime.filter(rec => rec.checkInTime && rec.checkInTime.toDate && isSameDay(rec.checkInTime.toDate(), selectedDayStart))
         };
-    }, [allAttendance, allOvertime]);
+    }, [allAttendance, allOvertime, todayDashboardDate]);
     
     const filteredAttendance = useMemo(() => {
         if (selectedLocation === 'all') { return todayAttendance; }
@@ -332,10 +333,25 @@ export default function HrdPusatPage() {
     const renderTodayDashboard = () => (
          <Card>
             <CardHeader className='flex-row items-center justify-between'>
-                <div><CardTitle>Laporan Absensi Hari Ini</CardTitle><CardDescription>Menampilkan semua absensi yang tercatat pada hari ini.</CardDescription></div>
+                <div>
+                    <CardTitle>Laporan Absensi</CardTitle>
+                    <CardDescription>Menampilkan semua absensi yang tercatat pada tanggal yang dipilih.</CardDescription>
+                </div>
                 <div className="flex items-center gap-2">
-                    <Label htmlFor="location-filter" className="text-sm shrink-0">Lokasi Absen:</Label>
-                    <Select value={selectedLocation} onValueChange={setSelectedLocation}><SelectTrigger id="location-filter" className="w-[220px]"><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn("w-[240px] justify-start text-left font-normal", !todayDashboardDate && "text-muted-foreground" )}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {todayDashboardDate ? format(todayDashboardDate, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar mode="single" selected={todayDashboardDate} onSelect={(date) => date && setTodayDashboardDate(date)} initialFocus/>
+                      </PopoverContent>
+                    </Popover>
+                    <Select value={selectedLocation} onValueChange={setSelectedLocation}><SelectTrigger className="w-[220px]"><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
                         <SelectContent><SelectItem value="all">Semua Lokasi</SelectItem>{locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}</SelectContent>
                     </Select>
                 </div>
@@ -491,7 +507,7 @@ export default function HrdPusatPage() {
                         <SidebarFooter><Button variant="ghost" onClick={() => router.push('/login')} className="w-full justify-start"><LogOut className="mr-2 h-4 w-4" /> Keluar</Button></SidebarFooter>
                     </SidebarContent></Sidebar>
                     <SidebarInset><main className="p-4 sm:p-6 md:p-8">
-                        <header className="flex items-start sm:items-center justify-between gap-4 mb-8 flex-col sm:flex-row"><div className='flex items-center gap-4'><SidebarTrigger /><div><h1 className="text-2xl font-bold tracking-wider">{activeMenu}</h1><p className="text-muted-foreground">Selamat datang, {userInfo.username}</p></div></div></header>
+                        <header className="flex items-start sm:items-center justify-between gap-4 mb-8"><div className='flex items-center gap-4'><SidebarTrigger /><div><h1 className="text-2xl font-bold tracking-wider">{activeMenu}</h1><p className="text-muted-foreground">Selamat datang, {userInfo.username}</p></div></div></header>
                         {renderContent()}
                     </main></SidebarInset>
                 </div>
@@ -499,3 +515,4 @@ export default function HrdPusatPage() {
         </>
     );
 }
+
