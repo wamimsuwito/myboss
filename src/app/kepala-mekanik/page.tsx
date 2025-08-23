@@ -495,7 +495,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
       <>
         <div className='hidden'>
             <div id="history-print-area">
-                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
+                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={users} location={user?.lokasi} />
             </div>
         </div>
         <Card>
@@ -570,7 +570,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
                                     {tasksOnDate.map((task) => {
                                         const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
                                         const reportDate = triggeringReport?.timestamp ? new Date(triggeringReport.timestamp) : null;
-                                        const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
+                                        const sopir = users.find(u => u.id === triggeringReport?.operatorId);
                                         const { details: delayDetails, total: totalDelay } = calculateDelayDetails(task);
                                         const photos = Array.isArray(triggeringReport?.photo) ? triggeringReport?.photo : (triggeringReport?.photo ? [triggeringReport.photo] : []);
                                         
@@ -581,7 +581,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
                                                 <p className="font-semibold">{task.vehicle.licensePlate} ({task.vehicle.hullNumber})</p>
                                                 <p className="text-xs text-muted-foreground">{sopir?.username || 'N/A'}</p>
                                             </TableCell>
-                                            <TableCell className="max-w-[200px] truncate">{task.mechanicRepairDescription || triggeringReport?.description}</TableCell>
+                                            <TableCell className="whitespace-pre-wrap max-w-[200px]">{task.mechanicRepairDescription || triggeringReport?.description}</TableCell>
                                             <TableCell>
                                                 {photos.length > 0 && (
                                                     <Dialog><DialogTrigger asChild><Button variant="ghost" size="icon"><Eye/></Button></DialogTrigger>
@@ -727,52 +727,27 @@ export default function KepalaMekanikPage() {
     }, [dataTransformer, toast]);
 
     const damagedVehicleReports = useMemo(() => {
-        // 1. Get all reports that are 'rusak' or 'perlu perhatian'
-        const damageReports = reports.filter(report =>
-            report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian'
-        );
-
-        // 2. Group reports by vehicle
-        const reportsByVehicle = damageReports.reduce((acc, report) => {
-            if (!acc[report.vehicleId]) {
-                acc[report.vehicleId] = [];
-            }
-            acc[report.vehicleId].push(report);
-            return acc;
-        }, {} as Record<string, Report[]>);
-
-        // 3. Find reports that haven't been resolved
-        const unresolvedReports = Object.values(reportsByVehicle).map(vehicleReports => {
-            // Sort by most recent first
-            const sorted = vehicleReports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            const latestDamageReport = sorted[0];
-
-            // Check if there's a "baik" report AFTER this latest damage report
-            const hasBeenFixed = reports.some(fixReport =>
-                fixReport.vehicleId === latestDamageReport.vehicleId &&
-                fixReport.overallStatus === 'baik' &&
-                isAfter(new Date(fixReport.timestamp), new Date(latestDamageReport.timestamp))
-            );
-
-            if (hasBeenFixed) return null;
-
-            // Check if there's an open Work Order for this specific report
-            const hasOpenWO = mechanicTasks.some(task => 
-                task.vehicle.triggeringReportId === latestDamageReport.id && task.status !== 'COMPLETED'
-            );
-
-            if (hasOpenWO) return null;
-
-            return latestDamageReport;
-
-        }).filter(Boolean) as Report[];
-        
-        // 4. Final filter by location
-        return unresolvedReports.filter(report => {
-             const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-             return !!vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
-        });
-
+        return reports
+            .filter(report => {
+                if (report.overallStatus !== 'rusak' && report.overallStatus !== 'perlu perhatian') {
+                    return false;
+                }
+                const hasOpenWO = mechanicTasks.some(task => task.vehicle.triggeringReportId === report.id);
+                if (hasOpenWO) {
+                    return false;
+                }
+                const hasBeenFixed = reports.some(fixReport =>
+                    fixReport.vehicleId === report.vehicleId &&
+                    fixReport.overallStatus === 'baik' &&
+                    isAfter(new Date(fixReport.timestamp), new Date(report.timestamp))
+                );
+                if (hasBeenFixed) {
+                    return false;
+                }
+                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+                return !!vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
+            })
+            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
 
@@ -1243,7 +1218,7 @@ export default function KepalaMekanikPage() {
                                                         <TableCell>{date ? format(date, 'dd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
                                                         <TableCell>{report.vehicleId}</TableCell>
                                                         <TableCell>{report.operatorName}</TableCell>
-                                                        <TableCell className="max-w-xs truncate">{report.description}</TableCell>
+                                                        <TableCell className="whitespace-pre-wrap max-w-xs">{report.description}</TableCell>
                                                         <TableCell>
                                                             {photos.length > 0 && (
                                                                 <Dialog><DialogTrigger asChild><Button variant="ghost" size="icon"><Camera /></Button></DialogTrigger>
@@ -1305,7 +1280,9 @@ export default function KepalaMekanikPage() {
                                                     <p className="font-semibold">{task.vehicle.licensePlate} ({task.vehicle.hullNumber})</p>
                                                     <p className="text-xs text-muted-foreground">{users.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
                                                 </TableCell>
-                                                <TableCell className="max-w-[200px] whitespace-pre-wrap">{task.mechanicRepairDescription || triggeringReport?.description}</TableCell>
+                                                <TableCell className="whitespace-pre-wrap max-w-[200px]">
+                                                    {task.mechanicRepairDescription || triggeringReport?.description}
+                                                </TableCell>
                                                 <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
                                                 <TableCell>
                                                     <div className="text-xs space-y-1">
@@ -1360,7 +1337,7 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1472,7 +1449,7 @@ export default function KepalaMekanikPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Workshop</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
