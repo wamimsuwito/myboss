@@ -571,7 +571,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
                                     {tasksOnDate.map((task) => {
                                         const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
                                         const reportDate = triggeringReport?.timestamp ? new Date(triggeringReport.timestamp) : null;
-                                        const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
+                                        const sopir = users.find(u => u.id === triggeringReport?.operatorId);
                                         const { details: delayDetails, total: totalDelay } = calculateDelayDetails(task);
                                         const photos = Array.isArray(triggeringReport?.photo) ? triggeringReport?.photo : (triggeringReport?.photo ? [triggeringReport.photo] : []);
                                         
@@ -683,7 +683,7 @@ export default function KepalaMekanikPage() {
   const [isMutating, setIsMutating] = useState(false);
   const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
   
-  const dataTransformer = useCallback((docData: any) => {
+  const dataTransformer = useCallback((docData: any): any => {
     if (Array.isArray(docData)) {
         return docData.map(item => dataTransformer(item));
     }
@@ -897,6 +897,17 @@ export default function KepalaMekanikPage() {
             }
         });
         
+        const pairingUnsub = onSnapshot(query(collection(db, "sopir_batangan")), (snapshot) => {
+            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
+            setPairings(data);
+            setIsFetchingPairings(false);
+        }, (error) => {
+            console.error(`Error fetching sopir_batangan:`, error);
+            toast({ variant: 'destructive', title: `Gagal Memuat sopir_batangan` });
+            setIsFetchingPairings(false);
+        });
+        unsubscribers.push(pairingUnsub);
+        
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
             
@@ -915,17 +926,6 @@ export default function KepalaMekanikPage() {
         });
         unsubscribers.push(reportsUnsub);
         
-        const pairingUnsub = onSnapshot(query(collection(db, "sopir_batangan")), (snapshot) => {
-            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
-            setPairings(data);
-            setIsFetchingPairings(false);
-        }, (error) => {
-            console.error(`Error fetching sopir_batangan:`, error);
-            toast({ variant: 'destructive', title: `Gagal Memuat sopir_batangan` });
-            setIsFetchingPairings(false);
-        });
-        unsubscribers.push(pairingUnsub);
-
         const timer = setTimeout(() => {
             setIsFetchingData(false);
             isInitialLoad.current = false;
@@ -1161,7 +1161,7 @@ export default function KepalaMekanikPage() {
                 location: quarantineTarget.lokasi,
                 overallStatus: 'rusak',
                 description: 'Alat ini baru dilepas dari karantina dan membutuhkan pengecekan serta perbaikan menyeluruh.',
-                photo: [],
+                photo: '',
             };
             await addDoc(collection(db, 'checklist_reports'), dummyReport);
             toast({
@@ -1325,7 +1325,7 @@ export default function KepalaMekanikPage() {
                 </main>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} alat={alat} allReports={allReports} />;
+             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={allUsers} alat={alat} allReports={allReports} />;
         case 'Laporan Logistik':
              return renderLaporanLogistik();
         case 'Manajemen Pengguna':
@@ -1383,7 +1383,7 @@ export default function KepalaMekanikPage() {
     }
   }
 
-  if (isLoading || !userInfo) {
+  if (isFetchingData || !userInfo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
