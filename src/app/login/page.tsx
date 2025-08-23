@@ -10,7 +10,6 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, User, Lock } from 'lucide-react';
 import type { UserData } from '@/lib/types';
-import { db, collection, getDocs, query, where } from '@/lib/firebase';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,33 +35,26 @@ export default function LoginPage() {
     }
     
     try {
-        const q = query(collection(db, "users"), where("username", "==", username.toUpperCase()));
-        const querySnapshot = await getDocs(q);
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+        });
 
-        if (querySnapshot.empty) {
+        const data = await response.json();
+
+        if (!response.ok) {
             toast({
                 variant: 'destructive',
                 title: 'Gagal Login',
-                description: 'Username tidak ditemukan.',
-            });
-            setIsLoading(false);
-            return;
-        }
-
-        const userDoc = querySnapshot.docs[0];
-        const userData = { id: userDoc.id, ...userDoc.data() } as UserData;
-
-        if (userData.password !== password) {
-            toast({
-                variant: 'destructive',
-                title: 'Gagal Login',
-                description: 'Password yang Anda masukkan salah.',
+                description: data.message || 'Terjadi kesalahan.',
             });
             setIsLoading(false);
             return;
         }
         
-        localStorage.setItem('user', JSON.stringify(userData));
+        const userData = data.user as UserData;
+        
         toast({
             title: `Selamat Datang, ${userData.username}!`,
             description: 'Anda berhasil login.',
@@ -95,6 +87,7 @@ export default function LoginPage() {
         } else {
             router.push('/'); 
         }
+        router.refresh();
 
     } catch (error) {
         console.error("Login Error:", error);

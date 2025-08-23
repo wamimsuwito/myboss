@@ -123,29 +123,26 @@ export default function DashboardPage() {
   }, [isPreviewing]);
 
   useEffect(() => {
-    const userString = localStorage.getItem('user');
-    if (!userString) {
-      router.push('/login');
-      return;
+    const fetchUser = async () => {
+        const res = await fetch('/api/user');
+        if (res.ok) {
+            const { user } = await res.json();
+            if (user) {
+                setUserInfo(user);
+                 if (!user.lokasi) {
+                    setIsBpModalOpen(true);
+                } else if (user.jabatan.toUpperCase().includes('OPRATOR BP') && !user.unitBp) {
+                    setIsUnitModalOpen(true);
+                }
+            } else {
+                router.push('/login');
+            }
+        } else {
+            router.push('/login');
+        }
     }
-    const userData = JSON.parse(userString);
-    if (!userData.jabatan?.toUpperCase().includes('OPRATOR BP')) {
-        toast({
-            variant: 'destructive',
-            title: 'Akses Ditolak',
-            description: 'Anda tidak memiliki hak untuk mengakses halaman ini.',
-        });
-        router.push('/login');
-        return;
-    }
-    setUserInfo(userData);
-
-    if (!userData.lokasi) {
-        setIsBpModalOpen(true);
-    } else if (userData.jabatan.toUpperCase().includes('OPRATOR BP') && !userData.unitBp) {
-        setIsUnitModalOpen(true);
-    }
-  }, [router, toast]);
+    fetchUser();
+  }, [router]);
 
   const updateBpStatus = async () => {
     if (!userInfo?.lokasi || !userInfo?.unitBp) return;
@@ -732,21 +729,33 @@ export default function DashboardPage() {
     printElement('printable-ticket');
   };
 
-  const handleBpSelect = (namaBp: string) => {
+  const handleBpSelect = async (namaBp: string) => {
     const newUserInfo = { ...userInfo, lokasi: namaBp };
-    localStorage.setItem('user', JSON.stringify(newUserInfo));
-    setUserInfo(newUserInfo);
-    setIsBpModalOpen(false);
-     if (userInfo.jabatan.toUpperCase().includes('OPRATOR BP')) {
-        setIsUnitModalOpen(true);
+    const response = await fetch('/api/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: newUserInfo }),
+    });
+    if(response.ok) {
+        setUserInfo(newUserInfo);
+        setIsBpModalOpen(false);
+        if (userInfo.jabatan.toUpperCase().includes('OPRATOR BP')) {
+            setIsUnitModalOpen(true);
+        }
     }
   }
 
-  const handleUnitSelect = (unit: string) => {
+  const handleUnitSelect = async (unit: string) => {
     const newUserInfo = { ...userInfo, unitBp: unit };
-    localStorage.setItem('user', JSON.stringify(newUserInfo));
-    setUserInfo(newUserInfo);
-    setIsUnitModalOpen(false);
+    const response = await fetch('/api/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user: newUserInfo }),
+    });
+    if(response.ok) {
+        setUserInfo(newUserInfo);
+        setIsUnitModalOpen(false);
+    }
   }
 
   const menuNavItems = [

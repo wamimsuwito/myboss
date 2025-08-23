@@ -11,16 +11,27 @@ import { SidebarTrigger } from '@/components/ui/sidebar';
 
 
 interface AppHeaderProps {
-  userInfo: UserData;
+  userInfo: UserData | null;
 }
 
 export default function AppHeader({ userInfo }: AppHeaderProps) {
   const router = useRouter();
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
+  const handleLogout = async () => {
+    await fetch('/api/logout');
     router.push('/login');
+    router.refresh();
   };
+  
+  if (!userInfo) {
+    return (
+        <header className="flex items-center justify-between p-4 border-b bg-card/80 backdrop-blur-sm sticky top-0 z-10 text-card-foreground shadow-sm">
+             <div className="flex items-center gap-4">
+                 <SidebarTrigger />
+             </div>
+        </header>
+    )
+  }
 
   return (
     <>
