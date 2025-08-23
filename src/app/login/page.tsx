@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, User, Lock } from 'lucide-react';
+import { db, collection, query, where, getDocs } from '@/lib/firebase';
 import type { UserData } from '@/lib/types';
 
 export default function LoginPage() {
@@ -35,28 +36,33 @@ export default function LoginPage() {
     }
     
     try {
-        const response = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password }),
-        });
+        const q = query(collection(db, "users"), where("username", "==", username.toUpperCase()));
+        const querySnapshot = await getDocs(q);
 
-        const data = await response.json();
-
-        if (!response.ok) {
+        if (querySnapshot.empty) {
             toast({
                 variant: 'destructive',
                 title: 'Gagal Login',
-                description: data.message || 'Terjadi kesalahan.',
+                description: 'Username tidak ditemukan.',
+            });
+            setIsLoading(false);
+            return;
+        }
+
+        const userDoc = querySnapshot.docs[0];
+        const userData = { id: userDoc.id, ...userDoc.data() } as UserData;
+
+        if (userData.password !== password) {
+            toast({
+                variant: 'destructive',
+                title: 'Gagal Login',
+                description: 'Password yang Anda masukkan salah.',
             });
             setIsLoading(false);
             return;
         }
         
-        const userData = data.user as UserData;
-        
-        // No longer need to save to localStorage
-        // localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('user', JSON.stringify(userData));
 
         toast({
             title: `Selamat Datang, ${userData.username}!`,
@@ -88,16 +94,16 @@ export default function LoginPage() {
         } else if (jabatan.includes('HRD PUSAT')) {
             router.push('/hrd-pusat');
         } else {
+            // Fallback for any other roles, maybe to a generic dashboard or just show a toast
             toast({
                 variant: 'destructive',
                 title: 'Akses Ditolak',
                 description: 'Anda tidak memiliki halaman yang ditetapkan untuk jabatan Anda.',
             });
-            await fetch('/api/logout'); 
+            localStorage.removeItem('user');
             setIsLoading(false);
             return;
         }
-        router.refresh();
 
     } catch (error) {
         console.error("Login Error:", error);

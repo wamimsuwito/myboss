@@ -109,8 +109,8 @@ export default function DashboardPage() {
         intervalsRef.current.forEach(intervalId => clearInterval(intervalId));
     };
   }, []);
-
-  useEffect(() => {
+  
+    useEffect(() => {
     if (isPreviewing) {
       document.body.classList.add('print-active');
     } else {
@@ -122,27 +122,31 @@ export default function DashboardPage() {
     };
   }, [isPreviewing]);
 
+
   useEffect(() => {
-    const fetchUser = async () => {
-        const res = await fetch('/api/user');
-        if (res.ok) {
-            const { user } = await res.json();
-            if (user) {
-                setUserInfo(user);
-                 if (!user.lokasi) {
-                    setIsBpModalOpen(true);
-                } else if (user.jabatan.toUpperCase().includes('OPRATOR BP') && !user.unitBp) {
-                    setIsUnitModalOpen(true);
-                }
-            } else {
-                router.push('/login');
-            }
-        } else {
-            router.push('/login');
-        }
+    const userString = localStorage.getItem('user');
+    if (!userString) {
+      router.push('/login');
+      return;
     }
-    fetchUser();
-  }, [router]);
+    const userData = JSON.parse(userString);
+    if (userData.jabatan !== 'OPRATOR BP') {
+        toast({
+            variant: 'destructive',
+            title: 'Akses Ditolak',
+            description: 'Anda tidak memiliki hak untuk mengakses halaman ini.',
+        });
+        router.push('/login');
+        return;
+    }
+    setUserInfo(userData);
+
+    if (!userData.lokasi) {
+        setIsBpModalOpen(true);
+    } else if (userData.jabatan === 'OPRATOR BP' && !userData.unitBp) {
+        setIsUnitModalOpen(true);
+    }
+  }, [router, toast]);
 
   const updateBpStatus = async () => {
     if (!userInfo?.lokasi || !userInfo?.unitBp) return;
@@ -209,27 +213,34 @@ export default function DashboardPage() {
     }
   }, [isDoorOperating]);
   
-  // -- REALTIME DATA FETCHING --
   useEffect(() => {
-    if (!userInfo?.lokasi || !userInfo?.unitBp) return;
+    if (!userInfo?.lokasi) return;
 
-    // Listener for Schedules
     setIsScheduleLoading(true);
-    const scheduleUnsub = onSnapshot(collection(db, "schedules_today"), (snapshot) => {
-        const scheduleList = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ScheduleRow);
-        setScheduleData(scheduleList.sort((a, b) => parseInt(a.NO) - parseInt(b.NO)));
+    const scheduleCollectionRef = collection(db, "schedules_today");
+
+    const unsubscribe = onSnapshot(scheduleCollectionRef, (snapshot) => {
+        if (!snapshot.empty) {
+            const scheduleList = snapshot.docs.map(d => ({id: d.id, ...d.data()}) as ScheduleRow);
+            const sortedData = scheduleList.sort((a, b) => parseInt(a.NO) - parseInt(b.NO));
+            setScheduleData(sortedData);
+        } else {
+            setScheduleData([]);
+        }
         setIsScheduleLoading(false);
     }, (error) => {
         console.error("Error fetching real-time schedule: ", error);
+        toast({
+            title: 'Error Real-time',
+            description: 'Gagal mendengarkan perubahan data jadwal.',
+            variant: 'destructive',
+        });
         setIsScheduleLoading(false);
     });
 
-    return () => {
-        scheduleUnsub();
-    };
+    return () => unsubscribe(); // Cleanup the listener on component unmount
 
-  }, [userInfo?.lokasi, userInfo?.unitBp]);
-  // -- END REALTIME DATA FETCHING --
+  }, [userInfo, toast]);
   
    useEffect(() => {
     if (activeSchedule) {
@@ -563,8 +574,8 @@ export default function DashboardPage() {
     setNomorMobil('');
     setNomorLambung('');
     setSelectedSilo('');
-    onSetActiveSchedule(null);
-    onSetActiveJobMix(null);
+    setActiveSchedule(null);
+    setActiveJobMix(null);
   }
 
   const handleStop = async (data?: PrintData & { selectedSilo?: string }, options: { isAborted?: boolean, mode: OperationMode } = { isAborted: true, mode: 'auto' }) => {
@@ -729,33 +740,21 @@ export default function DashboardPage() {
     printElement('printable-ticket');
   };
 
-  const handleBpSelect = async (namaBp: string) => {
+  const handleBpSelect = (namaBp: string) => {
     const newUserInfo = { ...userInfo, lokasi: namaBp };
-    const response = await fetch('/api/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: { lokasi: namaBp } }),
-    });
-    if(response.ok) {
-        setUserInfo(newUserInfo);
-        setIsBpModalOpen(false);
-        if (userInfo.jabatan.toUpperCase().includes('OPRATOR BP')) {
-            setIsUnitModalOpen(true);
-        }
+    localStorage.setItem('user', JSON.stringify(newUserInfo));
+    setUserInfo(newUserInfo);
+    setIsBpModalOpen(false);
+     if (userInfo.jabatan === 'OPRATOR BP') {
+        setIsUnitModalOpen(true);
     }
   }
 
-  const handleUnitSelect = async (unit: string) => {
+  const handleUnitSelect = (unit: string) => {
     const newUserInfo = { ...userInfo, unitBp: unit };
-    const response = await fetch('/api/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: { unitBp: unit } }),
-    });
-    if(response.ok) {
-        setUserInfo(newUserInfo);
-        setIsUnitModalOpen(false);
-    }
+    localStorage.setItem('user', JSON.stringify(newUserInfo));
+    setUserInfo(newUserInfo);
+    setIsUnitModalOpen(false);
   }
 
   const menuNavItems = [

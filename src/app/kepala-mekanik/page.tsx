@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -731,13 +732,13 @@ export default function KepalaMekanikPage() {
     }, [dataTransformer, toast]);
 
     const damagedVehicleReports = useMemo(() => {
-        // Find reports for vehicles that are damaged or need attention
-        const damagedReports = reports.filter(report => 
+        // 1. Get all reports that are 'rusak' or 'perlu perhatian'
+        const damageReports = reports.filter(report =>
             report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian'
         );
 
-        // Group reports by vehicle ID
-        const reportsByVehicle = damagedReports.reduce((acc, report) => {
+        // 2. Group reports by vehicle
+        const reportsByVehicle = damageReports.reduce((acc, report) => {
             if (!acc[report.vehicleId]) {
                 acc[report.vehicleId] = [];
             }
@@ -745,25 +746,37 @@ export default function KepalaMekanikPage() {
             return acc;
         }, {} as Record<string, Report[]>);
 
-        const openDamageReports = Object.keys(reportsByVehicle).map(vehicleId => {
-            // Sort reports for this vehicle to find the latest one
-            const vehicleReports = reportsByVehicle[vehicleId].sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            const latestReport = vehicleReports[0];
+        // 3. Find reports that haven't been resolved
+        const unresolvedReports = Object.values(reportsByVehicle).map(vehicleReports => {
+            // Sort by most recent first
+            const sorted = vehicleReports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            const latestDamageReport = sorted[0];
 
-            // If the latest report is NOT 'baik', it's an open issue
-            if (latestReport.overallStatus !== 'baik') {
-                const hasOpenWO = mechanicTasks.some(task => task.vehicle.triggeringReportId === latestReport.id && task.status !== 'COMPLETED');
-                if (!hasOpenWO) {
-                     const vehicle = alat.find(a => a.nomorLambung === latestReport.vehicleId);
-                     if (vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi)) {
-                         return latestReport;
-                     }
-                }
-            }
-            return null;
-        }).filter(Boolean);
+            // Check if there's a "baik" report AFTER this latest damage report
+            const hasBeenFixed = reports.some(fixReport =>
+                fixReport.vehicleId === latestDamageReport.vehicleId &&
+                fixReport.overallStatus === 'baik' &&
+                isAfter(new Date(fixReport.timestamp), new Date(latestDamageReport.timestamp))
+            );
 
-        return (openDamageReports as Report[]).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            if (hasBeenFixed) return null;
+
+            // Check if there's an open Work Order for this specific report
+            const hasOpenWO = mechanicTasks.some(task => 
+                task.vehicle.triggeringReportId === latestDamageReport.id && task.status !== 'COMPLETED'
+            );
+
+            if (hasOpenWO) return null;
+
+            return latestDamageReport;
+
+        }).filter(Boolean) as Report[];
+        
+        // 4. Final filter by location
+        return unresolvedReports.filter(report => {
+             const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+             return !!vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
+        });
 
     }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
