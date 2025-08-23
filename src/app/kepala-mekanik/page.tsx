@@ -496,7 +496,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
       <>
         <div className='hidden'>
             <div id="history-print-area">
-                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
+                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={users} location={user?.lokasi} />
             </div>
         </div>
         <Card>
@@ -728,23 +728,29 @@ export default function KepalaMekanikPage() {
     }, [dataTransformer, toast]);
 
     const damagedVehicleReports = useMemo(() => {
-        const handledReportIds = new Set(
-            mechanicTasks.map(task => task.vehicle.triggeringReportId)
-        );
+        const handledReportIds = new Set(mechanicTasks.map(task => task.vehicle.triggeringReportId));
+        
+        const openDamageReports = reports.filter(report => {
+            const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
+            if (!isDamaged) return false;
 
-        return reports
-            .filter(report => {
-                const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
-                if (!isDamaged) return false;
+            const hasBeenFixed = reports.some(fixReport =>
+                fixReport.vehicleId === report.vehicleId &&
+                fixReport.overallStatus === 'baik' &&
+                isAfter(new Date(fixReport.timestamp), new Date(report.timestamp))
+            );
 
-                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-                if (!vehicle || (userInfo?.lokasi && vehicle.lokasi !== userInfo.lokasi)) {
-                    return false;
-                }
-                
-                return !handledReportIds.has(report.id);
-            })
-            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            if (hasBeenFixed) return false;
+            
+            const hasOpenWO = mechanicTasks.some(task => task.vehicle.triggeringReportId === report.id && task.status !== 'COMPLETED');
+            if (hasOpenWO) return false;
+            
+            const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+            return !!vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
+        });
+        
+        return openDamageReports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
     }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
 
@@ -770,7 +776,6 @@ export default function KepalaMekanikPage() {
     if (isFetchingData || !userInfo?.lokasi) {
         return { totalAlat: defaultStats, sudahChecklist: defaultStats, belumChecklist: defaultStats, alatBaik: defaultStats, perluPerhatian: defaultStats, alatRusak: defaultStats, alatRusakBerat: defaultStats, alatTdkAdaOperator: defaultStats };
     }
-
     const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
     const existingAlatIds = new Set(alatInLocation.map(a => a.nomorLambung));
 
@@ -784,7 +789,6 @@ export default function KepalaMekanikPage() {
             .filter(r => r.vehicleId === vehicleId)
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
     };
-    
     const mapToDetailFormat = (items: AlatData[], statusSource: 'latest' | 'belum') => {
       return items.map(item => {
         const report = getLatestReportForAlat(item.nomorLambung);
@@ -821,19 +825,10 @@ export default function KepalaMekanikPage() {
     const alatDenganSopir = alatNonKarantina.filter(a => pairings.some(p => p.nomorLambung === a.nomorLambung));
     const alatBelumChecklistList = alatDenganSopir.filter(a => !checkedVehicleIdsToday.has(a.nomorLambung));
     
-    const getStatusCounts = (list: AlatData[]) => {
-        return list.reduce((acc, item) => {
-            const report = getLatestReportForAlat(item.nomorLambung);
-            if (report) {
-                if (report.overallStatus === 'baik') acc.baik.push(item);
-                else if (report.overallStatus === 'perlu perhatian') acc.perhatian.push(item);
-                else if (report.overallStatus === 'rusak') acc.rusak.push(item);
-            }
-            return acc;
-        }, { baik: [] as AlatData[], perhatian: [] as AlatData[], rusak: [] as AlatData[] });
-    }
+    const alatBaikList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'baik');
+    const perluPerhatianList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'perlu perhatian');
+    const alatRusakList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'rusak');
 
-    const { baik: alatBaikList, perhatian: perluPerhatianList, rusak: alatRusakList } = getStatusCounts(alatNonKarantina);
     const alatRusakBeratList = alatInLocation.filter(a => a.statusKarantina === true);
     const alatTdkAdaOperatorList = alatNonKarantina.filter(a => !pairings.some(p => p.nomorLambung === a.nomorLambung) && !a.statusKarantina);
 
@@ -1542,4 +1537,6 @@ function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | '
         return <Badge>{status}</Badge>;
     }
   };
+
+
 
