@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -418,7 +417,6 @@ const calculateDelayDetails = (task: MechanicTask) => {
 };
 
 const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
-    const [isFetchingData, setIsFetchingData] = useState(true);
     const [tasks, setTasks] = useState<MechanicTask[]>([]);
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
@@ -429,7 +427,6 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
 
     useEffect(() => {
         setTasks(allTasks.filter(t => t.status === 'COMPLETED'));
-        setIsFetchingData(false);
     }, [allTasks]);
     
     const sopirOptions = useMemo(() => {
@@ -1308,7 +1305,7 @@ export default function KepalaMekanikPage() {
                                                     <p className="font-semibold">{task.vehicle.licensePlate} ({task.vehicle.hullNumber})</p>
                                                     <p className="text-xs text-muted-foreground">{users.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
                                                 </TableCell>
-                                                <TableCell className="max-w-[200px] truncate">{task.mechanicRepairDescription || task.vehicle.repairDescription}</TableCell>
+                                                <TableCell className="max-w-[200px] whitespace-pre-wrap">{task.mechanicRepairDescription || triggeringReport?.description}</TableCell>
                                                 <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
                                                 <TableCell>
                                                     <div className="text-xs space-y-1">
@@ -1363,7 +1360,7 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />
+            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1420,7 +1417,7 @@ export default function KepalaMekanikPage() {
                         <TableRow>
                             <TableHead>No. Polisi</TableHead>
                             <TableHead>No. Lambung</TableHead>
-                            <TableHead>Sopir/Pelapor</TableHead>
+                            <TableHead>Sopir (Batangan)</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
