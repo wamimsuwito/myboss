@@ -146,7 +146,7 @@ const StatCard = ({ title, value, description, icon: Icon, color, onClick }: { t
     </Card>
 );
 
-const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { vehicle: AlatData, report: Report, mechanics: UserData[], onTaskCreated: (newTask: MechanicTask) => void }) => {
+const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { vehicle: AlatData, report: Report, mechanics: UserData[], onTaskCreated: () => void }) => {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -183,11 +183,10 @@ const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { 
         };
 
         try {
-            const docRef = await addDoc(collection(db, 'mechanic_tasks'), newTaskData);
-            const finalTask: MechanicTask = { ...newTaskData, id: docRef.id };
+            await addDoc(collection(db, 'mechanic_tasks'), newTaskData);
             toast({ title: "Work Order Berhasil Dibuat" });
             form.reset();
-            onTaskCreated(finalTask);
+            onTaskCreated();
             setIsOpen(false);
         } catch (error) {
             console.error("Error creating task:", error);
@@ -419,8 +418,8 @@ const calculateDelayDetails = (task: MechanicTask) => {
 };
 
 const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
-    const [tasks, setTasks] = useState<MechanicTask[]>([]);
     const [isFetchingData, setIsFetchingData] = useState(true);
+    const [tasks, setTasks] = useState<MechanicTask[]>([]);
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
     const [date, setDate] = useState<DateRange | undefined>({
@@ -1261,7 +1260,7 @@ export default function KepalaMekanikPage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right">
-                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={(newTask: any) => setMechanicTasks(prev => [newTask, ...prev])} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
+                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={() => {}} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
                                                         </TableCell>
                                                     </TableRow>
                                                 )
