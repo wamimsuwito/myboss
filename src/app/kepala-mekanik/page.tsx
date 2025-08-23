@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -727,38 +726,35 @@ export default function KepalaMekanikPage() {
     }, [dataTransformer, toast]);
 
     const damagedVehicleReports = useMemo(() => {
-        const handledReportIds = new Set(
-            mechanicTasks.map(task => task.vehicle.triggeringReportId)
+    const handledReportIds = new Set(mechanicTasks.map(task => task.vehicle.triggeringReportId));
+
+    const damageReports = reports.filter(report =>
+        (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian') &&
+        !handledReportIds.has(report.id)
+    );
+
+    const reportsToShow = damageReports.filter(report => {
+        const subsequentReports = reports.filter(r => 
+            r.vehicleId === report.vehicleId && 
+            new Date(r.timestamp).getTime() > new Date(report.timestamp).getTime()
         );
 
-        const vehicleLastReports = new Map<string, Report>();
-
-        const sortedReports = [...reports].sort((a, b) => {
-            const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-            const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-            return timeB - timeA;
-        });
-
-        for (const report of sortedReports) {
-            if (!vehicleLastReports.has(report.vehicleId)) {
-                vehicleLastReports.set(report.vehicleId, report);
-            }
+        const hasBeenFixed = subsequentReports.some(r => r.overallStatus === 'baik');
+        if (hasBeenFixed) {
+            return false;
         }
 
-        const reportsToShow: Report[] = [];
-        for (const report of vehicleLastReports.values()) {
-            const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
-            const isHandled = handledReportIds.has(report.id);
-
-            const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-            const isInLocation = vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
-
-            if (isDamaged && !isHandled && isInLocation) {
-                reportsToShow.push(report);
-            }
+        const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+        if (!vehicle || (userInfo?.lokasi && vehicle.lokasi !== userInfo.lokasi)) {
+            return false;
         }
-        return reportsToShow;
-    }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
+
+        return true;
+    });
+
+    return reportsToShow.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+}, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
 
     const activeTasks = useMemo(() => {
@@ -785,12 +781,15 @@ export default function KepalaMekanikPage() {
     }
 
     const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
+    const existingAlatIds = new Set(alatInLocation.map(a => a.nomorLambung));
 
-    const reportsToday = reports.filter(r => r.timestamp && isSameDay(new Date(r.timestamp), new Date()));
+    const validReports = reports.filter(r => r.vehicleId && existingAlatIds.has(r.vehicleId));
+
+    const reportsToday = validReports.filter(r => r.timestamp && isSameDay(new Date(r.timestamp), new Date()));
     const checkedVehicleIdsToday = new Set(reportsToday.map(r => r.vehicleId));
     
     const getLatestReportForAlat = (vehicleId: string) => {
-        return reports
+        return validReports
             .filter(r => r.vehicleId === vehicleId)
             .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
     };
@@ -829,7 +828,6 @@ export default function KepalaMekanikPage() {
 
     const alatNonKarantina = alatInLocation.filter(a => !a.statusKarantina);
     const alatDenganSopir = alatNonKarantina.filter(a => pairings.some(p => p.nomorLambung === a.nomorLambung));
-
     const alatBelumChecklistList = alatDenganSopir.filter(a => !checkedVehicleIdsToday.has(a.nomorLambung));
     
     const getStatusCounts = (list: AlatData[]) => {
@@ -848,9 +846,10 @@ export default function KepalaMekanikPage() {
     const alatRusakBeratList = alatInLocation.filter(a => a.statusKarantina === true);
     const alatTdkAdaOperatorList = alatNonKarantina.filter(a => !pairings.some(p => p.nomorLambung === a.nomorLambung));
 
+
     return {
-      totalAlat: { count: String(alatNonKarantina.length), list: mapToDetailFormat(alatNonKarantina, 'latest') },
-      sudahChecklist: { count: String(checkedVehicleIdsToday.size), list: mapToDetailFormat(alatNonKarantina.filter(a => checkedVehicleIdsToday.has(a.nomorLambung)), 'latest') },
+      totalAlat: { count: String(alatInLocation.length), list: mapToDetailFormat(alatInLocation, 'latest') },
+      sudahChecklist: { count: String(checkedVehicleIdsToday.size), list: mapToDetailFormat(alatInLocation.filter(a => checkedVehicleIdsToday.has(a.nomorLambung)), 'latest') },
       belumChecklist: { count: String(alatBelumChecklistList.length), list: mapToDetailFormat(alatBelumChecklistList, 'belum') },
       alatBaik: { count: String(alatBaikList.length), list: mapToDetailFormat(alatBaikList, 'latest') },
       perluPerhatian: { count: String(perluPerhatianList.length), list: mapToDetailFormat(perluPerhatianList, 'latest') },
@@ -911,10 +910,19 @@ export default function KepalaMekanikPage() {
         
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
+            
+            if (isInitialLoad.current) {
+                const initialDamaged = new Set(data.filter(r => r.overallStatus === 'rusak').map(r => r.id));
+                setSeenDamagedReports(initialDamaged);
+            } else {
+                const newDamagedReports = data.filter(r => r.overallStatus === 'rusak' && !seenDamagedReports.has(r.id));
+                if (newDamagedReports.length > 0) {
+                    audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+                    setHasNewMessage(true);
+                    setSeenDamagedReports(prev => new Set([...Array.from(prev), ...newDamagedReports.map(r => r.id)]));
+                }
+            }
             setReports(data);
-        }, (error) => {
-            console.error(`Error fetching checklist_reports:`, error);
-            toast({ variant: 'destructive', title: `Gagal Memuat Laporan` });
         });
         unsubscribers.push(reportsUnsub);
         
@@ -1401,7 +1409,7 @@ export default function KepalaMekanikPage() {
                         <TableRow>
                             <TableHead>No. Polisi</TableHead>
                             <TableHead>No. Lambung</TableHead>
-                            <TableHead>Sopir (Batangan)</TableHead>
+                            <TableHead>Sopir/Pelapor</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
