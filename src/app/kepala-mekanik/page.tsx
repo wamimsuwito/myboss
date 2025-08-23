@@ -651,7 +651,7 @@ export default function KepalaMekanikPage() {
   const [isFetchingData, setIsFetchingData] = useState(true);
   const [alat, setAlat] = useState<AlatData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
-  const [reports, setReports] = useState<Report[]>([]);
+  const [allReports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
   const [isFetchingPairings, setIsFetchingPairings] = useState(true);
@@ -728,7 +728,7 @@ export default function KepalaMekanikPage() {
     }, [dataTransformer, toast]);
 
     const damagedVehicleReports = useMemo(() => {
-        return reports
+        return allReports
             .filter(report => {
                 if (report.overallStatus !== 'rusak' && report.overallStatus !== 'perlu perhatian') {
                     return false;
@@ -737,7 +737,7 @@ export default function KepalaMekanikPage() {
                 if (hasOpenWO) {
                     return false;
                 }
-                const hasBeenFixed = reports.some(fixReport =>
+                const hasBeenFixed = allReports.some(fixReport =>
                     fixReport.vehicleId === report.vehicleId &&
                     fixReport.overallStatus === 'baik' &&
                     isAfter(new Date(fixReport.timestamp), new Date(report.timestamp))
@@ -749,7 +749,7 @@ export default function KepalaMekanikPage() {
                 return !!vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
             })
             .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
+    }, [allReports, mechanicTasks, alat, userInfo?.lokasi]);
     
 
     const activeTasks = useMemo(() => {
@@ -777,7 +777,7 @@ export default function KepalaMekanikPage() {
     const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
     const existingAlatIds = new Set(alatInLocation.map(a => a.nomorLambung));
 
-    const validReports = reports.filter(r => r.vehicleId && existingAlatIds.has(r.vehicleId));
+    const validReports = allReports.filter(r => r.vehicleId && existingAlatIds.has(r.vehicleId));
 
     const reportsToday = validReports.filter(r => r.timestamp && isSameDay(new Date(r.timestamp), new Date()));
     const checkedVehicleIdsToday = new Set(reportsToday.map(r => r.vehicleId));
@@ -841,7 +841,7 @@ export default function KepalaMekanikPage() {
       alatRusakBerat: { count: String(alatRusakBeratList.length), list: mapToDetailFormatSpecial(alatRusakBeratList, 'Karantina') },
       alatTdkAdaOperator: { count: String(alatTdkAdaOperatorList.length), list: mapToDetailFormatSpecial(alatTdkAdaOperatorList, 'Tanpa Operator') },
     };
-}, [alat, users, reports, userInfo?.lokasi, isFetchingData, pairings]);
+}, [alat, users, allReports, userInfo?.lokasi, isFetchingData, pairings]);
   
   const statCards = useMemo(() => {
     return [
@@ -893,7 +893,7 @@ export default function KepalaMekanikPage() {
         });
         
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
-            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
+            const data = dataTransformer(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))) as Report[];
             
             if (isInitialLoad.current) {
                 const initialDamaged = new Set(data.filter(r => r.overallStatus === 'rusak').map(r => r.id));
@@ -1032,7 +1032,7 @@ export default function KepalaMekanikPage() {
 
         if (newStatus === 'COMPLETED' && userInfo) {
             const vehicle = alat.find(a => a.nomorLambung === task.vehicle.hullNumber);
-            const originalReport = reports.find(r => r.id === task.vehicle.triggeringReportId);
+            const originalReport = allReports.find(r => r.id === task.vehicle.triggeringReportId);
             if (vehicle && originalReport) {
                 const newReport: Omit<Report, 'id'> = {
                     timestamp: Timestamp.now(),
@@ -1288,7 +1288,7 @@ export default function KepalaMekanikPage() {
                                         <TableRow><TableCell colSpan={9} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
                                     ) : activeTasks.length > 0 ? (
                                         activeTasks.map(task => {
-                                             const triggeringReport = reports.find(r => r.id === task.vehicle?.triggeringReportId);
+                                             const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
                                              const reportDate = triggeringReport?.timestamp ? new Date(triggeringReport.timestamp) : null;
                                              
                                              const { details: delayDetails, total: totalDelay } = calculateDelayDetails(task);
@@ -1357,13 +1357,65 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
+             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} alat={alat} allReports={allReports} />;
+        case 'Laporan Logistik':
+             return renderLaporanLogistik();
+        case 'Manajemen Pengguna':
+            return (
+                <main>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Manajemen Pengguna</CardTitle>
+                            <CardDescription>Daftar semua pengguna yang terdaftar di lokasi Anda.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Nama</TableHead>
+                                            <TableHead>Username</TableHead>
+                                            <TableHead>NIK</TableHead>
+                                            <TableHead>Jabatan</TableHead>
+                                            <TableHead>Lokasi</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isFetchingData ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                        ) : usersInLocation.length > 0 ? (
+                                            usersInLocation.map(user => (
+                                                <TableRow key={user.id}>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar>
+                                                                <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="font-medium">{user.username}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>{user.username}</TableCell>
+                                                    <TableCell>{user.nik}</TableCell>
+                                                    <TableCell>{user.jabatan}</TableCell>
+                                                    <TableCell>{user.lokasi}</TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada data pengguna.</TableCell></TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
+            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
   }
 
-  if (isLoading || !userInfo) {
+  if (isFetchingData || !userInfo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -1555,3 +1607,6 @@ function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | '
   };
 
 
+
+
+    
