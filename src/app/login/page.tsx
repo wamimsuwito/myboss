@@ -55,6 +55,8 @@ export default function LoginPage() {
         
         const userData = data.user as UserData;
         
+        localStorage.setItem('user', JSON.stringify(userData));
+
         toast({
             title: `Selamat Datang, ${userData.username}!`,
             description: 'Anda berhasil login.',
@@ -85,7 +87,15 @@ export default function LoginPage() {
         } else if (jabatan.includes('HRD PUSAT')) {
             router.push('/hrd-pusat');
         } else {
-            router.push('/'); 
+            toast({
+                variant: 'destructive',
+                title: 'Akses Ditolak',
+                description: 'Anda tidak memiliki halaman yang ditetapkan untuk jabatan Anda.',
+            });
+            await fetch('/api/logout'); 
+            localStorage.removeItem('user');
+            setIsLoading(false);
+            return;
         }
         router.refresh();
 

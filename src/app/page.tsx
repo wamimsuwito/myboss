@@ -563,8 +563,8 @@ export default function DashboardPage() {
     setNomorMobil('');
     setNomorLambung('');
     setSelectedSilo('');
-    setActiveSchedule(null);
-    setActiveJobMix(null);
+    onSetActiveSchedule(null);
+    onSetActiveJobMix(null);
   }
 
   const handleStop = async (data?: PrintData & { selectedSilo?: string }, options: { isAborted?: boolean, mode: OperationMode } = { isAborted: true, mode: 'auto' }) => {
@@ -734,7 +734,7 @@ export default function DashboardPage() {
     const response = await fetch('/api/user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: newUserInfo }),
+        body: JSON.stringify({ user: { lokasi: namaBp } }),
     });
     if(response.ok) {
         setUserInfo(newUserInfo);
@@ -750,7 +750,7 @@ export default function DashboardPage() {
     const response = await fetch('/api/user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: newUserInfo }),
+        body: JSON.stringify({ user: { unitBp: unit } }),
     });
     if(response.ok) {
         setUserInfo(newUserInfo);
