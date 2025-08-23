@@ -420,16 +420,15 @@ const calculateDelayDetails = (task: MechanicTask) => {
 
 const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null, allTasks: MechanicTask[], allUsers: UserData[], allAlat: AlatData[], allReports: Report[] }) => {
     const [tasks, setTasks] = useState<MechanicTask[]>([]);
+    const [isFetchingData, setIsFetchingData] = useState(true);
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
-    const [isFetchingData, setIsFetchingData] = useState(true);
     const [date, setDate] = useState<DateRange | undefined>({
       from: subDays(new Date(), 29),
       to: new Date(),
     });
 
     useEffect(() => {
-        setIsFetchingData(true);
         setTasks(allTasks.filter(t => t.status === 'COMPLETED'));
         setIsFetchingData(false);
     }, [allTasks]);
