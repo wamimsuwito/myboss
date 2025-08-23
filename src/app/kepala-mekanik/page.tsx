@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -495,7 +496,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
       <>
         <div className='hidden'>
             <div id="history-print-area">
-                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={users} location={user?.lokasi} />
+                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
             </div>
         </div>
         <Card>
@@ -570,7 +571,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
                                     {tasksOnDate.map((task) => {
                                         const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
                                         const reportDate = triggeringReport?.timestamp ? new Date(triggeringReport.timestamp) : null;
-                                        const sopir = users.find(u => u.id === triggeringReport?.operatorId);
+                                        const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
                                         const { details: delayDetails, total: totalDelay } = calculateDelayDetails(task);
                                         const photos = Array.isArray(triggeringReport?.photo) ? triggeringReport?.photo : (triggeringReport?.photo ? [triggeringReport.photo] : []);
                                         
@@ -1113,6 +1114,25 @@ export default function KepalaMekanikPage() {
 
   const handleConfirmQuarantine = async () => {};
 
+  const renderLaporanLogistik = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+  
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1493,19 +1513,16 @@ export default function KepalaMekanikPage() {
         <SidebarInset>
           <div className="flex-1 p-6 lg:p-10">
             <header className="flex justify-between items-start mb-8">
-                <div className='flex items-center gap-4'>
-                    <SidebarTrigger/>
-                    <div>
-                         <h1 className="text-3xl font-bold text-foreground">
-                            {activeMenu}
-                         </h1>
-                         <p className="text-sm text-muted-foreground flex items-center gap-4">
-                             <span>{userInfo.username}</span>
-                             <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
-                             <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
-                             <span>Lokasi: {userInfo.lokasi}</span>
-                         </p>
-                    </div>
+                <div>
+                     <h1 className="text-3xl font-bold text-foreground">
+                        {activeMenu}
+                     </h1>
+                     <p className="text-sm text-muted-foreground flex items-center gap-4">
+                         <span>{userInfo.username}</span>
+                         <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
+                         <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
+                         <span>Lokasi: {userInfo.lokasi}</span>
+                     </p>
                 </div>
             </header>
             
@@ -1536,3 +1553,4 @@ function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | '
         return <Badge>{status}</Badge>;
     }
   };
+
