@@ -145,7 +145,7 @@ const StatCard = ({ title, value, description, icon: Icon, color, onClick }: { t
     </Card>
 );
 
-const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { vehicle: AlatData, report: Report, mechanics: UserData[], onTaskCreated: () => void }) => {
+const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { vehicle: AlatData, report: Report, mechanics: UserData[], onTaskCreated: (newTask: MechanicTask) => void }) => {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -182,10 +182,11 @@ const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { 
         };
 
         try {
-            await addDoc(collection(db, 'mechanic_tasks'), newTaskData);
+            const docRef = await addDoc(collection(db, 'mechanic_tasks'), newTaskData);
+            const finalTask: MechanicTask = { ...newTaskData, id: docRef.id };
             toast({ title: "Work Order Berhasil Dibuat" });
             form.reset();
-            onTaskCreated();
+            onTaskCreated(finalTask);
             setIsOpen(false);
         } catch (error) {
             console.error("Error creating task:", error);
@@ -684,9 +685,8 @@ export default function KepalaMekanikPage() {
   
   const dataTransformer = useCallback((docData: any): any => {
     if (Array.isArray(docData)) {
-        return docData.map(item => dataTransformer(item));
+      return docData.map(item => dataTransformer(item));
     }
-
     const transformedData = { ...docData };
   
     const timestampFieldsToMillis = ['createdAt', 'startedAt', 'completedAt'];
@@ -818,7 +818,7 @@ export default function KepalaMekanikPage() {
     const mapToDetailFormat = (items: AlatData[], statusSource: 'latest' | 'belum') => {
       return items.map(item => {
         const report = getLatestReportForAlat(item.nomorLambung);
-        const reporter = users.find(u => u.id === report?.operatorId);
+        const reporter = allUsers.find(u => u.id === report?.operatorId);
         
         let status: Report['overallStatus'] | 'Belum Checklist' = 'Belum Checklist';
         if (statusSource === 'latest' && report) {
@@ -869,7 +869,7 @@ export default function KepalaMekanikPage() {
       alatRusakBerat: { count: String(alatRusakBeratList.length), list: mapToDetailFormatSpecial(alatRusakBeratList, 'Karantina') },
       alatTdkAdaOperator: { count: String(alatTdkAdaOperatorList.length), list: mapToDetailFormatSpecial(alatTdkAdaOperatorList, 'Tanpa Operator') },
     };
-}, [alat, users, reports, userInfo?.lokasi, isFetchingData, pairings]);
+}, [alat, allUsers, reports, userInfo?.lokasi, isFetchingData, pairings]);
   
   const statCards = useMemo(() => {
     return [
@@ -911,9 +911,9 @@ export default function KepalaMekanikPage() {
         
         ['users', 'alat', 'mechanic_tasks'].forEach(col => {
             let setter: React.Dispatch<React.SetStateAction<any[]>> | null = null;
-            if (col === 'users') setter = setUsers;
-            else if (col === 'alat') setter = setAlat;
-            else if (col === 'mechanic_tasks') setter = setMechanicTasks;
+            if (col === 'users') setAllUsers;
+            else if (col === 'alat') setAlat;
+            else if (col === 'mechanic_tasks') setMechanicTasks;
 
             if (setter) {
                 unsubscribers.push(setupListener(col, setter));
@@ -1157,7 +1157,7 @@ export default function KepalaMekanikPage() {
               </main>
             );
         case 'Anggota Mekanik':
-             const mechanicsInLocation = users.filter(user => 
+             const mechanicsInLocation = allUsers.filter(user => 
                 user.jabatan?.toUpperCase().includes('MEKANIK') &&
                 (!userInfo?.lokasi || user.lokasi === userInfo.lokasi)
             );
@@ -1261,7 +1261,7 @@ export default function KepalaMekanikPage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right">
-                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={() => {}} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
+                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={allUsers} onTaskCreated={(newTask: any) => setMechanicTasks(prev => [newTask, ...prev])} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
                                                         </TableCell>
                                                     </TableRow>
                                                 )
@@ -1307,7 +1307,7 @@ export default function KepalaMekanikPage() {
                                                 <TableCell>{reportDate ? format(reportDate, 'dd MMM, HH:mm') : '-'}</TableCell>
                                                 <TableCell>
                                                     <p className="font-semibold">{task.vehicle.licensePlate} ({task.vehicle.hullNumber})</p>
-                                                    <p className="text-xs text-muted-foreground">{users.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
+                                                    <p className="text-xs text-muted-foreground">{allUsers.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
                                                 </TableCell>
                                                 <TableCell className="max-w-[200px] whitespace-pre-wrap">{task.mechanicRepairDescription || triggeringReport?.description}</TableCell>
                                                 <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
@@ -1364,7 +1364,7 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={allUsers} allAlat={alat} allReports={reports} />
+            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={allUsers} allAlat={alat} allReports={reports} />;
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1421,7 +1421,7 @@ export default function KepalaMekanikPage() {
                         <TableRow>
                             <TableHead>No. Polisi</TableHead>
                             <TableHead>No. Lambung</TableHead>
-                            <TableHead>Sopir/Pelapor</TableHead>
+                            <TableHead>Sopir (Batangan)</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
