@@ -365,7 +365,7 @@ const EditDescriptionDialog = ({ task, onSave }: { task: MechanicTask | null, on
                 <DialogHeader>
                     <DialogTitle>Deskripsi Perbaikan Mekanik</DialogTitle>
                     <DialogDescription>
-                        Tambahkan atau ubah deskripsi perbaikan untuk kendaraan ${task?.vehicle.hullNumber}.
+                        Tambahkan atau ubah deskripsi perbaikan untuk kendaraan ${`"`}${task?.vehicle.hullNumber}${`"`}.
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
@@ -650,7 +650,7 @@ export default function KepalaMekanikPage() {
   
   const [isFetchingData, setIsFetchingData] = useState(true);
   const [alat, setAlat] = useState<AlatData[]>([]);
-  const [users, setUsers] = useState<UserData[]>([]);
+  const [users, setAllUsers] = useState<UserData[]>([]);
   const [allReports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
@@ -684,6 +684,10 @@ export default function KepalaMekanikPage() {
   const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
   
   const dataTransformer = useCallback((docData: any) => {
+    if (Array.isArray(docData)) {
+        return docData.map(item => dataTransformer(item));
+    }
+
     const transformedData = { ...docData };
   
     const timestampFieldsToMillis = ['createdAt', 'startedAt', 'completedAt'];
@@ -863,7 +867,7 @@ export default function KepalaMekanikPage() {
       return;
     }
     const userData = JSON.parse(userString);
-     if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
+     if (userData.jabatan.toUpperCase() !== 'KEPALA WORKSHOP') {
       toast({
         variant: 'destructive',
         title: 'Akses Ditolak',
@@ -881,10 +885,11 @@ export default function KepalaMekanikPage() {
         isInitialLoad.current = true;
         const unsubscribers: (() => void)[] = [];
         
-        ['users', 'alat', 'mechanic_tasks'].forEach(col => {
+        ['users', 'alat', 'locations', 'mechanic_tasks'].forEach(col => {
             let setter: React.Dispatch<React.SetStateAction<any[]>> | null = null;
-            if (col === 'users') setter = setUsers;
+            if (col === 'users') setter = setAllUsers;
             else if (col === 'alat') setter = setAlat;
+            else if (col === 'locations') setter = setLocations;
             else if (col === 'mechanic_tasks') setter = setMechanicTasks;
 
             if (setter) {
@@ -893,7 +898,7 @@ export default function KepalaMekanikPage() {
         });
         
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
-            const data = dataTransformer(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))) as Report[];
+            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
             
             if (isInitialLoad.current) {
                 const initialDamaged = new Set(data.filter(r => r.overallStatus === 'rusak').map(r => r.id));
@@ -955,164 +960,224 @@ export default function KepalaMekanikPage() {
     router.push('/login');
   };
   
-  const handleMenuClick = (menuName: ActiveMenu) => {
-    if (menuName === 'Pesan Masuk') {
-      setHasNewMessage(false);
+  const handleAddAlat = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!userInfo?.lokasi) {
+        toast({ title: 'Lokasi Pengguna Tidak Ditemukan', variant: 'destructive' });
+        return;
     }
+
+    setIsSubmitting(true);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const newAlatData: Omit<AlatData, 'id'> = {
+      nomorLambung: (formData.get('nomorLambung') as string).toUpperCase(),
+      nomorPolisi: (formData.get('nomorPolisi') as string).toUpperCase(),
+      jenisKendaraan: (formData.get('jenisKendaraan') as string).toUpperCase(),
+      lokasi: userInfo.lokasi,
+      statusKarantina: false,
+    };
+
+    if (!newAlatData.nomorLambung || !newAlatData.nomorPolisi || !newAlatData.jenisKendaraan) {
+        toast({ title: 'Input Tidak Lengkap', variant: 'destructive' });
+        setIsSubmitting(false);
+        return;
+    }
+
+    try {
+        await addDoc(collection(db, 'alat'), newAlatData);
+        toast({ title: 'Alat Ditambahkan' });
+        form.reset();
+    } catch(error) {
+        toast({ title: 'Error', description: 'Gagal menambahkan alat.', variant: 'destructive'});
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleMutasiRequest = (alatToMutate: AlatData) => {
+    setMutasiTarget(alatToMutate);
+    setIsMutasiDialogOpen(true);
+  };
+  
+  const handleConfirmMutasi = async () => {
+    if (!mutasiTarget || !newLocationForMutasi) {
+        toast({ title: 'Lokasi Tujuan Diperlukan', variant: 'destructive' });
+        return;
+    }
+    setIsMutating(true);
     
-    const navigationMap: Record<string, string> = {
-        'Absensi': '/kepala-mekanik/absensi',
-        'Kegiatan': '/kepala-mekanik/kegiatan',
-        'Riwayat Kegiatan': '/kepala-mekanik/riwayat-kegiatan',
-        'Riwayat Penalti': '/riwayat-saya?type=penalty'
-    }
-
-    const target = navigationMap[menuName];
-    if(target) {
-        router.push(target);
-    } else {
-        setActiveMenu(menuName);
+    try {
+        const alatDocRef = doc(db, 'alat', mutasiTarget.id);
+        await updateDoc(alatDocRef, { lokasi: newLocationForMutasi });
+        toast({ title: 'Mutasi Berhasil' });
+    } catch (error) {
+        toast({ title: 'Mutasi Gagal', variant: 'destructive' });
+    } finally {
+        setIsMutating(false);
+        setIsMutasiDialogOpen(false);
+        setMutasiTarget(null);
+        setNewLocationForMutasi('');
     }
   };
-  
-  const optimisticTaskUpdate = (taskId: string, updatedProps: Partial<MechanicTask>) => {
-    setMechanicTasks(prevTasks =>
-        prevTasks.map(t =>
-            t.id === taskId ? { ...t, ...updatedProps } : t
-        )
-    );
+
+  const handleDeleteRequest = (item: AlatData | SopirBatanganData, type: 'alat' | 'pairing') => {
+    setItemToDelete(item);
+    setDeleteType(type);
+    setIsDeleteDialogOpen(true);
   };
-  
-  const handleTaskStatusChange = async (taskId: string, newStatus: MechanicTask['status']) => {
-    const task = mechanicTasks.find(t => t.id === taskId);
-    if (!task) return;
 
-    let finalUpdateData: Partial<MechanicTask> = { status: newStatus };
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete || !deleteType) return;
+    setIsSubmitting(true);
+    try {
+        const collectionName = deleteType === 'alat' ? 'alat' : 'sopir_batangan';
+        const docRef = doc(db, collectionName, itemToDelete.id);
+        await deleteDoc(docRef);
+        toast({ title: 'Data Dihapus' });
+    } catch (error) {
+        toast({ title: 'Gagal Menghapus', variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+        setIsDeleteDialogOpen(false);
+        setItemToDelete(null);
+        setDeleteType(null);
+    }
+  };
 
-    if (newStatus === 'IN_PROGRESS') {
-        const isResuming = task.status === 'DELAYED';
-        if (isResuming && task.riwayatTunda) {
-            const lastDelayIndex = task.riwayatTunda.length - 1;
-            const lastDelay = task.riwayatTunda[lastDelayIndex];
-            if (lastDelay && !lastDelay.waktuSelesai) {
-                const updatedRiwayat = [...task.riwayatTunda];
-                updatedRiwayat[lastDelayIndex] = { ...lastDelay, waktuSelesai: new Date() };
-                
-                const totalDelay = updatedRiwayat.reduce((acc, curr) => {
-                     if (curr.waktuMulai && curr.waktuSelesai) {
-                        const start = curr.waktuMulai instanceof Date ? curr.waktuMulai.getTime() : new Date(curr.waktuMulai).getTime();
-                        const end = curr.waktuSelesai instanceof Date ? curr.waktuSelesai.getTime() : new Date(curr.waktuSelesai).getTime();
-                        return acc + (end - start);
-                    }
-                    return acc;
-                }, 0);
+  const handleEditRequest = (alatToEdit: AlatData) => {
+    setEditingAlat(alatToEdit);
+  };
 
-                finalUpdateData = { ...finalUpdateData, riwayatTunda: updatedRiwayat, totalDelayDuration: totalDelay };
-            }
+  const handleConfirmEdit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingAlat) return;
+    setIsEditing(true);
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    
+    const updatedAlatData = {
+      nomorLambung: (formData.get('editNomorLambung') as string).toUpperCase(),
+      nomorPolisi: (formData.get('editNomorPolisi') as string).toUpperCase(),
+      jenisKendaraan: (formData.get('editJenisKendaraan') as string).toUpperCase(),
+    };
+    
+    try {
+        const alatDocRef = doc(db, 'alat', editingAlat.id);
+        await updateDoc(alatDocRef, updatedAlatData);
+        toast({ title: 'Alat Diperbarui' });
+        setEditingAlat(null);
+    } catch (error) {
+        toast({ title: 'Error', variant: 'destructive' });
+    } finally {
+        setIsEditing(false);
+    }
+  };
+
+  // Sopir & Batangan Handlers
+  const handleSavePairing = async () => {
+    if (!selectedSopir || !selectedAlat || !userInfo?.lokasi) {
+        toast({ title: 'Data Tidak Lengkap', description: 'Pilih sopir dan alat terlebih dahulu.', variant: 'destructive' });
+        return;
+    }
+    setIsSubmitting(true);
+
+    const pairingData: Omit<SopirBatanganData, 'id' | 'timestamp'> = {
+        userId: selectedSopir.id,
+        namaSopir: selectedSopir.username,
+        nik: selectedSopir.nik,
+        vehicleId: selectedAlat.id,
+        nomorPolisi: selectedAlat.nomorPolisi,
+        nomorLambung: selectedAlat.nomorLambung,
+        keterangan: keterangan,
+        lokasi: userInfo.lokasi,
+    };
+    
+    try {
+        if (editingPairing) {
+            const pairingDocRef = doc(db, 'sopir_batangan', editingPairing.id);
+            await updateDoc(pairingDocRef, pairingData);
+            toast({ title: "Pasangan Diperbarui" });
         } else {
-            finalUpdateData = { ...finalUpdateData, startedAt: new Date().getTime() };
+            const finalData = { ...pairingData, timestamp: Timestamp.now() };
+            await addDoc(collection(db, 'sopir_batangan'), finalData);
+            toast({ title: 'Pasangan Disimpan' });
         }
-    } else if (newStatus === 'COMPLETED') {
-        finalUpdateData = { ...finalUpdateData, completedAt: new Date().getTime() };
+        // Reset form
+        setSelectedSopir(null);
+        setSelectedAlat(null);
+        setKeterangan('');
+        setEditingPairing(null);
+    } catch (error) {
+        toast({ title: 'Gagal Menyimpan', variant: 'destructive' });
+        console.error(error);
+    } finally {
+        setIsSubmitting(false);
     }
+  }
+
+  const handleEditPairing = (pairing: SopirBatanganData) => {
+    setEditingPairing(pairing);
+    setSelectedSopir(sopirOptions.find(s => s.id === pairing.userId) || null);
+    setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
+    setKeterangan(pairing.keterangan);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const handleQuarantineRequest = (item: AlatData) => {
+      setQuarantineTarget(item);
+      setIsQuarantineConfirmOpen(true);
+  }
+
+  const handleConfirmQuarantine = async () => {
+    if (!quarantineTarget) return;
+    setIsSubmitting(true);
+    const newStatus = !quarantineTarget.statusKarantina;
     
-    optimisticTaskUpdate(taskId, finalUpdateData);
-
-    const taskDocRef = doc(db, 'mechanic_tasks', taskId);
     try {
-        await updateDoc(taskDocRef, {
-            ...finalUpdateData,
-            riwayatTunda: (finalUpdateData.riwayatTunda || task.riwayatTunda || []).map(item => ({
-                ...item,
-                waktuMulai: item.waktuMulai instanceof Date ? Timestamp.fromDate(item.waktuMulai) : item.waktuMulai,
-                waktuSelesai: item.waktuSelesai instanceof Date ? Timestamp.fromDate(item.waktuSelesai) : item.waktuSelesai,
-            })),
-        });
-        toast({ title: 'Status Work Order Diperbarui' });
-
-        if (newStatus === 'COMPLETED' && userInfo) {
-            const vehicle = alat.find(a => a.nomorLambung === task.vehicle.hullNumber);
-            const originalReport = allReports.find(r => r.id === task.vehicle.triggeringReportId);
-            if (vehicle && originalReport) {
-                const newReport: Omit<Report, 'id'> = {
-                    timestamp: Timestamp.now(),
-                    vehicleId: vehicle.nomorLambung,
-                    operatorName: 'SISTEM (PERBAIKAN)',
-                    operatorId: userInfo.id,
-                    location: vehicle.lokasi,
-                    overallStatus: 'baik',
-                    description: `Perbaikan untuk WO ${task.id.slice(-4)} selesai. Deskripsi perbaikan: "${task.mechanicRepairDescription || 'Tidak ada deskripsi'}"`,
-                    photo: [],
-                };
-                await addDoc(collection(db, 'checklist_reports'), newReport);
-                toast({ title: 'Status Alat Diperbarui', description: `Laporan "Baik" otomatis dibuat untuk ${vehicle.nomorLambung}.` });
+        const alatDocRef = doc(db, 'alat', quarantineTarget.id);
+        await updateDoc(alatDocRef, { statusKarantina: newStatus });
+        
+        if (newStatus) { // if the vehicle is being quarantined
+            const q = query(collection(db, "sopir_batangan"), where("nomorLambung", "==", quarantineTarget.nomorLambung));
+            const pairingSnapshot = await getDocs(q);
+            if (!pairingSnapshot.empty) {
+                const pairingDoc = pairingSnapshot.docs[0];
+                await deleteDoc(doc(db, "sopir_batangan", pairingDoc.id));
+                toast({ title: 'Sopir Dilepaskan', description: `Sopir untuk ${quarantineTarget.nomorLambung} telah dilepaskan.` });
             }
+             toast({
+                title: `Alat Dikarantina`,
+                description: `${quarantineTarget.nomorLambung} telah dimasukkan ke karantina.`
+            });
+        } else { // if the vehicle is being RELEASED from quarantine
+            const dummyReport: Omit<Report, 'id' | 'timestamp'> & { timestamp: any } = {
+                timestamp: Timestamp.now(),
+                vehicleId: quarantineTarget.nomorLambung,
+                operatorName: 'SISTEM',
+                operatorId: 'SISTEM',
+                location: quarantineTarget.lokasi,
+                overallStatus: 'rusak',
+                description: 'Alat ini baru dilepas dari karantina dan membutuhkan pengecekan serta perbaikan menyeluruh.',
+                photo: [],
+            };
+            await addDoc(collection(db, 'checklist_reports'), dummyReport);
+            toast({
+                title: `Alat Dilepas dari Karantina`,
+                description: `${quarantineTarget.nomorLambung} telah dilepas dan WO baru telah dibuat otomatis.`
+            });
         }
-
-    } catch(e) {
-        console.error("Error updating status:", e);
+    } catch (error) {
+        console.error("Error toggling quarantine status:", error);
         toast({ title: 'Gagal Memperbarui Status', variant: 'destructive' });
-        setMechanicTasks(prev => prev.map(t => t.id === taskId ? task : t)); // Revert on failure
-    }
-};
-  
-  const handleSaveDescription = async (taskId: string, description: string) => {
-      if (!taskId) {
-        setTaskToDescribe(null);
-        return;
-      }
-      const taskDocRef = doc(db, 'mechanic_tasks', taskId);
-      try {
-          await updateDoc(taskDocRef, { mechanicRepairDescription: description });
-          toast({ title: 'Deskripsi Perbaikan Disimpan' });
-          optimisticTaskUpdate(taskId, { mechanicRepairDescription: description });
-          setTaskToDescribe(null);
-      } catch (e) {
-          toast({ title: 'Gagal Menyimpan Deskripsi', variant: 'destructive' });
-      }
-  };
-  
-  const handleConfirmDelay = async () => {
-    if (!taskToDelay || !delayReason) {
-        toast({ title: 'Alasan penundaan harus diisi', variant: 'destructive' });
-        return;
-    }
-
-    const newDelayEntry = {
-        alasan: delayReason,
-        waktuMulai: new Date(),
-        waktuSelesai: null
-    };
-
-    const updatedTaskData = {
-        status: 'DELAYED' as const,
-        riwayatTunda: [...(taskToDelay.riwayatTunda || []), newDelayEntry]
-    };
-    
-    const taskId = taskToDelay.id;
-    optimisticTaskUpdate(taskId, updatedTaskData);
-    setIsDelayDialogOpen(false);
-    setDelayReason('');
-    setTaskToDelay(null);
-
-    const taskDocRef = doc(db, 'mechanic_tasks', taskId);
-    try {
-        await updateDoc(taskDocRef, {
-            status: 'DELAYED',
-            riwayatTunda: updatedTaskData.riwayatTunda.map(item => ({
-                ...item,
-                waktuMulai: item.waktuMulai instanceof Date ? Timestamp.fromDate(item.waktuMulai) : item.waktuMulai,
-                waktuSelesai: null,
-            }))
-        });
-        toast({ title: 'Pekerjaan Ditunda' });
-    } catch(e) {
-        toast({ title: 'Gagal Menunda Pekerjaan', variant: 'destructive' });
-        setMechanicTasks(prev => prev.map(t => t.id === taskId ? taskToDelay : t));
+    } finally {
+        setIsSubmitting(false);
+        setIsQuarantineConfirmOpen(false);
+        setQuarantineTarget(null);
     }
   };
-
-  const handleConfirmQuarantine = async () => {};
 
   const renderLaporanLogistik = () => (
     <Card>
@@ -1147,214 +1212,117 @@ export default function KepalaMekanikPage() {
                 </div>
               </main>
             );
-        case 'Anggota Mekanik':
-             const mechanicsInLocation = users.filter(user => 
-                user.jabatan?.toUpperCase().includes('MEKANIK') &&
-                (!userInfo?.lokasi || user.lokasi === userInfo.lokasi)
-            );
-            const activeMechanicIds = new Set(
-                mechanicTasks
-                    .filter(task => task.status === 'IN_PROGRESS' || task.status === 'DELAYED')
-                    .flatMap(task => task.mechanics.map(m => m.id))
-            );
-
+        case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
                     <CardHeader>
-                        <CardTitle>Anggota Tim Mekanik</CardTitle>
-                        <CardDescription>Daftar semua mekanik di lokasi Anda dan status mereka saat ini.</CardDescription>
+                        <CardTitle>Alat Rusak Berat / Karantina</CardTitle>
+                        <CardDescription>Daftar alat yang ditandai sebagai rusak berat atau sedang dalam masa karantina.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="border rounded-md">
+                         <div className="overflow-x-auto border rounded-lg">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Nama Mekanik</TableHead>
-                                        <TableHead>NIK</TableHead>
+                                        <TableHead>Nomor Lambung</TableHead>
+                                        <TableHead>Nomor Polisi</TableHead>
+                                        <TableHead>Jenis Kendaraan</TableHead>
+                                        <TableHead>Laporan Terakhir</TableHead>
                                         <TableHead>Status</TableHead>
+                                        <TableHead className='text-right'>Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {isFetchingData ? (
-                                        <TableRow><TableCell colSpan={3} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin"/></TableCell></TableRow>
-                                    ) : mechanicsInLocation.length > 0 ? (
-                                        mechanicsInLocation.map(mekanik => {
-                                            const isWorking = activeMechanicIds.has(mekanik.id);
-                                            return (
-                                                <TableRow key={mekanik.id}>
-                                                    <TableCell className="font-medium">{mekanik.username}</TableCell>
-                                                    <TableCell>{mekanik.nik}</TableCell>
-                                                    <TableCell>
-                                                        <Badge variant={isWorking ? "destructive" : "default"} className={cn(!isWorking && "bg-green-600")}>
-                                                            {isWorking ? 'Mengerjakan Alat' : 'Stanby'}
-                                                        </Badge>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
-                                        })
-                                    ) : (
-                                        <TableRow><TableCell colSpan={3} className="h-24 text-center">Tidak ada anggota mekanik di lokasi ini.</TableCell></TableRow>
-                                    )}
+                                    {isFetchingData ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : statsData.alatRusakBerat.list.length > 0 ? (statsData.alatRusakBerat.list.map((item:any) => {
+                                        const latestReport = getLatestReport(item.nomorLambung, reports);
+                                        return (
+                                        <TableRow key={item.id}>
+                                            <TableCell className="font-medium">{item.nomorLambung}</TableCell>
+                                            <TableCell>{item.nomorPolisi}</TableCell>
+                                            <TableCell>{alat.find(a => a.id === item.id)?.jenisKendaraan}</TableCell>
+                                            <TableCell>
+                                                <p>{latestReport?.description || 'N/A'}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {latestReport?.timestamp ? format(new Date(latestReport.timestamp), 'dd MMM yyyy', {locale: localeID}) : 'N/A'}
+                                                </p>
+                                            </TableCell>
+                                            <TableCell>{getStatusBadge('Karantina')}</TableCell>
+                                            <TableCell className='text-right'>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <div className="space-y-1">
+                                                         <h4 className="font-semibold text-xs text-right">Karantina</h4>
+                                                         <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
+                                                            Lepas Karantina
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )})) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
                                 </TableBody>
                             </Table>
-                        </div>
+                         </div>
                     </CardContent>
                 </Card>
             );
-        case 'Manajemen Work Order':
-           return (
-                <div className="space-y-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Laporan Kerusakan</CardTitle>
-                        <CardDescription>
-                            Daftar semua alat yang dilaporkan rusak atau perlu perhatian dan belum dibuatkan WO.
-                            {userInfo?.lokasi && ` Menampilkan laporan untuk lokasi: ${userInfo.lokasi}.`}
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="border rounded-md">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Waktu Laporan</TableHead>
-                                        <TableHead>Kendaraan</TableHead>
-                                        <TableHead>Pelapor</TableHead>
-                                        <TableHead>Deskripsi Kerusakan</TableHead>
-                                        <TableHead>Foto</TableHead>
-                                        <TableHead className="text-right">Aksi</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isFetchingData ? <TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                        : damagedVehicleReports.length > 0 ? (damagedVehicleReports
-                                            .map(report => {
-                                                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-                                                const photos = Array.isArray(report.photo) ? report.photo : (report.photo ? [report.photo] : []);
-                                                const date = report.timestamp ? new Date(report.timestamp) : null;
-                                                
+        case 'Sopir & Batangan':
+            return (
+                <main className="space-y-8">
+                    <Card><CardHeader><CardTitle className="flex items-center gap-3"><PlusCircle />{editingPairing ? 'Edit' : 'Tambah'} Pasangan Sopir & Batangan</CardTitle><CardDescription>Pasangkan sopir dengan kendaraan yang akan dioperasikan.</CardDescription></CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                                <div className="md:col-span-2 space-y-2"><Label>Nama Sopir</Label>
+                                    <Select value={selectedSopir?.id || ''} onValueChange={(val) => setSelectedSopir(sopirOptions.find(s => s.id === val) || null)}>
+                                        <SelectTrigger><SelectValue placeholder="Pilih Sopir..." /></SelectTrigger>
+                                        <SelectContent>{sopirOptions.map(s => <SelectItem key={s.id} value={s.id}>{s.username}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>NIK</Label><Input value={selectedSopir?.nik || ''} disabled className="bg-muted" /></div>
+                                <div className="space-y-2"><Label>Nomor Polisi</Label>
+                                     <Select value={selectedAlat?.id || ''} onValueChange={(val) => setSelectedAlat(alat.find(a => a.id === val) || null)}>
+                                        <SelectTrigger><SelectValue placeholder="Pilih Kendaraan..." /></SelectTrigger>
+                                        <SelectContent>{filteredAlatByLocation.map(a => <SelectItem key={a.id} value={a.id}>{a.nomorPolisi}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>Nomor Lambung</Label><Input value={selectedAlat?.nomorLambung || ''} disabled className="bg-muted" /></div>
+                                <div className="md:col-span-3 space-y-2"><Label>Keterangan</Label><Input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Keterangan (jika ada)..." /></div>
+                                <div className="md:col-span-3 flex gap-2">
+                                <Button className="w-full" onClick={handleSavePairing} disabled={isSubmitting}><Save className="mr-2" />{editingPairing ? 'Update' : 'Simpan'}</Button>
+                                    {editingPairing && <Button className="w-full" variant="outline" onClick={() => { setEditingPairing(null); setSelectedSopir(null); setSelectedAlat(null); setKeterangan(''); }}>Batal</Button>}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card><CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <Table><TableHeader><TableRow><TableHead>Nama Sopir</TableHead><TableHead>NIK</TableHead><TableHead>Nomor Polisi</TableHead><TableHead>Nomor Lambung</TableHead><TableHead>Keterangan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {isFetchingPairings ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => {
+                                                const vehicle = alat.find(a => a.id === p.vehicleId);
                                                 return (
-                                                    <TableRow key={report.id}>
-                                                        <TableCell>{date ? format(date, 'dd MMM yyyy, HH:mm') : 'N/A'}</TableCell>
-                                                        <TableCell>{report.vehicleId}</TableCell>
-                                                        <TableCell>{report.operatorName}</TableCell>
-                                                        <TableCell className="whitespace-pre-wrap max-w-xs">{report.description}</TableCell>
-                                                        <TableCell>
-                                                            {photos.length > 0 && (
-                                                                <Dialog><DialogTrigger asChild><Button variant="ghost" size="icon"><Camera /></Button></DialogTrigger>
-                                                                    <DialogContent className="max-w-4xl">
-                                                                        <DialogHeader><DialogTitle>Foto Kerusakan: {report.vehicleId}</DialogTitle></DialogHeader>
-                                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto">
-                                                                            {photos.map((p, i) => <img key={i} src={p} alt={`Damage photo ${i + 1}`} className="rounded-md" data-ai-hint="machine damage" />)}
-                                                                        </div>
-                                                                    </DialogContent>
-                                                                </Dialog>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={() => {}} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
-                                                        </TableCell>
-                                                    </TableRow>
+                                                <TableRow key={p.id}>
+                                                    <TableCell>{p.namaSopir}</TableCell>
+                                                    <TableCell>{p.nik}</TableCell>
+                                                    <TableCell>{p.nomorPolisi}</TableCell>
+                                                    <TableCell>{p.nomorLambung}</TableCell>
+                                                    <TableCell>{p.keterangan}</TableCell>
+                                                    <TableCell className="text-right space-x-1">
+                                                        <Button size="icon" variant="ghost" onClick={() => handleEditPairing(p)}><Pencil className="h-4 w-4 text-amber-500" /></Button>
+                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(vehicle)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>}
+                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(vehicle)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>}
+                                                        <Button size="icon" variant="ghost" onClick={() => handleDeleteRequest(p, 'pairing')}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                    </TableCell>
+                                                </TableRow>
                                                 )
-                                            })) : <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Work Order Aktif</CardTitle>
-                        <CardDescription>Daftar semua pekerjaan yang sedang menunggu atau dalam proses perbaikan.</CardDescription>
-                    </CardHeader>
-                     <CardContent>
-                        <div className="border rounded-md">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Waktu Lapor</TableHead>
-                                        <TableHead>Kendaraan</TableHead>
-                                        <TableHead>Deskripsi</TableHead>
-                                        <TableHead>Mekanik</TableHead>
-                                        <TableHead>Target</TableHead>
-                                        <TableHead>Tunda</TableHead>
-                                        <TableHead>Penyelesaian</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Aksi</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isFetchingData ? (
-                                        <TableRow><TableCell colSpan={9} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                    ) : activeTasks.length > 0 ? (
-                                        activeTasks.map(task => {
-                                             const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
-                                             const reportDate = triggeringReport?.timestamp ? new Date(triggeringReport.timestamp) : null;
-                                             
-                                             const { details: delayDetails, total: totalDelay } = calculateDelayDetails(task);
-                                             
-                                            return(
-                                            <TableRow key={task.id}>
-                                                <TableCell>{reportDate ? format(reportDate, 'dd MMM, HH:mm') : '-'}</TableCell>
-                                                <TableCell>
-                                                    <p className="font-semibold">{task.vehicle.licensePlate} ({task.vehicle.hullNumber})</p>
-                                                    <p className="text-xs text-muted-foreground">{users.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
-                                                </TableCell>
-                                                <TableCell className="whitespace-pre-wrap max-w-[200px]">
-                                                    {task.mechanicRepairDescription || triggeringReport?.description}
-                                                </TableCell>
-                                                <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
-                                                <TableCell>
-                                                    <div className="text-xs space-y-1">
-                                                       {task.startedAt && <p><b>Mulai:</b> {format(new Date(task.startedAt), 'dd/MM HH:mm')}</p>}
-                                                       <p><b>Target:</b> {format(new Date(`${task.vehicle.targetDate}T${task.vehicle.targetTime}`), 'dd/MM HH:mm')}</p>
-                                                       {task.completedAt && <p><b>Realisasi:</b> {format(new Date(task.completedAt), 'dd/MM HH:mm')}</p>}
-                                                    </div>
-                                                </TableCell>
-                                                 <TableCell>
-                                                    {delayDetails.length > 0 && (
-                                                      <div className="flex flex-col">
-                                                          <ol className="text-xs space-y-1 list-decimal list-inside">
-                                                            {delayDetails.map((delay, index) => (
-                                                              <li key={index} title={delay.reason}>
-                                                                {delay.text} <span className="italic text-muted-foreground">({delay.reason})</span>
-                                                              </li>
-                                                            ))}
-                                                          </ol>
-                                                          {task.status === 'COMPLETED' && totalDelay !== '-' && (
-                                                              <p className="font-bold border-t mt-1 pt-1 text-xs">
-                                                                Total: {totalDelay}
-                                                              </p>
-                                                            )}
-                                                      </div>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell><CompletionStatusBadge task={task} /></TableCell>
-                                                <TableCell><Badge variant={task.status === 'PENDING' ? 'outline' : task.status === 'DELAYED' ? 'destructive' : 'default'}>{task.status}</Badge></TableCell>
-                                                <TableCell className="text-right">
-                                                    <DropdownMenu>
-                                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><Pencil/></Button></DropdownMenuTrigger>
-                                                        <DropdownMenuContent>
-                                                            {task.status === 'PENDING' && <DropdownMenuItem onClick={() => handleTaskStatusChange(task.id, 'IN_PROGRESS')}><Play className="mr-2"/>Mulai Kerjakan</DropdownMenuItem>}
-                                                            {task.status === 'IN_PROGRESS' && <DropdownMenuItem onClick={() => handleTaskStatusChange(task.id, 'COMPLETED')}><CheckCircle className="mr-2"/>Selesaikan</DropdownMenuItem>}
-                                                            {(task.status === 'IN_PROGRESS') && <DropdownMenuItem onClick={() => { setTaskToDelay(task); setIsDelayDialogOpen(true); }}><Pause className="mr-2"/>Tunda</DropdownMenuItem>}
-                                                            {task.status === 'DELAYED' && <DropdownMenuItem onClick={() => handleTaskStatusChange(task.id, 'IN_PROGRESS')}><Play className="mr-2"/>Lanjutkan</DropdownMenuItem>}
-                                                            <DropdownMenuSeparator/>
-                                                            <DropdownMenuItem onClick={() => setTaskToDescribe(task)}>Edit Deskripsi Perbaikan</DropdownMenuItem>
-                                                        </DropdownMenuContent>
-                                                    </DropdownMenu>
-                                                </TableCell>
-                                            </TableRow>
-                                        )})
-                                    ) : (
-                                        <TableRow><TableCell colSpan={9} className="h-24 text-center text-muted-foreground">Tidak ada work order yang aktif.</TableCell></TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </CardContent>
-                </Card>
-                </div>
+                                            })) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>)}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
             );
         case 'Histori Perbaikan Alat':
              return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} alat={alat} allReports={allReports} />;
@@ -1415,7 +1383,7 @@ export default function KepalaMekanikPage() {
     }
   }
 
-  if (isFetchingData || !userInfo) {
+  if (isLoading || !userInfo) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
@@ -1426,33 +1394,82 @@ export default function KepalaMekanikPage() {
   return (
     <>
      <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
-    <EditDescriptionDialog 
-        task={taskToDescribe}
-        onSave={handleSaveDescription}
-    />
-    <AlertDialog open={isDelayDialogOpen} onOpenChange={setIsDelayDialogOpen}>
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>Tunda Pekerjaan</AlertDialogTitle>
+                <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Masukkan alasan mengapa pekerjaan untuk <strong>{taskToDelay?.vehicle.hullNumber}</strong> ditunda. Ini akan menjeda penghitungan waktu kerja efektif.
+                    Anda yakin akan menghapus data ini secara permanen? Tindakan ini tidak dapat diurungkan.
                 </AlertDialogDescription>
             </AlertDialogHeader>
-            <div className="py-4">
-                <Textarea 
-                    placeholder="Contoh: Menunggu spare part, istirahat, dll." 
-                    value={delayReason} 
-                    onChange={(e) => setDelayReason(e.target.value)} 
-                />
-            </div>
             <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setDelayReason('')}>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirmDelay}>Simpan & Tunda</AlertDialogAction>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmDelete} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Ya, Hapus
+                </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
-      
-    <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
+     <Dialog open={isMutasiDialogOpen} onOpenChange={setIsMutasiDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Konfirmasi Mutasi Alat: {mutasiTarget?.nomorLambung}</DialogTitle>
+                <DialogDescription>
+                    Pindahkan alat dari lokasi <strong>{mutasiTarget?.lokasi}</strong> ke lokasi baru. Pastikan Anda yakin sebelum melanjutkan.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Label htmlFor="mutasi-location">Pilih Lokasi Tujuan</Label>
+                <Select value={newLocationForMutasi} onValueChange={setNewLocationForMutasi}>
+                    <SelectTrigger id="mutasi-location">
+                        <SelectValue placeholder="Pilih lokasi..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {locations.filter(l => l.name !== mutasiTarget?.lokasi).map(loc => (
+                            <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setIsMutasiDialogOpen(false)}>Batal</Button>
+                <Button onClick={handleConfirmMutasi} disabled={isMutating}>
+                    {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Konfirmasi & Pindahkan
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+     <Dialog open={!!editingAlat} onOpenChange={(isOpen) => !isOpen && setEditingAlat(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Edit Alat</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleConfirmEdit} className="space-y-4 pt-4">
+                <div>
+                    <Label htmlFor="editNomorLambung">Nomor Lambung</Label>
+                    <Input id="editNomorLambung" name="editNomorLambung" defaultValue={editingAlat?.nomorLambung} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <div>
+                    <Label htmlFor="editNomorPolisi">Nomor Polisi</Label>
+                    <Input id="editNomorPolisi" name="editNomorPolisi" defaultValue={editingAlat?.nomorPolisi} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                 <div>
+                    <Label htmlFor="editJenisKendaraan">Jenis Kendaraan</Label>
+                    <Input id="editJenisKendaraan" name="editJenisKendaraan" defaultValue={editingAlat?.jenisKendaraan} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setEditingAlat(null)}>Batal</Button>
+                    <Button type="submit" disabled={isEditing}>
+                        {isEditing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+    
+      <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
                 <DialogTitle>Detail: {detailListTitle}</DialogTitle>
@@ -1533,23 +1550,12 @@ export default function KepalaMekanikPage() {
                     >
                         <item.icon className="h-4 w-4" />
                         <span className="text-sm">{item.name}</span>
+                         {item.name === 'Pesan Masuk' && hasNewMessage && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
+                         )}
                     </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-                <SidebarSeparator/>
-                {secondaryMenuItems.map((item) => (
-                <SidebarMenuItem key={item.name}>
-                    <SidebarMenuButton
-                        isActive={activeMenu === item.name}
-                        onClick={() => handleMenuClick(item.name as ActiveMenu)}
-                        className="h-9 relative"
-                    >
-                        <item.icon className="h-4 w-4" />
-                        <span className="text-sm">{item.name}</span>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-
             </SidebarMenu>
             <SidebarFooter className="p-2 space-y-2">
                  <div className="text-center p-4 border rounded-lg">
@@ -1587,26 +1593,3 @@ export default function KepalaMekanikPage() {
     </>
   );
 }
-
-
-function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') {
-    switch (status) {
-      case 'baik':
-        return <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-300">Baik</Badge>;
-      case 'perlu perhatian':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Perlu Perhatian</Badge>;
-      case 'rusak':
-        return <Badge variant="destructive">Rusak</Badge>;
-       case 'Karantina':
-        return <Badge variant="destructive">Karantina</Badge>;
-      case 'Tanpa Operator':
-          return <Badge variant="secondary">Tanpa Operator</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
-
-
-
-
-    
