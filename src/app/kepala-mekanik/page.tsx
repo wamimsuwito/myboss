@@ -421,13 +421,16 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
     const [tasks, setTasks] = useState<MechanicTask[]>([]);
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
+    const [isFetchingData, setIsFetchingData] = useState(true);
     const [date, setDate] = useState<DateRange | undefined>({
       from: subDays(new Date(), 29),
       to: new Date(),
     });
 
     useEffect(() => {
+        setIsFetchingData(true);
         setTasks(allTasks.filter(t => t.status === 'COMPLETED'));
+        setIsFetchingData(false);
     }, [allTasks]);
     
     const sopirOptions = useMemo(() => {
@@ -728,28 +731,39 @@ export default function KepalaMekanikPage() {
     }, [dataTransformer, toast]);
 
     const damagedVehicleReports = useMemo(() => {
-        const handledReportIds = new Set(mechanicTasks.map(task => task.vehicle.triggeringReportId));
-        
-        const openDamageReports = reports.filter(report => {
-            const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
-            if (!isDamaged) return false;
+        // Find reports for vehicles that are damaged or need attention
+        const damagedReports = reports.filter(report => 
+            report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian'
+        );
 
-            const hasBeenFixed = reports.some(fixReport =>
-                fixReport.vehicleId === report.vehicleId &&
-                fixReport.overallStatus === 'baik' &&
-                isAfter(new Date(fixReport.timestamp), new Date(report.timestamp))
-            );
+        // Group reports by vehicle ID
+        const reportsByVehicle = damagedReports.reduce((acc, report) => {
+            if (!acc[report.vehicleId]) {
+                acc[report.vehicleId] = [];
+            }
+            acc[report.vehicleId].push(report);
+            return acc;
+        }, {} as Record<string, Report[]>);
 
-            if (hasBeenFixed) return false;
-            
-            const hasOpenWO = mechanicTasks.some(task => task.vehicle.triggeringReportId === report.id && task.status !== 'COMPLETED');
-            if (hasOpenWO) return false;
-            
-            const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-            return !!vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
-        });
-        
-        return openDamageReports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        const openDamageReports = Object.keys(reportsByVehicle).map(vehicleId => {
+            // Sort reports for this vehicle to find the latest one
+            const vehicleReports = reportsByVehicle[vehicleId].sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            const latestReport = vehicleReports[0];
+
+            // If the latest report is NOT 'baik', it's an open issue
+            if (latestReport.overallStatus !== 'baik') {
+                const hasOpenWO = mechanicTasks.some(task => task.vehicle.triggeringReportId === latestReport.id && task.status !== 'COMPLETED');
+                if (!hasOpenWO) {
+                     const vehicle = alat.find(a => a.nomorLambung === latestReport.vehicleId);
+                     if (vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi)) {
+                         return latestReport;
+                     }
+                }
+            }
+            return null;
+        }).filter(Boolean);
+
+        return (openDamageReports as Report[]).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
@@ -1338,7 +1352,7 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
+            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1537,3 +1551,5 @@ function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | '
         return <Badge>{status}</Badge>;
     }
   };
+
+    
