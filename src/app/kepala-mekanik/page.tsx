@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
@@ -112,7 +113,6 @@ const menuItems = [
     { name: 'Manajemen Work Order', icon: ClipboardList },
     { name: 'Histori Perbaikan Alat', icon: History },
     { name: 'Anggota Mekanik', icon: Users },
-    { name: 'Sopir & Batangan', icon: Truck },
     { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert }
 ];
 
@@ -496,7 +496,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
       <>
         <div className='hidden'>
             <div id="history-print-area">
-                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={users} location={user?.lokasi} />
+                <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
             </div>
         </div>
         <Card>
@@ -728,51 +728,28 @@ export default function KepalaMekanikPage() {
     }, [dataTransformer, toast]);
 
     const damagedVehicleReports = useMemo(() => {
-        // 1. Get all reports that are 'rusak' or 'perlu perhatian'
-        const damageReports = reports.filter(report =>
-            report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian'
-        );
-
-        // 2. Group reports by vehicle
-        const reportsByVehicle = damageReports.reduce((acc, report) => {
-            if (!acc[report.vehicleId]) {
-                acc[report.vehicleId] = [];
-            }
-            acc[report.vehicleId].push(report);
-            return acc;
-        }, {} as Record<string, Report[]>);
-
-        // 3. Find reports that haven't been resolved
-        const unresolvedReports = Object.values(reportsByVehicle).map(vehicleReports => {
-            // Sort by most recent first
-            const sorted = vehicleReports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            const latestDamageReport = sorted[0];
-
-            // Check if there's a "baik" report AFTER this latest damage report
-            const hasBeenFixed = reports.some(fixReport =>
-                fixReport.vehicleId === latestDamageReport.vehicleId &&
-                fixReport.overallStatus === 'baik' &&
-                isAfter(new Date(fixReport.timestamp), new Date(latestDamageReport.timestamp))
-            );
-
-            if (hasBeenFixed) return null;
-
-            // Check if there's an open Work Order for this specific report
-            const hasOpenWO = mechanicTasks.some(task => 
-                task.vehicle.triggeringReportId === latestDamageReport.id && task.status !== 'COMPLETED'
-            );
-
-            if (hasOpenWO) return null;
-
-            return latestDamageReport;
-
-        }).filter(Boolean) as Report[];
+        const handledReportIds = new Set(mechanicTasks.map(task => task.vehicle.triggeringReportId));
         
-        // 4. Final filter by location
-        return unresolvedReports.filter(report => {
-             const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-             return !!vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
+        const openDamageReports = reports.filter(report => {
+            const isDamaged = report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian';
+            if (!isDamaged) return false;
+
+            const hasBeenFixed = reports.some(fixReport =>
+                fixReport.vehicleId === report.vehicleId &&
+                fixReport.overallStatus === 'baik' &&
+                isAfter(new Date(fixReport.timestamp), new Date(report.timestamp))
+            );
+
+            if (hasBeenFixed) return false;
+            
+            const hasOpenWO = mechanicTasks.some(task => task.vehicle.triggeringReportId === report.id && task.status !== 'COMPLETED');
+            if (hasOpenWO) return false;
+            
+            const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+            return !!vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
         });
+        
+        return openDamageReports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
     }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
@@ -1361,7 +1338,7 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />
+            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
