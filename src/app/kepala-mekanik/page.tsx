@@ -112,6 +112,7 @@ const menuItems = [
     { name: 'Manajemen Work Order', icon: ClipboardList },
     { name: 'Histori Perbaikan Alat', icon: History },
     { name: 'Anggota Mekanik', icon: Users },
+    { name: 'Sopir & Batangan', icon: Truck },
     { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert }
 ];
 
@@ -144,7 +145,7 @@ const StatCard = ({ title, value, description, icon: Icon, color, onClick }: { t
     </Card>
 );
 
-const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { vehicle: AlatData, report: Report, mechanics: UserData[], onTaskCreated: (newTask: MechanicTask) => void }) => {
+const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { vehicle: AlatData, report: Report, mechanics: UserData[], onTaskCreated: () => void }) => {
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -181,11 +182,10 @@ const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { 
         };
 
         try {
-            const docRef = await addDoc(collection(db, 'mechanic_tasks'), newTaskData);
-            const finalTask: MechanicTask = { ...newTaskData, id: docRef.id };
+            await addDoc(collection(db, 'mechanic_tasks'), newTaskData);
             toast({ title: "Work Order Berhasil Dibuat" });
             form.reset();
-            onTaskCreated(finalTask);
+            onTaskCreated();
             setIsOpen(false);
         } catch (error) {
             console.error("Error creating task:", error);
@@ -470,7 +470,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
             
             return true;
         })
-        .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+        .sort((a, b) => (b.completedAt || 0) - (b.completedAt || 0));
     }, [tasks, date, selectedOperatorId, user, allAlat, allReports, searchNoPol]);
     
     const calculateEffectiveDuration = (task: MechanicTask) => {
@@ -686,6 +686,7 @@ export default function KepalaMekanikPage() {
     if (Array.isArray(docData)) {
         return docData.map(item => dataTransformer(item));
     }
+
     const transformedData = { ...docData };
   
     const timestampFieldsToMillis = ['createdAt', 'startedAt', 'completedAt'];
@@ -730,27 +731,52 @@ export default function KepalaMekanikPage() {
     }, [dataTransformer, toast]);
 
     const damagedVehicleReports = useMemo(() => {
-        return reports
-            .filter(report => {
-                if (report.overallStatus !== 'rusak' && report.overallStatus !== 'perlu perhatian') {
-                    return false;
-                }
-                const hasOpenWO = mechanicTasks.some(task => task.vehicle.triggeringReportId === report.id);
-                if (hasOpenWO) {
-                    return false;
-                }
-                const hasBeenFixed = reports.some(fixReport =>
-                    fixReport.vehicleId === report.vehicleId &&
-                    fixReport.overallStatus === 'baik' &&
-                    isAfter(new Date(fixReport.timestamp), new Date(report.timestamp))
-                );
-                if (hasBeenFixed) {
-                    return false;
-                }
-                const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
-                return !!vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
-            })
-            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        // 1. Get all reports that are 'rusak' or 'perlu perhatian'
+        const damageReports = reports.filter(report =>
+            report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian'
+        );
+
+        // 2. Group reports by vehicle
+        const reportsByVehicle = damageReports.reduce((acc, report) => {
+            if (!acc[report.vehicleId]) {
+                acc[report.vehicleId] = [];
+            }
+            acc[report.vehicleId].push(report);
+            return acc;
+        }, {} as Record<string, Report[]>);
+
+        // 3. Find reports that haven't been resolved
+        const unresolvedReports = Object.values(reportsByVehicle).map(vehicleReports => {
+            // Sort by most recent first
+            const sorted = vehicleReports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            const latestDamageReport = sorted[0];
+
+            // Check if there's a "baik" report AFTER this latest damage report
+            const hasBeenFixed = reports.some(fixReport =>
+                fixReport.vehicleId === latestDamageReport.vehicleId &&
+                fixReport.overallStatus === 'baik' &&
+                isAfter(new Date(fixReport.timestamp), new Date(latestDamageReport.timestamp))
+            );
+
+            if (hasBeenFixed) return null;
+            
+            // Check if there's an open Work Order for this specific report
+            const hasOpenWO = mechanicTasks.some(task => 
+                task.vehicle.triggeringReportId === latestDamageReport.id && task.status !== 'COMPLETED'
+            );
+
+            if (hasOpenWO) return null;
+
+            return latestDamageReport;
+
+        }).filter(Boolean) as Report[];
+        
+        // 4. Final filter by location
+        return unresolvedReports.filter(report => {
+             const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+             return !!vehicle && (!userInfo?.lokasi || vehicle.lokasi === userInfo.lokasi);
+        });
+
     }, [reports, mechanicTasks, alat, userInfo?.lokasi]);
     
 
@@ -792,7 +818,7 @@ export default function KepalaMekanikPage() {
     const mapToDetailFormat = (items: AlatData[], statusSource: 'latest' | 'belum') => {
       return items.map(item => {
         const report = getLatestReportForAlat(item.nomorLambung);
-        const reporter = allUsers.find(u => u.id === report?.operatorId);
+        const reporter = users.find(u => u.id === report?.operatorId);
         
         let status: Report['overallStatus'] | 'Belum Checklist' = 'Belum Checklist';
         if (statusSource === 'latest' && report) {
@@ -843,7 +869,7 @@ export default function KepalaMekanikPage() {
       alatRusakBerat: { count: String(alatRusakBeratList.length), list: mapToDetailFormatSpecial(alatRusakBeratList, 'Karantina') },
       alatTdkAdaOperator: { count: String(alatTdkAdaOperatorList.length), list: mapToDetailFormatSpecial(alatTdkAdaOperatorList, 'Tanpa Operator') },
     };
-}, [alat, allUsers, reports, userInfo?.lokasi, isFetchingData, pairings]);
+}, [alat, users, reports, userInfo?.lokasi, isFetchingData, pairings]);
   
   const statCards = useMemo(() => {
     return [
@@ -883,28 +909,16 @@ export default function KepalaMekanikPage() {
         isInitialLoad.current = true;
         const unsubscribers: (() => void)[] = [];
         
-        ['users', 'alat', 'locations', 'mechanic_tasks'].forEach(col => {
+        ['users', 'alat', 'mechanic_tasks'].forEach(col => {
             let setter: React.Dispatch<React.SetStateAction<any[]>> | null = null;
-            if (col === 'users') setter = setAllUsers;
+            if (col === 'users') setter = setUsers;
             else if (col === 'alat') setter = setAlat;
-            else if (col === 'locations') setter = setLocations;
             else if (col === 'mechanic_tasks') setter = setMechanicTasks;
 
             if (setter) {
                 unsubscribers.push(setupListener(col, setter));
             }
         });
-        
-        const pairingUnsub = onSnapshot(query(collection(db, "sopir_batangan")), (snapshot) => {
-            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
-            setPairings(data);
-            setIsFetchingPairings(false);
-        }, (error) => {
-            console.error(`Error fetching sopir_batangan:`, error);
-            toast({ variant: 'destructive', title: `Gagal Memuat sopir_batangan` });
-            setIsFetchingPairings(false);
-        });
-        unsubscribers.push(pairingUnsub);
         
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
@@ -924,6 +938,17 @@ export default function KepalaMekanikPage() {
         });
         unsubscribers.push(reportsUnsub);
         
+        const pairingUnsub = onSnapshot(query(collection(db, "sopir_batangan")), (snapshot) => {
+            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
+            setPairings(data);
+            setIsFetchingPairings(false);
+        }, (error) => {
+            console.error(`Error fetching sopir_batangan:`, error);
+            toast({ variant: 'destructive', title: `Gagal Memuat sopir_batangan` });
+            setIsFetchingPairings(false);
+        });
+        unsubscribers.push(pairingUnsub);
+
         const timer = setTimeout(() => {
             setIsFetchingData(false);
             isInitialLoad.current = false;
@@ -957,7 +982,7 @@ export default function KepalaMekanikPage() {
     localStorage.removeItem('user');
     router.push('/login');
   };
-
+  
   const handleMenuClick = (menuName: ActiveMenu) => {
     if (menuName === 'Pesan Masuk') {
       setHasNewMessage(false);
@@ -1132,7 +1157,7 @@ export default function KepalaMekanikPage() {
               </main>
             );
         case 'Anggota Mekanik':
-             const mechanicsInLocation = allUsers.filter(user => 
+             const mechanicsInLocation = users.filter(user => 
                 user.jabatan?.toUpperCase().includes('MEKANIK') &&
                 (!userInfo?.lokasi || user.lokasi === userInfo.lokasi)
             );
@@ -1236,7 +1261,7 @@ export default function KepalaMekanikPage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="text-right">
-                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={allUsers} onTaskCreated={(newTask: any) => setMechanicTasks(prev => [newTask, ...prev])} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
+                                                            {vehicle ? (<CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={users} onTaskCreated={() => {}} />) : (<Badge variant="destructive">Alat Tidak Ditemukan</Badge>)}
                                                         </TableCell>
                                                     </TableRow>
                                                 )
@@ -1282,9 +1307,9 @@ export default function KepalaMekanikPage() {
                                                 <TableCell>{reportDate ? format(reportDate, 'dd MMM, HH:mm') : '-'}</TableCell>
                                                 <TableCell>
                                                     <p className="font-semibold">{task.vehicle.licensePlate} ({task.vehicle.hullNumber})</p>
-                                                    <p className="text-xs text-muted-foreground">{allUsers.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
+                                                    <p className="text-xs text-muted-foreground">{users.find(u => u.id === triggeringReport?.operatorId)?.username || 'N/A'}</p>
                                                 </TableCell>
-                                                <TableCell className="max-w-[200px] truncate">{task.mechanicRepairDescription || task.vehicle.repairDescription}</TableCell>
+                                                <TableCell className="max-w-[200px] whitespace-pre-wrap">{task.mechanicRepairDescription || triggeringReport?.description}</TableCell>
                                                 <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
                                                 <TableCell>
                                                     <div className="text-xs space-y-1">
@@ -1339,7 +1364,7 @@ export default function KepalaMekanikPage() {
                 </div>
             );
         case 'Histori Perbaikan Alat':
-            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={allUsers} allAlat={alat} allReports={reports} />;
+            return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={allUsers} allAlat={alat} allReports={reports} />
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1538,5 +1563,3 @@ function getStatusBadge (status: Report['overallStatus'] | 'Belum Checklist' | '
         return <Badge>{status}</Badge>;
     }
   };
-
-    
