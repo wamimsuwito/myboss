@@ -1,6 +1,6 @@
-
 'use client';
 
+import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -281,63 +281,70 @@ export default function HrdPusatPage() {
         }, {} as Record<string, ActivityLog[]>);
     }, [allActivities, activityDateRange, activeMenu]);
 
-    const { filteredHistoryRecords, historySummary } = useMemo(() => {
-        if (!historyDateRange?.from) return { filteredHistoryRecords: [], historySummary: { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 } };
+     const { filteredHistoryRecords } = useMemo(() => {
+        if (!historyDateRange?.from) return { filteredHistoryRecords: [] };
 
         const { from, to } = historyDateRange;
         const interval = { start: startOfDay(from), end: endOfDay(to || from) };
         const daysInInterval = eachDayOfInterval(interval);
 
-        let filteredRecords = historySelectedUser ? allUsers.filter(u => u.id === historySelectedUser.id) : allUsers;
-        
-        let totalHariKerja = 0;
-        let totalJamLembur = 0;
-        let totalMenitTerlambat = 0;
-        let totalHariAbsen = 0;
+        let userList = historySelectedUser ? allUsers.filter(u => u.id === historySelectedUser.id) : allUsers;
 
-        const records = filteredRecords.map(user => {
-            const userAttendance = allAttendance.filter(rec => {
-                const checkInDate = toValidDate(rec.checkInTime);
-                return rec.userId === user.id && checkInDate && isWithinInterval(checkInDate, interval);
+        const dailyRecords: any[] = [];
+
+        daysInInterval.forEach(day => {
+            const dayStr = format(day, 'yyyy-MM-dd');
+            userList.forEach(user => {
+                const attendance = allAttendance.find(rec => {
+                    const checkInDate = toValidDate(rec.checkInTime);
+                    return rec.userId === user.id && checkInDate && isSameDay(checkInDate, day);
+                });
+                
+                const overtime = allOvertime.find(rec => {
+                    const checkInDate = toValidDate(rec.checkInTime);
+                    return rec.userId === user.id && checkInDate && isSameDay(checkInDate, day);
+                });
+                
+                const productionsToday = allProductions.filter(prod => {
+                    const prodDate = toValidDate(prod.tanggal);
+                    return prodDate && isSameDay(prodDate, day) && prod.namaSopir.toUpperCase() === user.username.toUpperCase();
+                });
+
+                let ritPertama: string | null = null;
+                let ritTerakhir: string | null = null;
+                if (productionsToday.length > 0) {
+                    const sortedProductions = productionsToday.sort((a,b) => parseISO(a.jamMulai).getTime() - parseISO(b.jamMulai).getTime());
+                    ritPertama = format(parseISO(sortedProductions[0].jamMulai), 'HH:mm');
+                    ritTerakhir = format(parseISO(sortedProductions[sortedProductions.length - 1].jamSelesai), 'HH:mm');
+                }
+                
+                if (attendance || overtime) {
+                    const lateMinutes = attendance ? (() => {
+                        const checkInTime = toValidDate(attendance.checkInTime)!;
+                        const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
+                        const late = differenceInMinutes(checkInTime, deadline);
+                        return late > 0 ? late : 0;
+                    })() : 0;
+
+                    dailyRecords.push({
+                        ...user,
+                        id: `${user.id}-${dayStr}`,
+                        checkInTime: attendance?.checkInTime,
+                        checkOutTime: attendance?.checkOutTime,
+                        checkInPhoto: attendance?.checkInPhoto,
+                        checkOutPhoto: attendance?.checkOutPhoto,
+                        checkInLocationName: attendance?.checkInLocationName,
+                        lateMinutes: lateMinutes,
+                        overtimeData: overtime,
+                        ritPertama,
+                        ritTerakhir,
+                    });
+                }
             });
-            const userOvertime = allOvertime.filter(rec => {
-                const checkInDate = toValidDate(rec.checkInTime);
-                return rec.userId === user.id && checkInDate && isWithinInterval(checkInDate, interval);
-            });
-            
-            const attendedDays = new Set(userAttendance.map(rec => format(toValidDate(rec.checkInTime)!, 'yyyy-MM-dd')));
-            const daysWorked = attendedDays.size;
-            totalHariKerja += daysWorked;
-            
-            const daysNotWorked = daysInInterval.filter(day => !attendedDays.has(format(day, 'yyyy-MM-dd'))).length;
-            totalHariAbsen += daysNotWorked;
-
-            const userLateMinutes = userAttendance.reduce((acc, rec) => {
-                const checkInTime = toValidDate(rec.checkInTime)!;
-                const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
-                const late = differenceInMinutes(checkInTime, deadline);
-                return acc + (late > 0 ? late : 0);
-            }, 0);
-            totalMenitTerlambat += userLateMinutes;
-            
-            const userOvertimeMinutes = userOvertime.reduce((acc, rec) => {
-                 const checkInTime = toValidDate(rec.checkInTime);
-                 const checkOutTime = toValidDate(rec.checkOutTime);
-                 if (!checkInTime || !checkOutTime) return acc;
-                 return acc + differenceInMinutes(checkOutTime, checkInTime);
-            }, 0);
-            totalJamLembur += Math.floor(userOvertimeMinutes / 60);
-
-            return {
-                ...user,
-                attendance: userAttendance,
-                overtime: userOvertime,
-                summary: { daysWorked, lateMinutes: userLateMinutes, overtimeHours: Math.floor(userOvertimeMinutes / 60), daysAbsent: daysNotWorked }
-            };
         });
         
-        return { filteredHistoryRecords: records, historySummary: { totalHariKerja, totalJamLembur, totalMenitTerlambat, totalHariAbsen } };
-    }, [historyDateRange, historySelectedUser, allUsers, allAttendance, allOvertime]);
+        return { filteredHistoryRecords: dailyRecords.sort((a,b) => (toValidDate(b.checkInTime)?.getTime() || toValidDate(b.overtimeData?.checkInTime)?.getTime() || 0) - (toValidDate(a.checkInTime)?.getTime() || toValidDate(a.overtimeData?.checkInTime)?.getTime() || 0)) };
+    }, [historyDateRange, historySelectedUser, allUsers, allAttendance, allOvertime, allProductions]);
 
 
     const handleSavePenalty = async (e: React.FormEvent) => {
@@ -424,7 +431,6 @@ export default function HrdPusatPage() {
                 {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> 
                 : <AttendanceTable 
                     records={filteredAttendance}
-                    overtimeRecords={filteredOvertime}
                   />
                 }
             </CardContent>
@@ -488,32 +494,13 @@ export default function HrdPusatPage() {
                     <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full md:w-[280px] justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4"/>{historyDateRange?.from ? format(historyDateRange.from, "d MMM") + (historyDateRange.to ? " - " + format(historyDateRange.to, "d MMM yyyy") : "") : "Pilih Rentang"}</Button></PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start"><Calendar mode="range" selected={historyDateRange} onSelect={setHistoryDateRange} numberOfMonths={2}/></PopoverContent>
                     </Popover>
-                    <Button onClick={() => setIsAttendancePrintPreviewOpen(true)} disabled={isLoading}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
+                    <Button onClick={() => setIsAttendancePrintPreviewOpen(true)} disabled={isLoading || filteredHistoryRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
                 </div>
-                
-                 <div className="border rounded-md overflow-x-auto">
-                    <Table>
-                        <TableHeader><TableRow><TableHead>Nama Karyawan</TableHead><TableHead className="text-center">Hari Kerja</TableHead><TableHead className="text-center">Total Lembur</TableHead><TableHead className="text-center">Total Terlambat</TableHead><TableHead className="text-center">Hari Absen</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {isLoading ? <TableRow><TableCell colSpan={5} className="h-40 text-center"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow>
-                            : filteredHistoryRecords.length > 0 ? filteredHistoryRecords.map(user => (
-                                <TableRow key={user.id}>
-                                    <TableCell className="font-medium">{user.username}</TableCell>
-                                    <TableCell className="text-center">{user.summary.daysWorked}</TableCell>
-                                    <TableCell className="text-center">{user.summary.overtimeHours} jam</TableCell>
-                                    <TableCell className="text-center">{user.summary.lateMinutes} mnt</TableCell>
-                                    <TableCell className="text-center">{user.summary.daysAbsent}</TableCell>
-                                </TableRow>
-                            )) : <TableRow><TableCell colSpan={5} className="text-center h-24">Tidak ada data untuk filter yang dipilih.</TableCell></TableRow>}
-                        </TableBody>
-                    </Table>
-                 </div>
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
-                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Hari Kerja</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalHariKerja}</p></CardContent></Card>
-                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Jam Lembur</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalJamLembur}</p></CardContent></Card>
-                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Menit Terlambat</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalMenitTerlambat}</p></CardContent></Card>
-                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Hari Absen</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalHariAbsen}</p></CardContent></Card>
-                 </div>
+                 {isLoading ? (
+                    <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
+                 ) : (
+                    <AttendanceTable records={filteredHistoryRecords} />
+                 )}
             </CardContent>
         </Card>
     );
@@ -555,14 +542,14 @@ export default function HrdPusatPage() {
     );
 
     const renderContent = () => {
-        switch(activeMenu) { case 'Absensi Hari Ini': return renderTodayDashboard(); case 'Riwayat Absensi': return renderHistoryContent(); case 'Kegiatan Karyawan Hari Ini': return renderActivityContent('Kegiatan Karyawan Hari Ini', groupedActivities); case 'Riwayat Kegiatan Karyawan': return renderActivityContent('Riwayat Kegiatan Karyawan', groupedActivities); case 'Penalti Karyawan': return renderPenaltyContent(); case 'Reward Karyawan': return renderRewardContent(); default: return <p>Halaman ini dalam pengembangan.</p>; }
+        switch(activeMenu) { case 'Absensi Hari Ini': return renderTodayDashboard(); case 'Riwayat Absensi': return renderHistoryContent(); case 'Kegiatan Karyawan Hari Ini': return renderActivityContent('Kegiatan Karyawan Hari Ini', groupedActivities); case 'Riwayat Kegiatan Karyawan': return renderActivityContent('Riwayat Kegiatan Karyawan', groupedActivities); case 'Penalti Karyawan': return renderPenaltyContent(); case 'Reward Karyawan': return renderRewardContent(); default: return <p>Halaman ini dalam pengembangan.</p> }
     }
 
     return (
         <>
             <Dialog open={isPenaltyPrintPreviewOpen} onOpenChange={setIsPenaltyPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Surat Penalti</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-penalty"><PenaltyPrintLayout penaltyData={penaltyToPrint} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsPenaltyPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-penalty')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
             <Dialog open={isRewardPrintPreviewOpen} onOpenChange={setIsRewardPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Surat Reward</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-reward"><RewardPrintLayout rewardData={rewardToPrint} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsRewardPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-reward')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
-            <Dialog open={isAttendancePrintPreviewOpen} onOpenChange={setIsAttendancePrintPreviewOpen}><DialogContent className="max-w-6xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Laporan Absensi</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-attendance"><AttendanceHistoryPrintLayout records={filteredHistoryRecords} period={historyDateRange!} summary={historySummary} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsAttendancePrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-attendance')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
+            <Dialog open={isAttendancePrintPreviewOpen} onOpenChange={setIsAttendancePrintPreviewOpen}><DialogContent className="max-w-6xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Laporan Absensi</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-attendance"><AttendanceHistoryPrintLayout records={[]} period={historyDateRange!} summary={{ totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 }} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsAttendancePrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-attendance')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
 
             <SidebarProvider>
                 <div className="flex min-h-screen bg-background text-foreground">
