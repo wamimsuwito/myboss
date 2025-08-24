@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -7,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, History, Calendar as CalendarIcon, UserCheck, Eye, LogOut, ShieldX, Star, Activity, Users, Clock, FilterX, ClipboardList, Camera, X, Printer, UserSearch, Briefcase } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfDay, endOfDay, isWithinInterval, differenceInMinutes, isSameDay, subDays, startOfMonth, endOfMonth, getDaysInMonth, eachDayOfInterval, addMonths } from 'date-fns';
+import { format, startOfDay, endOfDay, isWithinInterval, differenceInMinutes, isSameDay, subDays, startOfMonth, endOfMonth, getDaysInMonth, eachDayOfInterval, addMonths, parseISO } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { db, collection, query, where, getDocs, Timestamp, orderBy, addDoc, limit } from '@/lib/firebase';
-import type { UserData, LocationData, PenaltyEntry, RewardEntry, AttendanceRecord, ActivityLog, OvertimeRecord, TripLog } from '@/lib/types';
+import type { UserData, LocationData, PenaltyEntry, RewardEntry, AttendanceRecord, ActivityLog, OvertimeRecord, ProductionData } from '@/lib/types';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -37,14 +36,26 @@ type AttendanceRecordWithLateMinutes = AttendanceRecord & { lateMinutes: number 
 
 const CHECK_IN_DEADLINE = { hours: 7, minutes: 30 };
 
+const toValidDate = (timestamp: any): Date | null => {
+    if (!timestamp) return null;
+    if (timestamp.toDate) return timestamp.toDate();
+    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+        const date = new Date(timestamp);
+        return isNaN(date.getTime()) ? null : date;
+    }
+    return null;
+};
+
 const safeFormatTimestamp = (timestamp: any, formatString: string) => {
-    if (!timestamp || typeof timestamp.toDate !== 'function') return null;
+    const date = toValidDate(timestamp);
+    if (!date) return null;
     try {
-        return format(timestamp.toDate(), formatString, { locale: localeID });
+        return format(date, formatString, { locale: localeID });
     } catch (error) {
         return null;
     }
 }
+
 
 //--- Helper functions for date period
 const getThisPeriod = () => {
@@ -86,7 +97,8 @@ export default function HrdPusatPage() {
     const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
     const [allOvertime, setAllOvertime] = useState<OvertimeRecord[]>([]);
     const [allActivities, setAllActivities] = useState<ActivityLog[]>([]);
-    const [tripLogs, setTripLogs] = useState<TripLog[]>([]);
+    const [allProductions, setAllProductions] = useState<ProductionData[]>([]);
+
 
     const [isLoading, setIsLoading] = useState(true);
     const [userInfo, setUserInfo] = useState<UserData | null>(null);
@@ -152,21 +164,21 @@ export default function HrdPusatPage() {
                 setSelectedLocation(locationsData[0].name);
             }
 
-            const [penaltiesSnap, rewardsSnap, attendanceSnap, overtimeSnap, activitiesSnap, tripLogsSnap] = await Promise.all([
+            const [penaltiesSnap, rewardsSnap, attendanceSnap, overtimeSnap, activitiesSnap, productionsSnap] = await Promise.all([
                 getDocs(collection(db, "penalties")),
                 getDocs(collection(db, "rewards")),
                 getDocs(collection(db, "absensi")),
                 getDocs(collection(db, "overtime_absensi")),
                 getDocs(query(collection(db, "kegiatan_harian"), orderBy('createdAt', 'desc'), limit(100))),
-                getDocs(collection(db, 'all_trip_histories'))
+                getDocs(collection(db, "productions"))
             ]);
 
-            setPenalties(penaltiesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as PenaltyEntry).sort((a,b) => (b.createdAt?.toDate()?.getTime() || 0) - (a.createdAt?.toDate()?.getTime() || 0)));
-            setRewards(rewardsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as RewardEntry).sort((a,b) => (b.createdAt?.toDate()?.getTime() || 0) - (a.createdAt?.toDate()?.getTime() || 0)));
+            setPenalties(penaltiesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as PenaltyEntry).sort((a,b) => (toValidDate(b.createdAt)?.getTime() || 0) - (toValidDate(a.createdAt)?.getTime() || 0)));
+            setRewards(rewardsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as RewardEntry).sort((a,b) => (toValidDate(b.createdAt)?.getTime() || 0) - (toValidDate(a.createdAt)?.getTime() || 0)));
             setAllAttendance(attendanceSnap.docs.map(d => ({...d.data(), id: d.id}) as AttendanceRecord));
             setAllOvertime(overtimeSnap.docs.map(d => ({...d.data(), id: d.id}) as OvertimeRecord));
             setAllActivities(activitiesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ActivityLog));
-            setTripLogs(tripLogsSnap.docs.map(d => d.data() as TripLog));
+            setAllProductions(productionsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ProductionData));
 
         } catch (error) {
             console.error("Failed to fetch initial data:", error);
@@ -181,34 +193,71 @@ export default function HrdPusatPage() {
         if (userInfo) { fetchAllData(); }
     }, [userInfo, fetchAllData]);
 
-    const { todayAttendance, todayOvertime, todayTripLogs } = useMemo(() => {
+    const { todayAttendance, todayOvertime } = useMemo(() => {
         const selectedDayStart = startOfDay(selectedDate);
+        
+        const attendance = allAttendance
+            .filter(rec => {
+                const checkInDate = toValidDate(rec.checkInTime);
+                return checkInDate && isSameDay(checkInDate, selectedDayStart);
+            })
+            .map(rec => {
+                const checkInTime = toValidDate(rec.checkInTime)!;
+                const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
+                const lateMinutes = differenceInMinutes(checkInTime, deadline);
+                return { ...rec, lateMinutes: lateMinutes > 0 ? lateMinutes : 0 };
+            });
+
+        const overtime = allOvertime.filter(rec => {
+            const checkInDate = toValidDate(rec.checkInTime);
+            return checkInDate && isSameDay(checkInDate, selectedDayStart)
+        });
+
+        const productionsToday = allProductions.filter(prod => {
+            const prodDate = toValidDate(prod.tanggal);
+            return prodDate && isSameDay(prodDate, selectedDayStart);
+        });
+
+        const combinedWithRit = users.map(user => {
+            const userAttendance = attendance.find(a => a.userId === user.id);
+            const userOvertime = overtime.find(o => o.userId === user.id);
+            const userProductions = productionsToday.filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase());
+
+            let ritPertama: string | null = null;
+            let ritTerakhir: string | null = null;
+            if (userProductions.length > 0) {
+                const sortedProductions = userProductions.sort((a,b) => parseISO(a.jamMulai).getTime() - parseISO(b.jamMulai).getTime());
+                ritPertama = format(parseISO(sortedProductions[0].jamMulai), 'HH:mm');
+                ritTerakhir = format(parseISO(sortedProductions[sortedProductions.length - 1].jamSelesai), 'HH:mm');
+            }
+
+            if(userAttendance || userOvertime) {
+                return {
+                    ...user,
+                    ...(userAttendance || {}),
+                    overtimeData: userOvertime,
+                    ritPertama,
+                    ritTerakhir
+                };
+            }
+            return null;
+        }).filter(Boolean);
+
         return {
-            todayAttendance: allAttendance
-                .filter(rec => rec.checkInTime && rec.checkInTime.toDate && isSameDay(rec.checkInTime.toDate(), selectedDayStart))
-                .map(rec => {
-                    const checkInTime = rec.checkInTime.toDate();
-                    const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
-                    const lateMinutes = differenceInMinutes(checkInTime, deadline);
-                    return { ...rec, lateMinutes: lateMinutes > 0 ? lateMinutes : 0 };
-                })
-                .sort((a, b) => b.checkInTime.toDate().getTime() - a.checkInTime.toDate().getTime()),
-            todayOvertime: allOvertime.filter(rec => rec.checkInTime && rec.checkInTime.toDate && isSameDay(rec.checkInTime.toDate(), selectedDayStart)),
-            todayTripLogs: tripLogs.filter(log => log.departFromBp && isSameDay(new Date(log.departFromBp), selectedDayStart))
+            todayAttendance: combinedWithRit.filter(c => c && c.id).sort((a: any, b: any) => (toValidDate(b.checkInTime)?.getTime() || 0) - (toValidDate(a.checkInTime)?.getTime() || 0)),
+            todayOvertime: overtime
         };
-    }, [allAttendance, allOvertime, selectedDate, tripLogs]);
+    }, [allAttendance, allOvertime, allProductions, selectedDate, users]);
     
     const filteredAttendance = useMemo(() => {
         if (selectedLocation === 'all') { return todayAttendance; }
-        const userIdsInLocation = new Set(allUsers.filter(u => u.lokasi === selectedLocation).map(u => u.id));
-        return todayAttendance.filter(rec => userIdsInLocation.has(rec.userId));
-    }, [todayAttendance, selectedLocation, allUsers]);
+        return todayAttendance.filter(rec => rec.checkInLocationName === selectedLocation);
+    }, [todayAttendance, selectedLocation]);
 
     const filteredOvertime = useMemo(() => {
         if (selectedLocation === 'all') { return todayOvertime; }
-        const userIdsInLocation = new Set(allUsers.filter(u => u.lokasi === selectedLocation).map(u => u.id));
-        return todayOvertime.filter(rec => userIdsInLocation.has(rec.userId));
-    }, [todayOvertime, selectedLocation, allUsers]);
+        return todayOvertime.filter(rec => rec.checkInLocationName === selectedLocation);
+    }, [todayOvertime, selectedLocation]);
     
     const groupedActivities = useMemo(() => {
         let dataToGroup = allActivities;
@@ -218,7 +267,7 @@ export default function HrdPusatPage() {
              const fromDate = startOfDay(dateRange.from);
              const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
              dataToGroup = allActivities.filter(activity => {
-                 const activityDate = activity.createdAt?.toDate ? activity.createdAt.toDate() : null;
+                 const activityDate = toValidDate(activity.createdAt);
                  return activityDate && isWithinInterval(activityDate, { start: fromDate, end: toDate });
              });
         }
@@ -246,10 +295,16 @@ export default function HrdPusatPage() {
         let totalHariAbsen = 0;
 
         const records = filteredRecords.map(user => {
-            const userAttendance = allAttendance.filter(rec => rec.userId === user.id && rec.checkInTime && isWithinInterval(rec.checkInTime.toDate(), interval));
-            const userOvertime = allOvertime.filter(rec => rec.userId === user.id && rec.checkInTime && isWithinInterval(rec.checkInTime.toDate(), interval));
+            const userAttendance = allAttendance.filter(rec => {
+                const checkInDate = toValidDate(rec.checkInTime);
+                return rec.userId === user.id && checkInDate && isWithinInterval(checkInDate, interval);
+            });
+            const userOvertime = allOvertime.filter(rec => {
+                const checkInDate = toValidDate(rec.checkInTime);
+                return rec.userId === user.id && checkInDate && isWithinInterval(checkInDate, interval);
+            });
             
-            const attendedDays = new Set(userAttendance.map(rec => format(rec.checkInTime.toDate(), 'yyyy-MM-dd')));
+            const attendedDays = new Set(userAttendance.map(rec => format(toValidDate(rec.checkInTime)!, 'yyyy-MM-dd')));
             const daysWorked = attendedDays.size;
             totalHariKerja += daysWorked;
             
@@ -257,7 +312,7 @@ export default function HrdPusatPage() {
             totalHariAbsen += daysNotWorked;
 
             const userLateMinutes = userAttendance.reduce((acc, rec) => {
-                const checkInTime = rec.checkInTime.toDate();
+                const checkInTime = toValidDate(rec.checkInTime)!;
                 const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
                 const late = differenceInMinutes(checkInTime, deadline);
                 return acc + (late > 0 ? late : 0);
@@ -265,8 +320,10 @@ export default function HrdPusatPage() {
             totalMenitTerlambat += userLateMinutes;
             
             const userOvertimeMinutes = userOvertime.reduce((acc, rec) => {
-                 if (!rec.checkInTime || !rec.checkOutTime) return acc;
-                 return acc + differenceInMinutes(rec.checkOutTime.toDate(), rec.checkInTime.toDate());
+                 const checkInTime = toValidDate(rec.checkInTime);
+                 const checkOutTime = toValidDate(rec.checkOutTime);
+                 if (!checkInTime || !checkOutTime) return acc;
+                 return acc + differenceInMinutes(checkOutTime, checkInTime);
             }, 0);
             totalJamLembur += Math.floor(userOvertimeMinutes / 60);
 
@@ -337,26 +394,25 @@ export default function HrdPusatPage() {
     if (!userInfo) { return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>; }
 
     const renderTodayDashboard = () => (
-        <Card>
+         <Card>
             <CardHeader className='flex-row items-center justify-between'>
                 <div>
                     <CardTitle>Laporan Absensi</CardTitle>
-                    <CardDescription>Menampilkan semua absensi yang tercatat pada tanggal yang dipilih.</CardDescription>
+                    <CardDescription>Menampilkan semua absensi yang tercatat pada <span className="font-semibold text-primary">{format(selectedDate, "dd MMMM yyyy", { locale: localeID })}</span></CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                     <Popover>
-                        <PopoverTrigger asChild>
-                            <Button
-                                variant={"outline"}
-                                className={cn("w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}
-                            >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {selectedDate ? format(selectedDate, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="end">
-                            <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} initialFocus />
-                        </PopoverContent>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn("w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground" )}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {selectedDate ? format(selectedDate, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} initialFocus/>
+                      </PopoverContent>
                     </Popover>
                     <Select value={selectedLocation} onValueChange={setSelectedLocation}><SelectTrigger className="w-[220px]"><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
                         <SelectContent><SelectItem value="all">Semua Lokasi</SelectItem>{locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}</SelectContent>
@@ -364,13 +420,11 @@ export default function HrdPusatPage() {
                 </div>
             </CardHeader>
             <CardContent>
-                {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
-                    : <AttendanceTable
-                        records={filteredAttendance}
-                        overtimeRecords={filteredOvertime}
-                        users={allUsers}
-                        tripLogs={todayTripLogs}
-                    />
+                {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> 
+                : <AttendanceTable 
+                    records={filteredAttendance}
+                    overtimeRecords={filteredOvertime}
+                  />
                 }
             </CardContent>
         </Card>
@@ -500,17 +554,9 @@ export default function HrdPusatPage() {
     );
 
     const renderContent = () => {
-        switch(activeMenu) { 
-            case 'Absensi Hari Ini': return renderTodayDashboard(); 
-            case 'Riwayat Absensi': return renderHistoryContent(); 
-            case 'Kegiatan Karyawan Hari Ini': return renderActivityContent('Kegiatan Karyawan Hari Ini', groupedActivities); 
-            case 'Riwayat Kegiatan Karyawan': return renderActivityContent('Riwayat Kegiatan Karyawan', groupedActivities); 
-            case 'Penalti Karyawan': return renderPenaltyContent(); 
-            case 'Reward Karyawan': return renderRewardContent(); 
-            default: return <p>Halaman ini dalam pengembangan.</p>;
-        }
-    };
-    
+        switch(activeMenu) { case 'Absensi Hari Ini': return renderTodayDashboard(); case 'Riwayat Absensi': return renderHistoryContent(); case 'Kegiatan Karyawan Hari Ini': return renderActivityContent('Kegiatan Karyawan Hari Ini', groupedActivities); case 'Riwayat Kegiatan Karyawan': return renderActivityContent('Riwayat Kegiatan Karyawan', groupedActivities); case 'Penalti Karyawan': return renderPenaltyContent(); case 'Reward Karyawan': return renderRewardContent(); default: return <p>Halaman ini dalam pengembangan.</p>; }
+    }
+
     return (
         <>
             <Dialog open={isPenaltyPrintPreviewOpen} onOpenChange={setIsPenaltyPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Surat Penalti</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-penalty"><PenaltyPrintLayout penaltyData={penaltyToPrint} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsPenaltyPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-penalty')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
@@ -529,7 +575,7 @@ export default function HrdPusatPage() {
                             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'Reward Karyawan'} onClick={() => setActiveMenu('Reward Karyawan')}><Star />Reward Karyawan</SidebarMenuButton></SidebarMenuItem>
                         </SidebarMenu>
                         <SidebarFooter><Button variant="ghost" onClick={() => router.push('/login')} className="w-full justify-start"><LogOut className="mr-2 h-4 w-4" /> Keluar</Button></SidebarFooter>
-                    </Sidebar></SidebarContent></Sidebar>
+                    </SidebarContent></Sidebar>
                     <SidebarInset><main className="p-4 sm:p-6 md:p-8">
                         <header className="flex items-start sm:items-center justify-between gap-4 mb-8"><div className='flex items-center gap-4'><SidebarTrigger /><div><h1 className="text-2xl font-bold tracking-wider">{activeMenu}</h1><p className="text-muted-foreground">Selamat datang, {userInfo.username}</p></div></div></header>
                         {renderContent()}
