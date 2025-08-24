@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -126,7 +125,6 @@ export default function HrdPusatPage() {
     const [penaltyToPrint, setPenaltyToPrint] = useState<Partial<PenaltyEntry> | null>(null);
     const [isRewardPrintPreviewOpen, setIsRewardPrintPreviewOpen] = useState(false);
     const [rewardToPrint, setRewardToPrint] = useState<Partial<RewardEntry> | null>(null);
-    const [isAttendancePrintPreviewOpen, setIsAttendancePrintPreviewOpen] = useState(false);
 
     // Activity Filter States
     const [activityDateRange, setActivityDateRange] = useState<DateRange | undefined>();
@@ -195,7 +193,7 @@ export default function HrdPusatPage() {
         if (userInfo) { fetchAllData(); }
     }, [userInfo, fetchAllData]);
 
-    const { todayAttendance, todayOvertime } = useMemo(() => {
+    const { todayAttendance } = useMemo(() => {
         const selectedDayStart = startOfDay(selectedDate);
         
         const attendance = allAttendance
@@ -246,8 +244,7 @@ export default function HrdPusatPage() {
         }).filter(Boolean);
 
         return {
-            todayAttendance: combinedWithRit.filter(c => c && c.id).sort((a: any, b: any) => (toValidDate(b.checkInTime)?.getTime() || 0) - (toValidDate(a.checkInTime)?.getTime() || 0)),
-            todayOvertime: overtime
+            todayAttendance: combinedWithRit.filter(rec => rec),
         };
     }, [allAttendance, allOvertime, allProductions, selectedDate, allUsers]);
     
@@ -255,11 +252,6 @@ export default function HrdPusatPage() {
         if (selectedLocation === 'all') { return todayAttendance; }
         return todayAttendance.filter(rec => rec && rec.checkInLocationName === selectedLocation);
     }, [todayAttendance, selectedLocation]);
-
-    const filteredOvertime = useMemo(() => {
-        if (selectedLocation === 'all') { return todayOvertime; }
-        return todayOvertime.filter(rec => rec.checkInLocationName === selectedLocation);
-    }, [todayOvertime, selectedLocation]);
     
     const groupedActivities = useMemo(() => {
         let dataToGroup = allActivities;
@@ -282,56 +274,75 @@ export default function HrdPusatPage() {
         }, {} as Record<string, ActivityLog[]>);
     }, [allActivities, activityDateRange, activeMenu]);
 
-     const { filteredHistoryRecords, historySummary } = useMemo(() => {
-        const defaultSummary = { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 };
-        if (!historyDateRange?.from) return { filteredHistoryRecords: [], historySummary: defaultSummary };
-
+    const { filteredHistoryRecords, historySummary } = useMemo(() => {
+        if (!historyDateRange?.from) {
+          return { 
+            filteredHistoryRecords: [], 
+            historySummary: { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 } 
+          };
+        }
+    
         const { from, to } = historyDateRange;
         const interval = { start: startOfDay(from), end: endOfDay(to || from) };
-        
+        const daysInInterval = eachDayOfInterval(interval);
+    
         const userList = historySelectedUser ? allUsers.filter(u => u.id === historySelectedUser.id) : allUsers;
-
-        const records = userList.map(user => {
-            const attendance = allAttendance.filter(rec => {
-                const checkInDate = toValidDate(rec.checkInTime);
-                return rec.userId === user.id && checkInDate && isWithinInterval(checkInDate, interval);
-            });
-            const overtime = allOvertime.filter(rec => {
-                const checkInDate = toValidDate(rec.checkInTime);
-                return rec.userId === user.id && checkInDate && isWithinInterval(checkInDate, interval);
-            });
-            return {
+    
+        const dailyRecords: any[] = [];
+        let summary = { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 };
+    
+        userList.forEach(user => {
+          let userHariKerja = 0;
+          let userJamLembur = 0;
+          let userMenitTerlambat = 0;
+    
+          daysInInterval.forEach(day => {
+            const attendance = allAttendance.find(rec =>
+              rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, day)
+            );
+            const overtime = allOvertime.find(rec =>
+              rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, day)
+            );
+    
+            if (attendance) {
+              userHariKerja += 1;
+              const checkInTime = toValidDate(attendance.checkInTime)!;
+              const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
+              const late = differenceInMinutes(checkInTime, deadline);
+              if (late > 0) {
+                userMenitTerlambat += late;
+              }
+            }
+            if (overtime && overtime.checkOutTime) {
+                const checkIn = toValidDate(overtime.checkInTime);
+                const checkOut = toValidDate(overtime.checkOutTime);
+                if (checkIn && checkOut) {
+                    userJamLembur += differenceInMinutes(checkOut, checkIn);
+                }
+            }
+    
+            if (attendance || overtime) {
+              dailyRecords.push({
                 ...user,
-                attendance,
-                overtime
-            };
+                id: `${user.id}-${format(day, 'yyyy-MM-dd')}`,
+                checkInTime: attendance?.checkInTime,
+                checkOutTime: attendance?.checkOutTime,
+                checkInPhoto: attendance?.checkInPhoto,
+                checkOutPhoto: attendance?.checkOutPhoto,
+                checkInLocationName: attendance?.checkInLocationName,
+                lateMinutes: attendance ? (differenceInMinutes(toValidDate(attendance.checkInTime)!, new Date(toValidDate(attendance.checkInTime)!).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0)) > 0 ? differenceInMinutes(toValidDate(attendance.checkInTime)!, new Date(toValidDate(attendance.checkInTime)!).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0)) : 0) : 0,
+                overtimeData: overtime,
+              });
+            }
+          });
+    
+          summary.totalHariKerja += userHariKerja;
+          summary.totalJamLembur += Math.floor(userJamLembur / 60);
+          summary.totalMenitTerlambat += userMenitTerlambat;
+          summary.totalHariAbsen += (daysInInterval.length - userHariKerja);
         });
-        
-        const summary = records.reduce((acc, user) => {
-            const attendedDays = new Set(user.attendance.map(rec => format(toValidDate(rec.checkInTime)!, 'yyyy-MM-dd'))).size;
-            acc.totalHariKerja += attendedDays;
-
-            const daysInPeriodForUser = eachDayOfInterval(interval).length; // Simplified; assumes user active all period
-            acc.totalHariAbsen += daysInPeriodForUser - attendedDays;
-
-            acc.totalMenitTerlambat += user.attendance.reduce((sum, rec) => {
-                const checkInTime = toValidDate(rec.checkInTime)!;
-                const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
-                const late = differenceInMinutes(checkInTime, deadline);
-                return sum + (late > 0 ? late : 0);
-            }, 0);
-
-            const overtimeMinutes = user.overtime.reduce((sum, rec) => {
-                 const checkInTime = toValidDate(rec.checkInTime);
-                 const checkOutTime = toValidDate(rec.checkOutTime);
-                 return (!checkInTime || !checkOutTime) ? sum : sum + differenceInMinutes(checkOutTime, checkInTime);
-            }, 0);
-            acc.totalJamLembur += Math.floor(overtimeMinutes / 60);
-
-            return acc;
-        }, { ...defaultSummary });
-
-        return { filteredHistoryRecords: records, historySummary: summary };
+    
+        return { filteredHistoryRecords: dailyRecords, historySummary: summary };
     }, [historyDateRange, historySelectedUser, allUsers, allAttendance, allOvertime]);
 
 
@@ -390,7 +401,7 @@ export default function HrdPusatPage() {
     if (!userInfo) { return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>; }
 
     const renderTodayDashboard = () => (
-         <Card>
+         <Card className='no-print'>
             <CardHeader className='flex-row items-center justify-between'>
                 <div>
                     <CardTitle>Laporan Absensi</CardTitle>
@@ -460,7 +471,7 @@ export default function HrdPusatPage() {
     }
     
     const renderHistoryContent = () => (
-        <Card>
+        <Card className="no-print">
             <CardHeader>
                 <CardTitle>Riwayat Absensi Karyawan</CardTitle>
                 <CardDescription>Analisis dan cetak riwayat kehadiran karyawan berdasarkan periode.</CardDescription>
@@ -482,9 +493,8 @@ export default function HrdPusatPage() {
                     <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full md:w-[280px] justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4"/>{historyDateRange?.from ? format(historyDateRange.from, "d MMM") + (historyDateRange.to ? " - " + format(historyDateRange.to, "d MMM yyyy") : "") : "Pilih Rentang"}</Button></PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start"><Calendar mode="range" selected={historyDateRange} onSelect={setHistoryDateRange} numberOfMonths={2}/></PopoverContent>
                     </Popover>
-                    <Button onClick={() => setIsAttendancePrintPreviewOpen(true)} disabled={isLoading || filteredHistoryRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
+                    <Button onClick={() => window.print()} disabled={isLoading || filteredHistoryRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
                 </div>
-                
                  {isLoading ? (
                     <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
                  ) : (
@@ -536,12 +546,15 @@ export default function HrdPusatPage() {
 
     return (
         <>
-            <Dialog open={isPenaltyPrintPreviewOpen} onOpenChange={setIsPenaltyPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Surat Penalti</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-penalty"><PenaltyPrintLayout penaltyData={penaltyToPrint} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsPenaltyPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-penalty')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
-            <Dialog open={isRewardPrintPreviewOpen} onOpenChange={setIsRewardPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Surat Reward</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-reward"><RewardPrintLayout rewardData={rewardToPrint} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsRewardPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-reward')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
-            <Dialog open={isAttendancePrintPreviewOpen} onOpenChange={setIsAttendancePrintPreviewOpen}><DialogContent className="max-w-6xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Laporan Absensi</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-attendance"><AttendanceHistoryPrintLayout records={filteredHistoryRecords} period={historyDateRange!} summary={historySummary} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsAttendancePrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-attendance')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
+            <Dialog open={isPenaltyPrintPreviewOpen} onOpenChange={setIsPenaltyPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b no-print"><DialogTitle>Pratinjau Surat Penalti</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-penalty"><PenaltyPrintLayout penaltyData={penaltyToPrint} /></div><DialogFooter className="p-4 border-t bg-muted no-print"><Button variant="outline" onClick={() => setIsPenaltyPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-penalty')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
+            <Dialog open={isRewardPrintPreviewOpen} onOpenChange={setIsRewardPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b no-print"><DialogTitle>Pratinjau Surat Reward</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-reward"><RewardPrintLayout rewardData={rewardToPrint} /></div><DialogFooter className="p-4 border-t bg-muted no-print"><Button variant="outline" onClick={() => setIsRewardPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-reward')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
+            
+            <div className="print-only">
+                {historyDateRange?.from && <AttendanceHistoryPrintLayout records={filteredHistoryRecords} period={historyDateRange} summary={historySummary} />}
+            </div>
 
             <SidebarProvider>
-                <div className="flex min-h-screen bg-background text-foreground">
+                <div className="flex min-h-screen bg-background text-foreground no-print">
                     <Sidebar><SidebarContent><SidebarHeader><h2 className="text-xl font-semibold text-primary">HRD Pusat</h2></SidebarHeader>
                         <SidebarMenu>
                             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'Absensi Hari Ini'} onClick={() => setActiveMenu('Absensi Hari Ini')}><UserCheck />Absensi Hari Ini</SidebarMenuButton></SidebarMenuItem>
