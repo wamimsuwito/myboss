@@ -253,7 +253,7 @@ export default function HrdPusatPage() {
     
     const filteredAttendance = useMemo(() => {
         if (selectedLocation === 'all') { return todayAttendance; }
-        return todayAttendance.filter(rec => rec.checkInLocationName === selectedLocation);
+        return todayAttendance.filter(rec => rec && rec.checkInLocationName === selectedLocation);
     }, [todayAttendance, selectedLocation]);
 
     const filteredOvertime = useMemo(() => {
@@ -489,30 +489,11 @@ export default function HrdPusatPage() {
                     </Popover>
                     <Button onClick={() => setIsAttendancePrintPreviewOpen(true)} disabled={isLoading || filteredHistoryRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
                 </div>
-                
-                 <div className="border rounded-md overflow-x-auto">
-                    <Table>
-                        <TableHeader><TableRow><TableHead>Nama Karyawan</TableHead><TableHead className="text-center">Hari Kerja</TableHead><TableHead className="text-center">Total Lembur</TableHead><TableHead className="text-center">Total Terlambat</TableHead><TableHead className="text-center">Hari Absen</TableHead></TableRow></TableHeader>
-                        <TableBody>
-                            {isLoading ? <TableRow><TableCell colSpan={5} className="h-40 text-center"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow>
-                            : filteredHistoryRecords.length > 0 ? filteredHistoryRecords.map(user => (
-                                <TableRow key={user.id}>
-                                    <TableCell className="font-medium">{user.username}</TableCell>
-                                    <TableCell className="text-center">{user.summary.daysWorked}</TableCell>
-                                    <TableCell className="text-center">{user.summary.overtimeHours} jam</TableCell>
-                                    <TableCell className="text-center">{user.summary.lateMinutes} mnt</TableCell>
-                                    <TableCell className="text-center">{user.summary.daysAbsent}</TableCell>
-                                </TableRow>
-                            )) : <TableRow><TableCell colSpan={5} className="text-center h-24">Tidak ada data untuk filter yang dipilih.</TableCell></TableRow>}
-                        </TableBody>
-                    </Table>
-                 </div>
-                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
-                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Hari Kerja</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalHariKerja}</p></CardContent></Card>
-                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Jam Lembur</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalJamLembur}</p></CardContent></Card>
-                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Menit Terlambat</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalMenitTerlambat}</p></CardContent></Card>
-                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Hari Absen</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalHariAbsen}</p></CardContent></Card>
-                 </div>
+                 {isLoading ? (
+                    <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
+                 ) : (
+                    <AttendanceTable records={filteredHistoryRecords} />
+                 )}
             </CardContent>
         </Card>
     );
