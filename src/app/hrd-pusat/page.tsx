@@ -258,7 +258,7 @@ export default function HrdPusatPage() {
 
     const filteredOvertime = useMemo(() => {
         if (selectedLocation === 'all') { return todayOvertime; }
-        return todayOvertime.filter(rec => rec && rec.checkInLocationName === selectedLocation);
+        return todayOvertime.filter(rec => rec.checkInLocationName === selectedLocation);
     }, [todayOvertime, selectedLocation]);
     
     const groupedActivities = useMemo(() => {
@@ -283,80 +283,56 @@ export default function HrdPusatPage() {
     }, [allActivities, activityDateRange, activeMenu]);
 
      const { filteredHistoryRecords, historySummary } = useMemo(() => {
-        if (!historyDateRange?.from) return { filteredHistoryRecords: [], historySummary: {} };
+        const defaultSummary = { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 };
+        if (!historyDateRange?.from) return { filteredHistoryRecords: [], historySummary: defaultSummary };
 
         const { from, to } = historyDateRange;
         const interval = { start: startOfDay(from), end: endOfDay(to || from) };
-        const daysInInterval = eachDayOfInterval(interval);
+        
+        const userList = historySelectedUser ? allUsers.filter(u => u.id === historySelectedUser.id) : allUsers;
 
-        let userList = historySelectedUser ? allUsers.filter(u => u.id === historySelectedUser.id) : allUsers;
-
-        const dailyRecords: any[] = [];
-        let totalDaysWorked = 0;
-        let totalOvertimeHours = 0;
-        let totalLateMinutes = 0;
-
-        daysInInterval.forEach(day => {
-            userList.forEach(user => {
-                const attendance = allAttendance.find(rec => {
-                    const checkInDate = toValidDate(rec.checkInTime);
-                    return rec.userId === user.id && checkInDate && isSameDay(checkInDate, day);
-                });
-                
-                const overtime = allOvertime.find(rec => {
-                    const checkInDate = toValidDate(rec.checkInTime);
-                    return rec.userId === user.id && checkInDate && isSameDay(checkInDate, day);
-                });
-                
-                const productionsToday = allProductions.filter(prod => {
-                    const prodDate = toValidDate(prod.tanggal);
-                    return prodDate && isSameDay(prodDate, day) && prod.namaSopir && prod.namaSopir.toUpperCase() === user.username.toUpperCase();
-                });
-
-                if (attendance || overtime) {
-                    const lateMinutes = attendance ? (() => {
-                        const checkInTime = toValidDate(attendance.checkInTime)!;
-                        const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
-                        const late = differenceInMinutes(checkInTime, deadline);
-                        return late > 0 ? late : 0;
-                    })() : 0;
-                    
-                    const overtimeMinutes = (overtime && overtime.checkInTime && overtime.checkOutTime) ? differenceInMinutes(toValidDate(overtime.checkOutTime)!, toValidDate(overtime.checkInTime)!) : 0;
-                    totalOvertimeHours += Math.floor(overtimeMinutes / 60);
-                    totalLateMinutes += lateMinutes;
-                    if(attendance) totalDaysWorked++;
-                    
-                    let ritPertama: string | null = null;
-                    let ritTerakhir: string | null = null;
-                    if (productionsToday.length > 0) {
-                        const sortedProductions = productionsToday.sort((a,b) => parseISO(a.jamMulai).getTime() - parseISO(b.jamMulai).getTime());
-                        ritPertama = format(parseISO(sortedProductions[0].jamMulai), 'HH:mm');
-                        ritTerakhir = format(parseISO(sortedProductions[sortedProductions.length - 1].jamSelesai), 'HH:mm');
-                    }
-
-                    dailyRecords.push({
-                        ...user,
-                        id: `${user.id}-${format(day, 'yyyy-MM-dd')}`, // Unique key for each day-user record
-                        date: day,
-                        attendance: attendance,
-                        overtime: overtime,
-                        ritPertama,
-                        ritTerakhir,
-                    });
-                }
+        const records = userList.map(user => {
+            const attendance = allAttendance.filter(rec => {
+                const checkInDate = toValidDate(rec.checkInTime);
+                return rec.userId === user.id && checkInDate && isWithinInterval(checkInDate, interval);
             });
+            const overtime = allOvertime.filter(rec => {
+                const checkInDate = toValidDate(rec.checkInTime);
+                return rec.userId === user.id && checkInDate && isWithinInterval(checkInDate, interval);
+            });
+            return {
+                ...user,
+                attendance,
+                overtime
+            };
         });
         
-        return { 
-            filteredHistoryRecords: dailyRecords, 
-            historySummary: {
-                totalHariKerja: totalDaysWorked,
-                totalJamLembur: totalOvertimeHours,
-                totalMenitTerlambat: totalLateMinutes,
-                totalHariAbsen: (daysInInterval.length * userList.length) - totalDaysWorked,
-            }
-        };
-    }, [historyDateRange, historySelectedUser, allUsers, allAttendance, allOvertime, allProductions]);
+        const summary = records.reduce((acc, user) => {
+            const attendedDays = new Set(user.attendance.map(rec => format(toValidDate(rec.checkInTime)!, 'yyyy-MM-dd'))).size;
+            acc.totalHariKerja += attendedDays;
+
+            const daysInPeriodForUser = eachDayOfInterval(interval).length; // Simplified; assumes user active all period
+            acc.totalHariAbsen += daysInPeriodForUser - attendedDays;
+
+            acc.totalMenitTerlambat += user.attendance.reduce((sum, rec) => {
+                const checkInTime = toValidDate(rec.checkInTime)!;
+                const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
+                const late = differenceInMinutes(checkInTime, deadline);
+                return sum + (late > 0 ? late : 0);
+            }, 0);
+
+            const overtimeMinutes = user.overtime.reduce((sum, rec) => {
+                 const checkInTime = toValidDate(rec.checkInTime);
+                 const checkOutTime = toValidDate(rec.checkOutTime);
+                 return (!checkInTime || !checkOutTime) ? sum : sum + differenceInMinutes(checkOutTime, checkInTime);
+            }, 0);
+            acc.totalJamLembur += Math.floor(overtimeMinutes / 60);
+
+            return acc;
+        }, { ...defaultSummary });
+
+        return { filteredHistoryRecords: records, historySummary: summary };
+    }, [historyDateRange, historySelectedUser, allUsers, allAttendance, allOvertime]);
 
 
     const handleSavePenalty = async (e: React.FormEvent) => {
@@ -508,6 +484,7 @@ export default function HrdPusatPage() {
                     </Popover>
                     <Button onClick={() => setIsAttendancePrintPreviewOpen(true)} disabled={isLoading || filteredHistoryRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
                 </div>
+                
                  {isLoading ? (
                     <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
                  ) : (
