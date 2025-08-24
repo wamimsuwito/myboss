@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -12,7 +11,6 @@ import { Camera, X } from 'lucide-react';
 
 interface AttendanceTableProps {
   records: any[];
-  overtimeRecords: OvertimeRecord[];
 }
 
 const toValidDate = (timestamp: any): Date | null => {
@@ -83,7 +81,7 @@ const formatTotalOvertime = (checkIn: any, checkOut: any): string => {
     return `${hours}j ${minutes}m`;
 }
 
-export default function AttendanceTable({ records: combinedData, overtimeRecords }: AttendanceTableProps) {
+export default function AttendanceTable({ records }: AttendanceTableProps) {
     return (
         <div className="border rounded-md overflow-x-auto">
             <Table>
@@ -95,16 +93,16 @@ export default function AttendanceTable({ records: combinedData, overtimeRecords
                         <TableHead className="text-center">Jam Masuk</TableHead>
                         <TableHead className="text-center">Jam Pulang</TableHead>
                         <TableHead className="text-center">Terlambat (mnt)</TableHead>
+                        <TableHead className="text-center">Rit Pertama</TableHead>
+                        <TableHead className="text-center">Rit Terakhir</TableHead>
                         <TableHead className="text-center">Jam Masuk Lembur</TableHead>
                         <TableHead className="text-center">Jam Pulang Lembur</TableHead>
                         <TableHead className="text-center">Total Lembur</TableHead>
-                        <TableHead className="text-center">Rit Pertama</TableHead>
-                        <TableHead className="text-center">Rit Terakhir</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {combinedData.length > 0 ? (
-                        combinedData.map(rec => {
+                    {records.length > 0 ? (
+                        records.map(rec => {
                             const lateMinutes = rec.lateMinutes ?? 0;
                             const overtime = rec.overtimeData;
                             return (
@@ -118,18 +116,18 @@ export default function AttendanceTable({ records: combinedData, overtimeRecords
                                     <TimeAndPhotoCell timestamp={rec.checkInTime} photoUrl={rec.checkInPhoto} />
                                     <TimeAndPhotoCell timestamp={rec.checkOutTime} photoUrl={rec.checkOutPhoto} />
                                     <TableCell className={`text-center ${lateMinutes > 0 ? 'text-destructive font-bold' : ''}`}>{lateMinutes}</TableCell>
+                                    <TableCell className="text-center">{rec.ritPertama || '-'}</TableCell>
+                                    <TableCell className="text-center">{rec.ritTerakhir || '-'}</TableCell>
                                     <TimeAndPhotoCell timestamp={overtime?.checkInTime} photoUrl={overtime?.checkInPhoto} />
                                     <TimeAndPhotoCell timestamp={overtime?.checkOutTime} photoUrl={overtime?.checkOutPhoto} />
                                     <TableCell className="text-center">{formatTotalOvertime(overtime?.checkInTime, overtime?.checkOutTime)}</TableCell>
-                                    <TableCell className="text-center">{rec.ritPertama || '-'}</TableCell>
-                                    <TableCell className="text-center">{rec.ritTerakhir || '-'}</TableCell>
                                 </TableRow>
                             )
                         })
                     ) : (
                         <TableRow>
                             <TableCell colSpan={11} className="text-center h-24">
-                                Tidak ada data absensi untuk tanggal ini.
+                                Tidak ada data absensi untuk ditampilkan.
                             </TableCell>
                         </TableRow>
                     )}

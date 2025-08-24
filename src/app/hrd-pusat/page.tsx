@@ -254,11 +254,6 @@ export default function HrdPusatPage() {
         if (selectedLocation === 'all') { return todayAttendance; }
         return todayAttendance.filter(rec => rec.checkInLocationName === selectedLocation);
     }, [todayAttendance, selectedLocation]);
-
-    const filteredOvertime = useMemo(() => {
-        if (selectedLocation === 'all') { return todayOvertime; }
-        return todayOvertime.filter(rec => rec.checkInLocationName === selectedLocation);
-    }, [todayOvertime, selectedLocation]);
     
     const groupedActivities = useMemo(() => {
         let dataToGroup = allActivities;
@@ -471,39 +466,71 @@ export default function HrdPusatPage() {
         );
     }
     
-    const renderHistoryContent = () => (
-        <Card>
-            <CardHeader>
-                <CardTitle>Riwayat Absensi Karyawan</CardTitle>
-                <CardDescription>Analisis dan cetak riwayat kehadiran karyawan berdasarkan periode.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <div className="flex flex-col md:flex-row gap-2">
-                    <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full md:w-auto justify-start text-left font-normal"><UserSearch className="mr-2 h-4 w-4"/>{historySelectedUser ? historySelectedUser.username : 'Semua Karyawan'}</Button></PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-0" align="start">
-                            <Command><CommandInput placeholder="Cari karyawan..."/><CommandList><CommandEmpty>Tidak ada karyawan ditemukan.</CommandEmpty><CommandGroup>
-                                    <CommandItem onSelect={() => setHistorySelectedUser(null)} className="cursor-pointer">Semua Karyawan</CommandItem>
-                                    {allUsers.map(user => <CommandItem key={user.id} value={user.username} onSelect={() => setHistorySelectedUser(user)} className="cursor-pointer">{user.username}</CommandItem>)}
-                            </CommandGroup></CommandList></Command>
-                        </PopoverContent>
-                    </Popover>
-                    <Select onValueChange={(value) => { if(value === 'this') setHistoryDateRange(getThisPeriod()); if(value === 'last') setHistoryDateRange(getLastPeriod()); }}>
-                        <SelectTrigger className="w-full md:w-[250px]"><SelectValue placeholder="Pilih Periode..." /></SelectTrigger>
-                        <SelectContent><SelectItem value="this">Periode Ini (21-20)</SelectItem><SelectItem value="last">Periode Bulan Lalu</SelectItem></SelectContent>
-                    </Select>
-                    <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full md:w-[280px] justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4"/>{historyDateRange?.from ? format(historyDateRange.from, "d MMM") + (historyDateRange.to ? " - " + format(historyDateRange.to, "d MMM yyyy") : "") : "Pilih Rentang"}</Button></PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="range" selected={historyDateRange} onSelect={setHistoryDateRange} numberOfMonths={2}/></PopoverContent>
-                    </Popover>
-                    <Button onClick={() => setIsAttendancePrintPreviewOpen(true)} disabled={isLoading || filteredHistoryRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
-                </div>
-                 {isLoading ? (
-                    <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
-                 ) : (
-                    <AttendanceTable records={filteredHistoryRecords} />
-                 )}
-            </CardContent>
-        </Card>
-    );
+    const renderHistoryContent = () => {
+        const historySummary = filteredHistoryRecords.reduce((acc, user) => {
+            acc.totalHariKerja += user.summary.daysWorked;
+            acc.totalJamLembur += user.summary.overtimeHours;
+            acc.totalMenitTerlambat += user.summary.lateMinutes;
+            acc.totalHariAbsen += user.summary.daysAbsent;
+            return acc;
+        }, { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 });
+
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Riwayat Absensi Karyawan</CardTitle>
+                    <CardDescription>Analisis dan cetak riwayat kehadiran karyawan berdasarkan periode.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div className="flex flex-col md:flex-row gap-2">
+                        <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full md:w-auto justify-start text-left font-normal"><UserSearch className="mr-2 h-4 w-4"/>{historySelectedUser ? historySelectedUser.username : 'Semua Karyawan'}</Button></PopoverTrigger>
+                            <PopoverContent className="w-[300px] p-0" align="start">
+                                <Command><CommandInput placeholder="Cari karyawan..."/><CommandList><CommandEmpty>Tidak ada karyawan ditemukan.</CommandEmpty><CommandGroup>
+                                        <CommandItem onSelect={() => setHistorySelectedUser(null)} className="cursor-pointer">Semua Karyawan</CommandItem>
+                                        {allUsers.map(user => <CommandItem key={user.id} value={user.username} onSelect={() => setHistorySelectedUser(user)} className="cursor-pointer">{user.username}</CommandItem>)}
+                                </CommandGroup></CommandList></Command>
+                            </PopoverContent>
+                        </Popover>
+                        <Select onValueChange={(value) => { if(value === 'this') setHistoryDateRange(getThisPeriod()); if(value === 'last') setHistoryDateRange(getLastPeriod()); }}>
+                            <SelectTrigger className="w-full md:w-[250px]"><SelectValue placeholder="Pilih Periode..." /></SelectTrigger>
+                            <SelectContent><SelectItem value="this">Periode Ini (21-20)</SelectItem><SelectItem value="last">Periode Bulan Lalu</SelectItem></SelectContent>
+                        </Select>
+                        <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full md:w-[280px] justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4"/>{historyDateRange?.from ? format(historyDateRange.from, "d MMM") + (historyDateRange.to ? " - " + format(historyDateRange.to, "d MMM yyyy") : "") : "Pilih Rentang"}</Button></PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start"><Calendar mode="range" selected={historyDateRange} onSelect={setHistoryDateRange} numberOfMonths={2}/></PopoverContent>
+                        </Popover>
+                        <Button onClick={() => setIsAttendancePrintPreviewOpen(true)} disabled={isLoading || filteredHistoryRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
+                    </div>
+                     {isLoading ? (
+                        <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
+                     ) : (
+                        <div className="border rounded-md overflow-x-auto">
+                        <Table>
+                            <TableHeader><TableRow><TableHead>Nama Karyawan</TableHead><TableHead className="text-center">Hari Kerja</TableHead><TableHead className="text-center">Total Lembur</TableHead><TableHead className="text-center">Total Terlambat</TableHead><TableHead className="text-center">Hari Absen</TableHead></TableRow></TableHeader>
+                            <TableBody>
+                                {filteredHistoryRecords.length > 0 ? filteredHistoryRecords.map(user => (
+                                    <TableRow key={user.id}>
+                                        <TableCell className="font-medium">{user.username}</TableCell>
+                                        <TableCell className="text-center">{user.summary.daysWorked}</TableCell>
+                                        <TableCell className="text-center">{user.summary.overtimeHours} jam</TableCell>
+                                        <TableCell className="text-center">{user.summary.lateMinutes} mnt</TableCell>
+                                        <TableCell className="text-center">{user.summary.daysAbsent}</TableCell>
+                                    </TableRow>
+                                )) : <TableRow><TableCell colSpan={5} className="text-center h-24">Tidak ada data untuk filter yang dipilih.</TableCell></TableRow>}
+                            </TableBody>
+                        </Table>
+                        </div>
+                     )}
+                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
+                        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Hari Kerja</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalHariKerja}</p></CardContent></Card>
+                        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Jam Lembur</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalJamLembur}</p></CardContent></Card>
+                        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Menit Terlambat</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalMenitTerlambat}</p></CardContent></Card>
+                        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Hari Absen</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalHariAbsen}</p></CardContent></Card>
+                     </div>
+                </CardContent>
+            </Card>
+        );
+    }
+
 
     const renderPenaltyContent = () => (
         <div className="space-y-6">
@@ -544,12 +571,20 @@ export default function HrdPusatPage() {
     const renderContent = () => {
         switch(activeMenu) { case 'Absensi Hari Ini': return renderTodayDashboard(); case 'Riwayat Absensi': return renderHistoryContent(); case 'Kegiatan Karyawan Hari Ini': return renderActivityContent('Kegiatan Karyawan Hari Ini', groupedActivities); case 'Riwayat Kegiatan Karyawan': return renderActivityContent('Riwayat Kegiatan Karyawan', groupedActivities); case 'Penalti Karyawan': return renderPenaltyContent(); case 'Reward Karyawan': return renderRewardContent(); default: return <p>Halaman ini dalam pengembangan.</p> }
     }
+    
+     const historySummary = filteredHistoryRecords.reduce((acc, user) => {
+        acc.totalHariKerja += user.summary.daysWorked;
+        acc.totalJamLembur += user.summary.overtimeHours;
+        acc.totalMenitTerlambat += user.summary.lateMinutes;
+        acc.totalHariAbsen += user.summary.daysAbsent;
+        return acc;
+    }, { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 });
 
     return (
         <>
             <Dialog open={isPenaltyPrintPreviewOpen} onOpenChange={setIsPenaltyPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Surat Penalti</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-penalty"><PenaltyPrintLayout penaltyData={penaltyToPrint} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsPenaltyPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-penalty')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
             <Dialog open={isRewardPrintPreviewOpen} onOpenChange={setIsRewardPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Surat Reward</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-reward"><RewardPrintLayout rewardData={rewardToPrint} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsRewardPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-reward')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
-            <Dialog open={isAttendancePrintPreviewOpen} onOpenChange={setIsAttendancePrintPreviewOpen}><DialogContent className="max-w-6xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Laporan Absensi</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-attendance"><AttendanceHistoryPrintLayout records={[]} period={historyDateRange!} summary={{ totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 }} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsAttendancePrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-attendance')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
+            <Dialog open={isAttendancePrintPreviewOpen} onOpenChange={setIsAttendancePrintPreviewOpen}><DialogContent className="max-w-6xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Laporan Absensi</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-attendance"><AttendanceHistoryPrintLayout records={filteredHistoryRecords} period={historyDateRange!} summary={historySummary} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsAttendancePrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-attendance')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
 
             <SidebarProvider>
                 <div className="flex min-h-screen bg-background text-foreground">
@@ -573,4 +608,3 @@ export default function HrdPusatPage() {
         </>
     );
 }
-
