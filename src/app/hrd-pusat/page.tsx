@@ -356,7 +356,16 @@ export default function HrdPusatPage() {
                     </Select>
                 </div>
             </CardHeader>
-            <CardContent>{isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> : <AttendanceTable records={filteredAttendance} overtimeRecords={filteredOvertime} users={allUsers} />}</CardContent>
+            <CardContent>
+                {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> 
+                : <AttendanceTable 
+                    records={filteredAttendance} 
+                    overtimeRecords={filteredOvertime} 
+                    users={allUsers}
+                    selectedDate={selectedDate}
+                  />
+                }
+            </CardContent>
         </Card>
     );
 
@@ -515,4 +524,3 @@ export default function HrdPusatPage() {
         </>
     );
 }
-
