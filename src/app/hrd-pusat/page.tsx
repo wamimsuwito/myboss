@@ -336,47 +336,45 @@ export default function HrdPusatPage() {
     
     if (!userInfo) { return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>; }
 
-    const renderTodayDashboard = () => {
-        return (
-            <Card>
-                <CardHeader className='flex-row items-center justify-between'>
-                    <div>
-                        <CardTitle>Laporan Absensi - {format(selectedDate, "EEEE, dd MMMM yyyy", { locale: localeID })}</CardTitle>
-                        <CardDescription>Menampilkan semua absensi yang tercatat pada tanggal yang dipilih.</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Popover>
+    const renderTodayDashboard = () => (
+        <Card>
+            <CardHeader className='flex-row items-center justify-between'>
+                <div>
+                    <CardTitle>Laporan Absensi</CardTitle>
+                    <CardDescription>Menampilkan semua absensi yang tercatat pada tanggal yang dipilih.</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Popover>
                         <PopoverTrigger asChild>
                             <Button
-                            variant={"outline"}
-                            className={cn("w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground" )}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {selectedDate ? format(selectedDate, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
+                                variant={"outline"}
+                                className={cn("w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground")}
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {selectedDate ? format(selectedDate, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
                             </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="end">
-                            <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} initialFocus/>
+                            <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} initialFocus />
                         </PopoverContent>
-                        </Popover>
-                        <Select value={selectedLocation} onValueChange={setSelectedLocation}><SelectTrigger className="w-[220px]"><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
-                            <SelectContent><SelectItem value="all">Semua Lokasi</SelectItem>{locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> 
-                    : <AttendanceTable 
-                        records={filteredAttendance} 
-                        overtimeRecords={filteredOvertime} 
+                    </Popover>
+                    <Select value={selectedLocation} onValueChange={setSelectedLocation}><SelectTrigger className="w-[220px]"><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
+                        <SelectContent><SelectItem value="all">Semua Lokasi</SelectItem>{locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>
+                    : <AttendanceTable
+                        records={filteredAttendance}
+                        overtimeRecords={filteredOvertime}
                         users={allUsers}
                         tripLogs={todayTripLogs}
-                      />
-                    }
-                </CardContent>
-            </Card>
-        );
-    };
-    
+                    />
+                }
+            </CardContent>
+        </Card>
+    );
 
     const PhotoWithTimestamp = ({ photo, timestamp, label, formatStr = 'dd MMM, HH:mm' }: { photo?: string | null, timestamp?: any, label: string, formatStr?: string }) => {
         if (!photo) return null;
@@ -502,8 +500,16 @@ export default function HrdPusatPage() {
     );
 
     const renderContent = () => {
-        switch(activeMenu) { case 'Absensi Hari Ini': return renderTodayDashboard(); case 'Riwayat Absensi': return renderHistoryContent(); case 'Kegiatan Karyawan Hari Ini': return renderActivityContent('Kegiatan Karyawan Hari Ini', groupedActivities); case 'Riwayat Kegiatan Karyawan': return renderActivityContent('Riwayat Kegiatan Karyawan', groupedActivities); case 'Penalti Karyawan': return renderPenaltyContent(); case 'Reward Karyawan': return renderRewardContent(); default: return <p>Halaman ini dalam pengembangan.</p> }
-    }
+        switch(activeMenu) { 
+            case 'Absensi Hari Ini': return renderTodayDashboard(); 
+            case 'Riwayat Absensi': return renderHistoryContent(); 
+            case 'Kegiatan Karyawan Hari Ini': return renderActivityContent('Kegiatan Karyawan Hari Ini', groupedActivities); 
+            case 'Riwayat Kegiatan Karyawan': return renderActivityContent('Riwayat Kegiatan Karyawan', groupedActivities); 
+            case 'Penalti Karyawan': return renderPenaltyContent(); 
+            case 'Reward Karyawan': return renderRewardContent(); 
+            default: return <p>Halaman ini dalam pengembangan.</p>;
+        }
+    };
     
     return (
         <>
