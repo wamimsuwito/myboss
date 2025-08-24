@@ -338,44 +338,45 @@ export default function HrdPusatPage() {
 
     const renderTodayDashboard = () => {
         return (
-         <Card>
-            <CardHeader className='flex-row items-center justify-between'>
-                <div>
-                    <CardTitle>Laporan Absensi - {format(selectedDate, "EEEE, dd MMMM yyyy", { locale: localeID })}</CardTitle>
-                    <CardDescription>Menampilkan semua absensi yang tercatat pada tanggal yang dipilih.</CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn("w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground" )}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {selectedDate ? format(selectedDate, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} initialFocus/>
-                      </PopoverContent>
-                    </Popover>
-                    <Select value={selectedLocation} onValueChange={setSelectedLocation}><SelectTrigger className="w-[220px]"><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
-                        <SelectContent><SelectItem value="all">Semua Lokasi</SelectItem>{locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-            </CardHeader>
-            <CardContent>
-                {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> 
-                : <AttendanceTable 
-                    records={filteredAttendance} 
-                    overtimeRecords={filteredOvertime} 
-                    users={allUsers}
-                    tripLogs={todayTripLogs}
-                  />
-                }
-            </CardContent>
-        </Card>
+            <Card>
+                <CardHeader className='flex-row items-center justify-between'>
+                    <div>
+                        <CardTitle>Laporan Absensi - {format(selectedDate, "EEEE, dd MMMM yyyy", { locale: localeID })}</CardTitle>
+                        <CardDescription>Menampilkan semua absensi yang tercatat pada tanggal yang dipilih.</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                            variant={"outline"}
+                            className={cn("w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground" )}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {selectedDate ? format(selectedDate, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="end">
+                            <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} initialFocus/>
+                        </PopoverContent>
+                        </Popover>
+                        <Select value={selectedLocation} onValueChange={setSelectedLocation}><SelectTrigger className="w-[220px]"><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
+                            <SelectContent><SelectItem value="all">Semua Lokasi</SelectItem>{locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> 
+                    : <AttendanceTable 
+                        records={filteredAttendance} 
+                        overtimeRecords={filteredOvertime} 
+                        users={allUsers}
+                        tripLogs={todayTripLogs}
+                      />
+                    }
+                </CardContent>
+            </Card>
         );
     };
+    
 
     const PhotoWithTimestamp = ({ photo, timestamp, label, formatStr = 'dd MMM, HH:mm' }: { photo?: string | null, timestamp?: any, label: string, formatStr?: string }) => {
         if (!photo) return null;
@@ -503,7 +504,7 @@ export default function HrdPusatPage() {
     const renderContent = () => {
         switch(activeMenu) { case 'Absensi Hari Ini': return renderTodayDashboard(); case 'Riwayat Absensi': return renderHistoryContent(); case 'Kegiatan Karyawan Hari Ini': return renderActivityContent('Kegiatan Karyawan Hari Ini', groupedActivities); case 'Riwayat Kegiatan Karyawan': return renderActivityContent('Riwayat Kegiatan Karyawan', groupedActivities); case 'Penalti Karyawan': return renderPenaltyContent(); case 'Reward Karyawan': return renderRewardContent(); default: return <p>Halaman ini dalam pengembangan.</p> }
     }
-
+    
     return (
         <>
             <Dialog open={isPenaltyPrintPreviewOpen} onOpenChange={setIsPenaltyPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b"><DialogTitle>Pratinjau Surat Penalti</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-penalty"><PenaltyPrintLayout penaltyData={penaltyToPrint} /></div><DialogFooter className="p-4 border-t bg-muted"><Button variant="outline" onClick={() => setIsPenaltyPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-penalty')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
