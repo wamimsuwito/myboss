@@ -258,7 +258,7 @@ export default function HrdPusatPage() {
 
     const filteredOvertime = useMemo(() => {
         if (selectedLocation === 'all') { return todayOvertime; }
-        return todayOvertime.filter(rec => rec.checkInLocationName === selectedLocation);
+        return todayOvertime.filter(rec => rec && rec.checkInLocationName === selectedLocation);
     }, [todayOvertime, selectedLocation]);
     
     const groupedActivities = useMemo(() => {
@@ -283,61 +283,80 @@ export default function HrdPusatPage() {
     }, [allActivities, activityDateRange, activeMenu]);
 
      const { filteredHistoryRecords, historySummary } = useMemo(() => {
-        if (!historyDateRange?.from) return { filteredHistoryRecords: [], historySummary: { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 }};
+        if (!historyDateRange?.from) return { filteredHistoryRecords: [], historySummary: {} };
 
         const { from, to } = historyDateRange;
         const interval = { start: startOfDay(from), end: endOfDay(to || from) };
         const daysInInterval = eachDayOfInterval(interval);
 
         let userList = historySelectedUser ? allUsers.filter(u => u.id === historySelectedUser.id) : allUsers;
-        
-        const records = userList.map(user => {
-            const userAttendance = allAttendance.filter(rec => {
-                const checkInDate = toValidDate(rec.checkInTime);
-                return rec.userId === user.id && checkInDate && isWithinInterval(checkInDate, interval);
-            });
-            const userOvertime = allOvertime.filter(rec => {
-                const checkInDate = toValidDate(rec.checkInTime);
-                return rec.userId === user.id && checkInDate && isWithinInterval(checkInDate, interval);
-            });
-            
-            const attendedDays = new Set(userAttendance.map(rec => format(toValidDate(rec.checkInTime)!, 'yyyy-MM-dd')));
-            const daysWorked = attendedDays.size;
-            
-            const daysNotWorked = daysInInterval.filter(day => !attendedDays.has(format(day, 'yyyy-MM-dd'))).length;
 
-            const userLateMinutes = userAttendance.reduce((acc, rec) => {
-                const checkInTime = toValidDate(rec.checkInTime)!;
-                const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
-                const late = differenceInMinutes(checkInTime, deadline);
-                return acc + (late > 0 ? late : 0);
-            }, 0);
-            
-            const userOvertimeMinutes = userOvertime.reduce((acc, rec) => {
-                 const checkInTime = toValidDate(rec.checkInTime);
-                 const checkOutTime = toValidDate(rec.checkOutTime);
-                 if (!checkInTime || !checkOutTime) return acc;
-                 return acc + differenceInMinutes(checkOutTime, checkInTime);
-            }, 0);
+        const dailyRecords: any[] = [];
+        let totalDaysWorked = 0;
+        let totalOvertimeHours = 0;
+        let totalLateMinutes = 0;
 
-            return {
-                ...user,
-                attendance: userAttendance,
-                overtime: userOvertime,
-                summary: { daysWorked, lateMinutes: userLateMinutes, overtimeHours: Math.floor(userOvertimeMinutes / 60), daysAbsent: daysNotWorked }
-            };
+        daysInInterval.forEach(day => {
+            userList.forEach(user => {
+                const attendance = allAttendance.find(rec => {
+                    const checkInDate = toValidDate(rec.checkInTime);
+                    return rec.userId === user.id && checkInDate && isSameDay(checkInDate, day);
+                });
+                
+                const overtime = allOvertime.find(rec => {
+                    const checkInDate = toValidDate(rec.checkInTime);
+                    return rec.userId === user.id && checkInDate && isSameDay(checkInDate, day);
+                });
+                
+                const productionsToday = allProductions.filter(prod => {
+                    const prodDate = toValidDate(prod.tanggal);
+                    return prodDate && isSameDay(prodDate, day) && prod.namaSopir && prod.namaSopir.toUpperCase() === user.username.toUpperCase();
+                });
+
+                if (attendance || overtime) {
+                    const lateMinutes = attendance ? (() => {
+                        const checkInTime = toValidDate(attendance.checkInTime)!;
+                        const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
+                        const late = differenceInMinutes(checkInTime, deadline);
+                        return late > 0 ? late : 0;
+                    })() : 0;
+                    
+                    const overtimeMinutes = (overtime && overtime.checkInTime && overtime.checkOutTime) ? differenceInMinutes(toValidDate(overtime.checkOutTime)!, toValidDate(overtime.checkInTime)!) : 0;
+                    totalOvertimeHours += Math.floor(overtimeMinutes / 60);
+                    totalLateMinutes += lateMinutes;
+                    if(attendance) totalDaysWorked++;
+                    
+                    let ritPertama: string | null = null;
+                    let ritTerakhir: string | null = null;
+                    if (productionsToday.length > 0) {
+                        const sortedProductions = productionsToday.sort((a,b) => parseISO(a.jamMulai).getTime() - parseISO(b.jamMulai).getTime());
+                        ritPertama = format(parseISO(sortedProductions[0].jamMulai), 'HH:mm');
+                        ritTerakhir = format(parseISO(sortedProductions[sortedProductions.length - 1].jamSelesai), 'HH:mm');
+                    }
+
+                    dailyRecords.push({
+                        ...user,
+                        id: `${user.id}-${format(day, 'yyyy-MM-dd')}`, // Unique key for each day-user record
+                        date: day,
+                        attendance: attendance,
+                        overtime: overtime,
+                        ritPertama,
+                        ritTerakhir,
+                    });
+                }
+            });
         });
-
-        const summary = records.reduce((acc, user) => {
-            acc.totalHariKerja += user.summary.daysWorked;
-            acc.totalJamLembur += user.summary.overtimeHours;
-            acc.totalMenitTerlambat += user.summary.lateMinutes;
-            acc.totalHariAbsen += user.summary.daysAbsent;
-            return acc;
-        }, { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 });
         
-        return { filteredHistoryRecords: records, historySummary: summary };
-    }, [historyDateRange, historySelectedUser, allUsers, allAttendance, allOvertime]);
+        return { 
+            filteredHistoryRecords: dailyRecords, 
+            historySummary: {
+                totalHariKerja: totalDaysWorked,
+                totalJamLembur: totalOvertimeHours,
+                totalMenitTerlambat: totalLateMinutes,
+                totalHariAbsen: (daysInInterval.length * userList.length) - totalDaysWorked,
+            }
+        };
+    }, [historyDateRange, historySelectedUser, allUsers, allAttendance, allOvertime, allProductions]);
 
 
     const handleSavePenalty = async (e: React.FormEvent) => {
