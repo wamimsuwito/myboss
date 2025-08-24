@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -218,10 +219,10 @@ export default function HrdPusatPage() {
             return prodDate && isSameDay(prodDate, selectedDayStart);
         });
 
-        const combinedWithRit = users.map(user => {
+        const combinedWithRit = allUsers.map(user => {
             const userAttendance = attendance.find(a => a.userId === user.id);
             const userOvertime = overtime.find(o => o.userId === user.id);
-            const userProductions = productionsToday.filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase());
+            const userProductions = productionsToday.filter(p => p.namaSopir.toUpperCase() === user.username.toUpperCase());
 
             let ritPertama: string | null = null;
             let ritTerakhir: string | null = null;
@@ -247,7 +248,7 @@ export default function HrdPusatPage() {
             todayAttendance: combinedWithRit.filter(c => c && c.id).sort((a: any, b: any) => (toValidDate(b.checkInTime)?.getTime() || 0) - (toValidDate(a.checkInTime)?.getTime() || 0)),
             todayOvertime: overtime
         };
-    }, [allAttendance, allOvertime, allProductions, selectedDate, users]);
+    }, [allAttendance, allOvertime, allProductions, selectedDate, allUsers]);
     
     const filteredAttendance = useMemo(() => {
         if (selectedLocation === 'all') { return todayAttendance; }
@@ -585,3 +586,4 @@ export default function HrdPusatPage() {
         </>
     );
 }
+

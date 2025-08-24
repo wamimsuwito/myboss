@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -94,11 +95,11 @@ export default function AttendanceTable({ records: combinedData, overtimeRecords
                         <TableHead className="text-center">Jam Masuk</TableHead>
                         <TableHead className="text-center">Jam Pulang</TableHead>
                         <TableHead className="text-center">Terlambat (mnt)</TableHead>
-                        <TableHead className="text-center">Rit Pertama</TableHead>
-                        <TableHead className="text-center">Rit Terakhir</TableHead>
                         <TableHead className="text-center">Jam Masuk Lembur</TableHead>
                         <TableHead className="text-center">Jam Pulang Lembur</TableHead>
                         <TableHead className="text-center">Total Lembur</TableHead>
+                        <TableHead className="text-center">Rit Pertama</TableHead>
+                        <TableHead className="text-center">Rit Terakhir</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -117,11 +118,11 @@ export default function AttendanceTable({ records: combinedData, overtimeRecords
                                     <TimeAndPhotoCell timestamp={rec.checkInTime} photoUrl={rec.checkInPhoto} />
                                     <TimeAndPhotoCell timestamp={rec.checkOutTime} photoUrl={rec.checkOutPhoto} />
                                     <TableCell className={`text-center ${lateMinutes > 0 ? 'text-destructive font-bold' : ''}`}>{lateMinutes}</TableCell>
-                                    <TableCell className="text-center">{rec.ritPertama || '-'}</TableCell>
-                                    <TableCell className="text-center">{rec.ritTerakhir || '-'}</TableCell>
                                     <TimeAndPhotoCell timestamp={overtime?.checkInTime} photoUrl={overtime?.checkInPhoto} />
                                     <TimeAndPhotoCell timestamp={overtime?.checkOutTime} photoUrl={overtime?.checkOutPhoto} />
                                     <TableCell className="text-center">{formatTotalOvertime(overtime?.checkInTime, overtime?.checkOutTime)}</TableCell>
+                                    <TableCell className="text-center">{rec.ritPertama || '-'}</TableCell>
+                                    <TableCell className="text-center">{rec.ritTerakhir || '-'}</TableCell>
                                 </TableRow>
                             )
                         })
