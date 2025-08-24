@@ -223,7 +223,7 @@ export default function HrdPusatPage() {
         const combinedWithRit = allUsers.map(user => {
             const userAttendance = attendance.find(a => a.userId === user.id);
             const userOvertime = overtime.find(o => o.userId === user.id);
-            const userProductions = productionsToday.filter(p => p.namaSopir.toUpperCase() === user.username.toUpperCase());
+            const userProductions = productionsToday.filter(p => p.namaSopir && p.namaSopir.toUpperCase() === user.username.toUpperCase());
 
             let ritPertama: string | null = null;
             let ritTerakhir: string | null = null;
@@ -283,7 +283,7 @@ export default function HrdPusatPage() {
     }, [allActivities, activityDateRange, activeMenu]);
 
      const { filteredHistoryRecords, historySummary } = useMemo(() => {
-        if (!historyDateRange?.from) return { filteredHistoryRecords: [], historySummary: { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 } };
+        if (!historyDateRange?.from) return { filteredHistoryRecords: [], historySummary: { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 }};
 
         const { from, to } = historyDateRange;
         const interval = { start: startOfDay(from), end: endOfDay(to || from) };
@@ -291,11 +291,6 @@ export default function HrdPusatPage() {
 
         let userList = historySelectedUser ? allUsers.filter(u => u.id === historySelectedUser.id) : allUsers;
         
-        let totalHariKerja = 0;
-        let totalJamLembur = 0;
-        let totalMenitTerlambat = 0;
-        let totalHariAbsen = 0;
-
         const records = userList.map(user => {
             const userAttendance = allAttendance.filter(rec => {
                 const checkInDate = toValidDate(rec.checkInTime);
@@ -308,10 +303,8 @@ export default function HrdPusatPage() {
             
             const attendedDays = new Set(userAttendance.map(rec => format(toValidDate(rec.checkInTime)!, 'yyyy-MM-dd')));
             const daysWorked = attendedDays.size;
-            totalHariKerja += daysWorked;
             
             const daysNotWorked = daysInInterval.filter(day => !attendedDays.has(format(day, 'yyyy-MM-dd'))).length;
-            totalHariAbsen += daysNotWorked;
 
             const userLateMinutes = userAttendance.reduce((acc, rec) => {
                 const checkInTime = toValidDate(rec.checkInTime)!;
@@ -319,7 +312,6 @@ export default function HrdPusatPage() {
                 const late = differenceInMinutes(checkInTime, deadline);
                 return acc + (late > 0 ? late : 0);
             }, 0);
-            totalMenitTerlambat += userLateMinutes;
             
             const userOvertimeMinutes = userOvertime.reduce((acc, rec) => {
                  const checkInTime = toValidDate(rec.checkInTime);
@@ -327,7 +319,6 @@ export default function HrdPusatPage() {
                  if (!checkInTime || !checkOutTime) return acc;
                  return acc + differenceInMinutes(checkOutTime, checkInTime);
             }, 0);
-            totalJamLembur += Math.floor(userOvertimeMinutes / 60);
 
             return {
                 ...user,
@@ -336,8 +327,16 @@ export default function HrdPusatPage() {
                 summary: { daysWorked, lateMinutes: userLateMinutes, overtimeHours: Math.floor(userOvertimeMinutes / 60), daysAbsent: daysNotWorked }
             };
         });
+
+        const summary = records.reduce((acc, user) => {
+            acc.totalHariKerja += user.summary.daysWorked;
+            acc.totalJamLembur += user.summary.overtimeHours;
+            acc.totalMenitTerlambat += user.summary.lateMinutes;
+            acc.totalHariAbsen += user.summary.daysAbsent;
+            return acc;
+        }, { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 });
         
-        return { filteredHistoryRecords: records, historySummary: { totalHariKerja, totalJamLembur, totalMenitTerlambat, totalHariAbsen } };
+        return { filteredHistoryRecords: records, historySummary: summary };
     }, [historyDateRange, historySelectedUser, allUsers, allAttendance, allOvertime]);
 
 
@@ -395,43 +394,41 @@ export default function HrdPusatPage() {
     
     if (!userInfo) { return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>; }
 
-    const renderTodayDashboard = () => {
-        return (
-             <Card>
-                <CardHeader className='flex-row items-center justify-between'>
-                    <div>
-                        <CardTitle>Laporan Absensi</CardTitle>
-                        <CardDescription>Menampilkan semua absensi yang tercatat pada <span className="font-semibold text-primary">{format(selectedDate, "dd MMMM yyyy", { locale: localeID })}</span></CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant={"outline"}
-                              className={cn("w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground" )}>
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {selectedDate ? format(selectedDate, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="end">
-                            <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} initialFocus/>
-                          </PopoverContent>
-                        </Popover>
-                        <Select value={selectedLocation} onValueChange={setSelectedLocation}><SelectTrigger className="w-[220px]"><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
-                            <SelectContent><SelectItem value="all">Semua Lokasi</SelectItem>{locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}</SelectContent>
-                        </Select>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> 
-                    : <AttendanceTable 
-                        records={filteredAttendance}
-                      />
-                    }
-                </CardContent>
-            </Card>
-        );
-    }
+    const renderTodayDashboard = () => (
+         <Card>
+            <CardHeader className='flex-row items-center justify-between'>
+                <div>
+                    <CardTitle>Laporan Absensi</CardTitle>
+                    <CardDescription>Menampilkan semua absensi yang tercatat pada <span className="font-semibold text-primary">{format(selectedDate, "dd MMMM yyyy", { locale: localeID })}</span></CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn("w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground" )}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {selectedDate ? format(selectedDate, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="end">
+                        <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} initialFocus/>
+                      </PopoverContent>
+                    </Popover>
+                    <Select value={selectedLocation} onValueChange={setSelectedLocation}><SelectTrigger className="w-[220px]"><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
+                        <SelectContent><SelectItem value="all">Semua Lokasi</SelectItem>{locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> 
+                : <AttendanceTable 
+                    records={filteredAttendance}
+                  />
+                }
+            </CardContent>
+        </Card>
+    );
 
     const PhotoWithTimestamp = ({ photo, timestamp, label, formatStr = 'dd MMM, HH:mm' }: { photo?: string | null, timestamp?: any, label: string, formatStr?: string }) => {
         if (!photo) return null;
@@ -492,11 +489,30 @@ export default function HrdPusatPage() {
                     </Popover>
                     <Button onClick={() => setIsAttendancePrintPreviewOpen(true)} disabled={isLoading || filteredHistoryRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
                 </div>
-                 {isLoading ? (
-                    <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
-                 ) : (
-                    <AttendanceTable records={filteredHistoryRecords} />
-                 )}
+                
+                 <div className="border rounded-md overflow-x-auto">
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Nama Karyawan</TableHead><TableHead className="text-center">Hari Kerja</TableHead><TableHead className="text-center">Total Lembur</TableHead><TableHead className="text-center">Total Terlambat</TableHead><TableHead className="text-center">Hari Absen</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                            {isLoading ? <TableRow><TableCell colSpan={5} className="h-40 text-center"><Loader2 className="animate-spin mx-auto"/></TableCell></TableRow>
+                            : filteredHistoryRecords.length > 0 ? filteredHistoryRecords.map(user => (
+                                <TableRow key={user.id}>
+                                    <TableCell className="font-medium">{user.username}</TableCell>
+                                    <TableCell className="text-center">{user.summary.daysWorked}</TableCell>
+                                    <TableCell className="text-center">{user.summary.overtimeHours} jam</TableCell>
+                                    <TableCell className="text-center">{user.summary.lateMinutes} mnt</TableCell>
+                                    <TableCell className="text-center">{user.summary.daysAbsent}</TableCell>
+                                </TableRow>
+                            )) : <TableRow><TableCell colSpan={5} className="text-center h-24">Tidak ada data untuk filter yang dipilih.</TableCell></TableRow>}
+                        </TableBody>
+                    </Table>
+                 </div>
+                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
+                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Hari Kerja</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalHariKerja}</p></CardContent></Card>
+                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Jam Lembur</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalJamLembur}</p></CardContent></Card>
+                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Menit Terlambat</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalMenitTerlambat}</p></CardContent></Card>
+                    <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Total Hari Absen</CardTitle></CardHeader><CardContent><p className="text-2xl font-bold">{historySummary.totalHariAbsen}</p></CardContent></Card>
+                 </div>
             </CardContent>
         </Card>
     );
