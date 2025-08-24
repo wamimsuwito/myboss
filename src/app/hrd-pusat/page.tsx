@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format, startOfDay, endOfDay, isWithinInterval, differenceInMinutes, isSameDay, subDays, startOfMonth, endOfMonth, getDaysInMonth, eachDayOfInterval, addMonths } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { db, collection, query, where, getDocs, Timestamp, orderBy, addDoc, limit } from '@/lib/firebase';
-import type { UserData, LocationData, PenaltyEntry, RewardEntry, AttendanceRecord, ActivityLog, OvertimeRecord } from '@/lib/types';
+import type { UserData, LocationData, PenaltyEntry, RewardEntry, AttendanceRecord, ActivityLog, OvertimeRecord, TripLog } from '@/lib/types';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -86,6 +86,7 @@ export default function HrdPusatPage() {
     const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
     const [allOvertime, setAllOvertime] = useState<OvertimeRecord[]>([]);
     const [allActivities, setAllActivities] = useState<ActivityLog[]>([]);
+    const [tripLogs, setTripLogs] = useState<TripLog[]>([]);
 
     const [isLoading, setIsLoading] = useState(true);
     const [userInfo, setUserInfo] = useState<UserData | null>(null);
@@ -151,12 +152,13 @@ export default function HrdPusatPage() {
                 setSelectedLocation(locationsData[0].name);
             }
 
-            const [penaltiesSnap, rewardsSnap, attendanceSnap, overtimeSnap, activitiesSnap] = await Promise.all([
+            const [penaltiesSnap, rewardsSnap, attendanceSnap, overtimeSnap, activitiesSnap, tripLogsSnap] = await Promise.all([
                 getDocs(collection(db, "penalties")),
                 getDocs(collection(db, "rewards")),
                 getDocs(collection(db, "absensi")),
                 getDocs(collection(db, "overtime_absensi")),
-                getDocs(query(collection(db, "kegiatan_harian"), orderBy('createdAt', 'desc'), limit(100)))
+                getDocs(query(collection(db, "kegiatan_harian"), orderBy('createdAt', 'desc'), limit(100))),
+                getDocs(collection(db, 'all_trip_histories'))
             ]);
 
             setPenalties(penaltiesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as PenaltyEntry).sort((a,b) => (b.createdAt?.toDate()?.getTime() || 0) - (a.createdAt?.toDate()?.getTime() || 0)));
@@ -164,6 +166,7 @@ export default function HrdPusatPage() {
             setAllAttendance(attendanceSnap.docs.map(d => ({...d.data(), id: d.id}) as AttendanceRecord));
             setAllOvertime(overtimeSnap.docs.map(d => ({...d.data(), id: d.id}) as OvertimeRecord));
             setAllActivities(activitiesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ActivityLog));
+            setTripLogs(tripLogsSnap.docs.map(d => d.data() as TripLog));
 
         } catch (error) {
             console.error("Failed to fetch initial data:", error);
@@ -178,7 +181,7 @@ export default function HrdPusatPage() {
         if (userInfo) { fetchAllData(); }
     }, [userInfo, fetchAllData]);
 
-    const { todayAttendance, todayOvertime } = useMemo(() => {
+    const { todayAttendance, todayOvertime, todayTripLogs } = useMemo(() => {
         const selectedDayStart = startOfDay(selectedDate);
         return {
             todayAttendance: allAttendance
@@ -190,19 +193,22 @@ export default function HrdPusatPage() {
                     return { ...rec, lateMinutes: lateMinutes > 0 ? lateMinutes : 0 };
                 })
                 .sort((a, b) => b.checkInTime.toDate().getTime() - a.checkInTime.toDate().getTime()),
-            todayOvertime: allOvertime.filter(rec => rec.checkInTime && rec.checkInTime.toDate && isSameDay(rec.checkInTime.toDate(), selectedDayStart))
+            todayOvertime: allOvertime.filter(rec => rec.checkInTime && rec.checkInTime.toDate && isSameDay(rec.checkInTime.toDate(), selectedDayStart)),
+            todayTripLogs: tripLogs.filter(log => log.departFromBp && isSameDay(new Date(log.departFromBp), selectedDayStart))
         };
-    }, [allAttendance, allOvertime, selectedDate]);
+    }, [allAttendance, allOvertime, selectedDate, tripLogs]);
     
     const filteredAttendance = useMemo(() => {
         if (selectedLocation === 'all') { return todayAttendance; }
-        return todayAttendance.filter(rec => rec.checkInLocationName === selectedLocation);
-    }, [todayAttendance, selectedLocation]);
+        const userIdsInLocation = new Set(allUsers.filter(u => u.lokasi === selectedLocation).map(u => u.id));
+        return todayAttendance.filter(rec => userIdsInLocation.has(rec.userId));
+    }, [todayAttendance, selectedLocation, allUsers]);
 
     const filteredOvertime = useMemo(() => {
         if (selectedLocation === 'all') { return todayOvertime; }
-        return todayOvertime.filter(rec => rec.checkInLocationName === selectedLocation);
-    }, [todayOvertime, selectedLocation]);
+        const userIdsInLocation = new Set(allUsers.filter(u => u.lokasi === selectedLocation).map(u => u.id));
+        return todayOvertime.filter(rec => userIdsInLocation.has(rec.userId));
+    }, [todayOvertime, selectedLocation, allUsers]);
     
     const groupedActivities = useMemo(() => {
         let dataToGroup = allActivities;
@@ -362,7 +368,7 @@ export default function HrdPusatPage() {
                     records={filteredAttendance} 
                     overtimeRecords={filteredOvertime} 
                     users={allUsers}
-                    selectedDate={selectedDate}
+                    tripLogs={todayTripLogs}
                   />
                 }
             </CardContent>
@@ -514,7 +520,7 @@ export default function HrdPusatPage() {
                             <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'Reward Karyawan'} onClick={() => setActiveMenu('Reward Karyawan')}><Star />Reward Karyawan</SidebarMenuButton></SidebarMenuItem>
                         </SidebarMenu>
                         <SidebarFooter><Button variant="ghost" onClick={() => router.push('/login')} className="w-full justify-start"><LogOut className="mr-2 h-4 w-4" /> Keluar</Button></SidebarFooter>
-                    </SidebarContent></Sidebar>
+                    </Sidebar></SidebarContent></Sidebar>
                     <SidebarInset><main className="p-4 sm:p-6 md:p-8">
                         <header className="flex items-start sm:items-center justify-between gap-4 mb-8"><div className='flex items-center gap-4'><SidebarTrigger /><div><h1 className="text-2xl font-bold tracking-wider">{activeMenu}</h1><p className="text-muted-foreground">Selamat datang, {userInfo.username}</p></div></div></header>
                         {renderContent()}
