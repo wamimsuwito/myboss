@@ -336,11 +336,12 @@ export default function HrdPusatPage() {
     
     if (!userInfo) { return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>; }
 
-    const renderTodayDashboard = () => (
+    const renderTodayDashboard = () => {
+        return (
          <Card>
             <CardHeader className='flex-row items-center justify-between'>
                 <div>
-                    <CardTitle>Laporan Absensi</CardTitle>
+                    <CardTitle>Laporan Absensi - {format(selectedDate, "EEEE, dd MMMM yyyy", { locale: localeID })}</CardTitle>
                     <CardDescription>Menampilkan semua absensi yang tercatat pada tanggal yang dipilih.</CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -373,7 +374,8 @@ export default function HrdPusatPage() {
                 }
             </CardContent>
         </Card>
-    );
+        );
+    };
 
     const PhotoWithTimestamp = ({ photo, timestamp, label, formatStr = 'dd MMM, HH:mm' }: { photo?: string | null, timestamp?: any, label: string, formatStr?: string }) => {
         if (!photo) return null;
