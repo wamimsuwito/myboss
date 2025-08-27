@@ -1,577 +1,1445 @@
+
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, History, Calendar as CalendarIcon, UserCheck, Eye, LogOut, ShieldX, Star, Activity, Users, Clock, FilterX, ClipboardList, Camera, X, Printer, UserSearch, Briefcase } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+    LayoutDashboard,
+    ClipboardList,
+    History,
+    Users,
+    ShieldAlert,
+    LogOut,
+    Wrench,
+    Loader2,
+    Calendar as CalendarIcon,
+    Plus,
+    Copy,
+    CheckCircle,
+    XCircle,
+    AlertTriangle,
+    WrenchIcon,
+    UserX,
+    Pencil,
+    Trash2,
+    Save,
+    ArrowRightLeft,
+    PlusCircle,
+    Camera,
+    ActivitySquare,
+    Check,
+    Printer,
+    FilterX,
+    MessageSquareWarning,
+    Lightbulb,
+    Mail,
+    Truck,
+    Fingerprint,
+    Briefcase,
+    ShieldX,
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfDay, endOfDay, isWithinInterval, differenceInMinutes, isSameDay, subDays, startOfMonth, endOfMonth, getDaysInMonth, eachDayOfInterval, addMonths, parseISO } from 'date-fns';
+import type { UserData, Report, LocationData, SopirBatanganData, AlatData, MechanicTask } from '@/lib/types';
+import { cn, printElement } from '@/lib/utils';
+import { format, startOfToday, isSameDay, isBefore, subDays, startOfDay, endOfDay, isAfter, formatDistanceStrict, differenceInMinutes, differenceInMilliseconds, formatRelative } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
-import { db, collection, query, where, getDocs, Timestamp, orderBy, addDoc, limit } from '@/lib/firebase';
-import type { UserData, LocationData, PenaltyEntry, RewardEntry, AttendanceRecord, ActivityLog, OvertimeRecord, ProductionData } from '@/lib/types';
-import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
+import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
-import PenaltyPrintLayout from '@/components/penalty-print-layout';
-import RewardPrintLayout from '@/components/reward-print-layout';
-import AttendanceHistoryPrintLayout from '@/components/attendance-history-print-layout';
-import { printElement, cn } from '@/lib/utils';
-import AttendanceTable from '@/components/attendance-table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Badge } from '@/components/ui/badge';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { DateRange } from 'react-day-picker';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { db, collection, getDocs, doc, updateDoc, deleteDoc, serverTimestamp, onSnapshot, addDoc, query, where, Timestamp } from '@/lib/firebase';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, AlertDialogDescription, AlertDialogFooter } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarInset, SidebarTrigger, SidebarSeparator } from '@/components/ui/sidebar';
+import HistoryPrintLayout from '@/components/history-print-layout';
 
 
-type ActiveMenu = 'Absensi Hari Ini' | 'Riwayat Absensi' | 'Kegiatan Karyawan Hari Ini' | 'Riwayat Kegiatan Karyawan' | 'Penalti Karyawan' | 'Reward Karyawan';
-type AttendanceRecordWithLateMinutes = AttendanceRecord & { lateMinutes: number };
+const menuItems = [
+    { name: 'Dashboard', icon: LayoutDashboard },
+    { name: 'Sopir & Batangan', icon: Users },
+    { name: 'Histori Perbaikan Alat', icon: History },
+    { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert },
+    { name: 'Anggota Mekanik', icon: Users },
+    { name: 'Laporan Logistik', icon: Truck },
+    { name: 'Manajemen Pengguna', icon: Users },
+    { name: 'Riwayat Penalti', icon: ShieldX },
+    { name: 'Komplain dari Sopir', icon: MessageSquareWarning },
+    { name: 'Usulan / Saran dari Sopir', icon: Lightbulb },
+    { name: 'Pesan Masuk', icon: Mail },
+];
 
-const CHECK_IN_DEADLINE = { hours: 7, minutes: 30 };
-
-const toValidDate = (timestamp: any): Date | null => {
-    if (!timestamp) return null;
-    if (timestamp.toDate) return timestamp.toDate();
-    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
-        const date = new Date(timestamp);
-        return isNaN(date.getTime()) ? null : date;
-    }
-    return null;
-};
-
-const safeFormatTimestamp = (timestamp: any, formatString: string) => {
-    const date = toValidDate(timestamp);
-    if (!date) return null;
-    try {
-        return format(date, formatString, { locale: localeID });
-    } catch (error) {
-        return null;
-    }
-}
+type ActiveMenu = 
+  | 'Dashboard' 
+  | 'Sopir & Batangan' 
+  | 'Histori Perbaikan Alat' 
+  | 'Alat Rusak Berat/Karantina' 
+  | 'Anggota Mekanik'
+  | 'Laporan Logistik'
+  | 'Manajemen Pengguna'
+  | 'Riwayat Penalti'
+  | 'Komplain dari Sopir'
+  | 'Usulan / Saran dari Sopir'
+  | 'Pesan Masuk';
 
 
-//--- Helper functions for date period
-const getThisPeriod = () => {
-    const today = new Date();
-    const currentDay = today.getDate();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
+const taskFormSchema = z.object({
+  mechanics: z.array(z.object({ id: z.string(), name: z.string() })).min(1, "Pilih minimal satu mekanik."),
+  targetDate: z.date({ required_error: "Tanggal target harus diisi." }),
+  targetTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Format waktu tidak valid (HH:MM)."),
+});
 
-    if (currentDay >= 21) {
-        return {
-            from: new Date(currentYear, currentMonth, 21),
-            to: new Date(currentYear, currentMonth + 1, 20),
-        };
-    } else {
-        return {
-            from: new Date(currentYear, currentMonth - 1, 21),
-            to: new Date(currentYear, currentMonth, 20),
-        };
-    }
-};
+type TaskFormData = z.infer<typeof taskFormSchema>;
 
-const getLastPeriod = () => {
-    const { from } = getThisPeriod();
-    const lastPeriodStart = addMonths(from, -1);
-    const lastPeriodEnd = new Date(lastPeriodStart.getFullYear(), lastPeriodStart.getMonth() + 1, 20);
-    return { from: lastPeriodStart, to: lastPeriodEnd };
-};
+const StatCard = ({ title, value, description, icon: Icon, color, onClick }: { title: string, value: string, description: string, icon: React.ElementType, color: string, onClick?: () => void }) => (
+    <Card className="hover:bg-accent/50 transition-colors cursor-pointer" onClick={onClick}>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-base font-medium">{title}</CardTitle>
+            <Icon className={cn("h-6 w-6", color)} />
+        </CardHeader>
+        <CardContent>
+            <div className="text-5xl font-bold">{value}</div>
+            <p className="text-sm text-muted-foreground">{description}</p>
+        </CardContent>
+    </Card>
+);
 
-export default function HrdPusatPage() {
-    const router = useRouter();
+const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { vehicle: AlatData, report: Report, mechanics: UserData[], onTaskCreated: () => void }) => {
     const { toast } = useToast();
-    const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Absensi Hari Ini');
-    
-    // --- Data States ---
-    const [allUsers, setAllUsers] = useState<UserData[]>([]);
-    const [locations, setLocations] = useState<LocationData[]>([]);
-    const [penalties, setPenalties] = useState<PenaltyEntry[]>([]);
-    const [rewards, setRewards] = useState<RewardEntry[]>([]);
-    const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
-    const [allOvertime, setAllOvertime] = useState<OvertimeRecord[]>([]);
-    const [allActivities, setAllActivities] = useState<ActivityLog[]>([]);
-    const [allProductions, setAllProductions] = useState<ProductionData[]>([]);
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
+    const form = useForm<TaskFormData>({
+        resolver: zodResolver(taskFormSchema),
+        defaultValues: {
+            mechanics: [],
+            targetTime: "17:00",
+            targetDate: new Date(),
+        },
+    });
 
-    const [isLoading, setIsLoading] = useState(true);
-    const [userInfo, setUserInfo] = useState<UserData | null>(null);
-    const [selectedLocation, setSelectedLocation] = useState<string>('all');
-    
-    // Penalty Form State
-    const [isSubmittingPenalty, setIsSubmittingPenalty] = useState(false);
-    const [selectedPenaltyUser, setSelectedPenaltyUser] = useState<UserData | null>(null);
-    const [penaltyPoin, setPenaltyPoin] = useState('');
-    const [penaltyValue, setPenaltyValue] = useState('');
-    const [penaltyCause, setPenaltyCause] = useState('');
-    const [penaltyDescription, setPenaltyDescription] = useState('');
-    
-    // Reward Form State
-    const [isSubmittingReward, setIsSubmittingReward] = useState(false);
-    const [selectedRewardUser, setSelectedRewardUser] = useState<UserData | null>(null);
-    const [rewardPoin, setRewardPoin] = useState('');
-    const [rewardValue, setRewardValue] = useState('');
-    const [rewardDescription, setRewardDescription] = useState('');
-    
-    // Print States
-    const [isPenaltyPrintPreviewOpen, setIsPenaltyPrintPreviewOpen] = useState(false);
-    const [penaltyToPrint, setPenaltyToPrint] = useState<Partial<PenaltyEntry> | null>(null);
-    const [isRewardPrintPreviewOpen, setIsRewardPrintPreviewOpen] = useState(false);
-    const [rewardToPrint, setRewardToPrint] = useState<Partial<RewardEntry> | null>(null);
+    const onSubmit = async (data: TaskFormData) => {
+        setIsSubmitting(true);
+        const targetTimestamp = new Date(data.targetDate);
+        const [hours, minutes] = data.targetTime.split(':').map(Number);
+        targetTimestamp.setHours(hours, minutes);
 
-    // Activity Filter States
-    const [activityDateRange, setActivityDateRange] = useState<DateRange | undefined>();
+        const newTask: Omit<MechanicTask, 'id'> = {
+            status: 'PENDING',
+            vehicle: {
+                hullNumber: vehicle.nomorLambung,
+                licensePlate: vehicle.nomorPolisi,
+                repairDescription: report.description || 'Tidak ada deskripsi kerusakan.',
+                targetDate: format(data.targetDate, 'yyyy-MM-dd'),
+                targetTime: data.targetTime,
+                triggeringReportId: report.id,
+            },
+            mechanics: data.mechanics,
+            createdAt: new Date().getTime(),
+            riwayatTunda: [],
+            totalDelayDuration: 0,
+        };
 
-    // Attendance History Filter States
-    const [historyDateRange, setHistoryDateRange] = useState<DateRange | undefined>(getThisPeriod());
-    const [historySelectedUser, setHistorySelectedUser] = useState<UserData | null>(null);
-    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-
-    const isPenaltyPrintButtonDisabled = !selectedPenaltyUser || !penaltyPoin || !penaltyCause || !penaltyDescription;
-    const isRewardPrintButtonDisabled = !selectedRewardUser || !rewardPoin || !rewardDescription;
-
-    useEffect(() => {
-        const userString = localStorage.getItem('user');
-        if (!userString) { router.push('/login'); return; }
-        const userData = JSON.parse(userString);
-        if (userData.jabatan !== 'HRD PUSAT') {
-            toast({ variant: 'destructive', title: 'Akses Ditolak' });
-            router.push('/login');
-            return;
-        }
-        setUserInfo(userData);
-    }, [router, toast]);
-    
-    const fetchAllData = useCallback(async () => {
-        setIsLoading(true);
         try {
-            const usersSnap = await getDocs(collection(db, "users"));
-            const allUsersData = usersSnap.docs.map(d => ({ ...d.data(), id: d.id }) as UserData);
-            const excludedJabatan = ['SUPER ADMIN', 'OWNER', 'HRD PUSAT'];
-            setAllUsers(allUsersData.filter(u => u.jabatan && !excludedJabatan.includes(u.jabatan.toUpperCase())));
-
-            const locationsSnap = await getDocs(collection(db, 'locations'));
-            const locationsData = locationsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as LocationData);
-            setLocations(locationsData);
-            if(locationsData.length > 0 && selectedLocation === 'all') {
-                setSelectedLocation(locationsData[0].name);
-            }
-
-            const [penaltiesSnap, rewardsSnap, attendanceSnap, overtimeSnap, activitiesSnap, productionsSnap] = await Promise.all([
-                getDocs(collection(db, "penalties")),
-                getDocs(collection(db, "rewards")),
-                getDocs(collection(db, "absensi")),
-                getDocs(collection(db, "overtime_absensi")),
-                getDocs(query(collection(db, "kegiatan_harian"), orderBy('createdAt', 'desc'), limit(100))),
-                getDocs(collection(db, "productions"))
-            ]);
-
-            setPenalties(penaltiesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as PenaltyEntry).sort((a,b) => (toValidDate(b.createdAt)?.getTime() || 0) - (toValidDate(a.createdAt)?.getTime() || 0)));
-            setRewards(rewardsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as RewardEntry).sort((a,b) => (toValidDate(b.createdAt)?.getTime() || 0) - (toValidDate(a.createdAt)?.getTime() || 0)));
-            setAllAttendance(attendanceSnap.docs.map(d => ({...d.data(), id: d.id}) as AttendanceRecord));
-            setAllOvertime(overtimeSnap.docs.map(d => ({...d.data(), id: d.id}) as OvertimeRecord));
-            setAllActivities(activitiesSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ActivityLog));
-            setAllProductions(productionsSnap.docs.map(d => ({ ...d.data(), id: d.id }) as ProductionData));
-
+            await addDoc(collection(db, 'mechanic_tasks'), newTask);
+            toast({ title: "Work Order Berhasil Dibuat" });
+            form.reset();
+            onTaskCreated();
+            setIsOpen(false);
         } catch (error) {
-            console.error("Failed to fetch initial data:", error);
-            toast({ title: 'Gagal Memuat Data', variant: 'destructive' });
+            console.error("Error creating task:", error);
+            toast({ title: "Gagal Membuat WO", variant: "destructive" });
         } finally {
-            setIsLoading(false);
+            setIsSubmitting(false);
         }
-    }, [toast, selectedLocation]);
-
-
-    useEffect(() => {
-        if (userInfo) { fetchAllData(); }
-    }, [userInfo, fetchAllData]);
-
-    const { todayAttendance } = useMemo(() => {
-        const selectedDayStart = startOfDay(selectedDate);
-        
-        const attendance = allAttendance
-            .filter(rec => {
-                const checkInDate = toValidDate(rec.checkInTime);
-                return checkInDate && isSameDay(checkInDate, selectedDayStart);
-            })
-            .map(rec => {
-                const checkInTime = toValidDate(rec.checkInTime)!;
-                const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
-                const lateMinutes = differenceInMinutes(checkInTime, deadline);
-                return { ...rec, lateMinutes: lateMinutes > 0 ? lateMinutes : 0 };
-            });
-
-        const overtime = allOvertime.filter(rec => {
-            const checkInDate = toValidDate(rec.checkInTime);
-            return checkInDate && isSameDay(checkInDate, selectedDayStart)
-        });
-
-        const productionsToday = allProductions.filter(prod => {
-            const prodDate = toValidDate(prod.tanggal);
-            return prodDate && isSameDay(prodDate, selectedDayStart);
-        });
-
-        const combinedWithRit = allUsers.map(user => {
-            const userAttendance = attendance.find(a => a.userId === user.id);
-            const userOvertime = overtime.find(o => o.userId === user.id);
-            const userProductions = productionsToday.filter(p => p.namaSopir && p.namaSopir.toUpperCase() === user.username.toUpperCase());
-
-            let ritPertama: string | null = null;
-            let ritTerakhir: string | null = null;
-            if (userProductions.length > 0) {
-                const sortedProductions = userProductions.sort((a,b) => parseISO(a.jamMulai).getTime() - parseISO(b.jamMulai).getTime());
-                ritPertama = format(parseISO(sortedProductions[0].jamMulai), 'HH:mm');
-                ritTerakhir = format(parseISO(sortedProductions[sortedProductions.length - 1].jamSelesai), 'HH:mm');
-            }
-
-            if(userAttendance || userOvertime) {
-                return {
-                    ...user,
-                    ...(userAttendance || {}),
-                    overtimeData: userOvertime,
-                    ritPertama,
-                    ritTerakhir
-                };
-            }
-            return null;
-        }).filter(Boolean);
-
-        return {
-            todayAttendance: combinedWithRit.filter(rec => rec),
-        };
-    }, [allAttendance, allOvertime, allProductions, selectedDate, allUsers]);
-    
-    const filteredAttendance = useMemo(() => {
-        if (selectedLocation === 'all') { return todayAttendance; }
-        return todayAttendance.filter(rec => rec && rec.checkInLocationName === selectedLocation);
-    }, [todayAttendance, selectedLocation]);
-    
-    const groupedActivities = useMemo(() => {
-        let dataToGroup = allActivities;
-        const dateRange = activeMenu === 'Kegiatan Karyawan Hari Ini' ? { from: startOfDay(new Date()), to: endOfDay(new Date()) } : activityDateRange;
-        
-        if (dateRange?.from) {
-             const fromDate = startOfDay(dateRange.from);
-             const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
-             dataToGroup = allActivities.filter(activity => {
-                 const activityDate = toValidDate(activity.createdAt);
-                 return activityDate && isWithinInterval(activityDate, { start: fromDate, end: toDate });
-             });
-        }
-        
-        return dataToGroup.reduce((acc, activity) => {
-            const key = activity.username;
-            if (!acc[key]) { acc[key] = []; }
-            acc[key].push(activity);
-            return acc;
-        }, {} as Record<string, ActivityLog[]>);
-    }, [allActivities, activityDateRange, activeMenu]);
-
-    const { filteredHistoryRecords, historySummary } = useMemo(() => {
-        if (!historyDateRange?.from) {
-          return { 
-            filteredHistoryRecords: [], 
-            historySummary: { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 } 
-          };
-        }
-    
-        const { from, to } = historyDateRange;
-        const interval = { start: startOfDay(from), end: endOfDay(to || from) };
-        const daysInInterval = eachDayOfInterval(interval);
-    
-        const userList = historySelectedUser ? allUsers.filter(u => u.id === historySelectedUser.id) : allUsers;
-    
-        const dailyRecords: any[] = [];
-        let summary = { totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0 };
-    
-        userList.forEach(user => {
-          let userHariKerja = 0;
-          let userJamLembur = 0;
-          let userMenitTerlambat = 0;
-    
-          daysInInterval.forEach(day => {
-            const attendance = allAttendance.find(rec =>
-              rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, day)
-            );
-            const overtime = allOvertime.find(rec =>
-              rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, day)
-            );
-    
-            if (attendance) {
-              userHariKerja += 1;
-              const checkInTime = toValidDate(attendance.checkInTime)!;
-              const deadline = new Date(checkInTime).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
-              const late = differenceInMinutes(checkInTime, deadline);
-              if (late > 0) {
-                userMenitTerlambat += late;
-              }
-            }
-            if (overtime && overtime.checkOutTime) {
-                const checkIn = toValidDate(overtime.checkInTime);
-                const checkOut = toValidDate(overtime.checkOutTime);
-                if (checkIn && checkOut) {
-                    userJamLembur += differenceInMinutes(checkOut, checkIn);
-                }
-            }
-    
-            if (attendance || overtime) {
-              dailyRecords.push({
-                ...user,
-                id: `${user.id}-${format(day, 'yyyy-MM-dd')}`,
-                checkInTime: attendance?.checkInTime,
-                checkOutTime: attendance?.checkOutTime,
-                checkInPhoto: attendance?.checkInPhoto,
-                checkOutPhoto: attendance?.checkOutPhoto,
-                checkInLocationName: attendance?.checkInLocationName,
-                lateMinutes: attendance ? (differenceInMinutes(toValidDate(attendance.checkInTime)!, new Date(toValidDate(attendance.checkInTime)!).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0)) > 0 ? differenceInMinutes(toValidDate(attendance.checkInTime)!, new Date(toValidDate(attendance.checkInTime)!).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0)) : 0) : 0,
-                overtimeData: overtime,
-              });
-            }
-          });
-    
-          summary.totalHariKerja += userHariKerja;
-          summary.totalJamLembur += Math.floor(userJamLembur / 60);
-          summary.totalMenitTerlambat += userMenitTerlambat;
-          summary.totalHariAbsen += (daysInInterval.length - userHariKerja);
-        });
-    
-        return { filteredHistoryRecords: dailyRecords, historySummary: summary };
-    }, [historyDateRange, historySelectedUser, allUsers, allAttendance, allOvertime]);
-
-
-    const handleSavePenalty = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (isPenaltyPrintButtonDisabled) { toast({ title: 'Data Tidak Lengkap', variant: 'destructive' }); return; }
-        setIsSubmittingPenalty(true);
-        const newPenalty: Omit<PenaltyEntry, 'id'> = {
-            userId: selectedPenaltyUser!.id, username: selectedPenaltyUser!.username, nik: selectedPenaltyUser!.nik, jabatan: selectedPenaltyUser!.jabatan, poin: Number(penaltyPoin),
-            nilai: Number(penaltyValue) || 0, penyebab: penaltyCause, deskripsi: penaltyDescription, createdAt: Timestamp.now(), createdBy: userInfo?.username || 'HRD Pusat'
-        };
-
-        try {
-            const docRef = await addDoc(collection(db, 'penalties'), newPenalty);
-            setPenalties(prev => [{ id: docRef.id, ...newPenalty } as PenaltyEntry, ...prev]);
-            toast({ title: 'Penalti Disimpan' });
-            setSelectedPenaltyUser(null); setPenaltyPoin(''); setPenaltyValue(''); setPenaltyCause(''); setPenaltyDescription('');
-        } catch (error) { toast({ title: 'Gagal Menyimpan', variant: 'destructive' }); } finally { setIsSubmittingPenalty(false); }
-    };
-
-    const handleSaveReward = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (isRewardPrintButtonDisabled) { toast({ title: 'Data Tidak Lengkap', variant: 'destructive' }); return; }
-        setIsSubmittingReward(true);
-        const newReward: Omit<RewardEntry, 'id'> = {
-            userId: selectedRewardUser!.id, username: selectedRewardUser!.username, nik: selectedRewardUser!.nik, jabatan: selectedRewardUser!.jabatan, poin: Number(rewardPoin),
-            nilai: Number(rewardValue) || 0, deskripsi: rewardDescription, createdAt: Timestamp.now(), createdBy: userInfo?.username || 'HRD Pusat'
-        };
-
-        try {
-            const docRef = await addDoc(collection(db, 'rewards'), newReward);
-            setRewards(prev => [{ id: docRef.id, ...newReward } as RewardEntry, ...prev]);
-            toast({ title: 'Reward Disimpan' });
-            setSelectedRewardUser(null); setRewardPoin(''); setRewardValue(''); setRewardDescription('');
-        } catch (error) { toast({ title: 'Gagal Menyimpan', variant: 'destructive' }); } finally { setIsSubmittingReward(false); }
     };
     
-    const handlePrintPenalty = (penaltyData?: Partial<PenaltyEntry>) => {
-        const dataToPrint = penaltyData ?? (isPenaltyPrintButtonDisabled ? null : {
-            username: selectedPenaltyUser?.username, nik: selectedPenaltyUser?.nik, jabatan: selectedPenaltyUser?.jabatan,
-            poin: Number(penaltyPoin), penyebab: penaltyCause, deskripsi: penaltyDescription, createdAt: new Date()
-        });
-        if (!dataToPrint) { toast({ title: 'Data Tidak Lengkap', variant: 'destructive' }); return; }
-        setPenaltyToPrint(dataToPrint); setIsPenaltyPrintPreviewOpen(true);
-    };
-
-    const handlePrintReward = (rewardData?: Partial<RewardEntry>) => {
-        const dataToPrint = rewardData ?? (isRewardPrintButtonDisabled ? null : {
-            username: selectedRewardUser?.username, nik: selectedRewardUser?.nik, jabatan: selectedRewardUser?.jabatan,
-            poin: Number(rewardPoin), deskripsi: rewardDescription, createdAt: new Date()
-        });
-        if (!dataToPrint) { toast({ title: 'Data Tidak Lengkap', variant: 'destructive' }); return; }
-        setRewardToPrint(dataToPrint); setIsRewardPrintPreviewOpen(true);
-    };
-    
-    if (!userInfo) { return <div className="flex h-screen w-full items-center justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>; }
-
-    const renderTodayDashboard = () => (
-         <Card className='no-print'>
-            <CardHeader className='flex-row items-center justify-between'>
-                <div>
-                    <CardTitle>Laporan Absensi</CardTitle>
-                    <CardDescription>Menampilkan semua absensi yang tercatat pada <span className="font-semibold text-primary">{format(selectedDate, "dd MMMM yyyy", { locale: localeID })}</span></CardDescription>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn("w-[240px] justify-start text-left font-normal", !selectedDate && "text-muted-foreground" )}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {selectedDate ? format(selectedDate, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm">
+                    <Wrench className="mr-2" /> Buat Work Order
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-xl">
+                <DialogHeader>
+                    <DialogTitle>Buat Work Order untuk {vehicle.nomorLambung}</DialogTitle>
+                    <DialogDescription>
+                        Pilih mekanik dan tentukan target penyelesaian perbaikan.
+                    </DialogDescription>
+                </DialogHeader>
+                 <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
+                     <FormField
+                      control={form.control}
+                      name="mechanics"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Pilih Mekanik</FormLabel>
+                           <Popover>
+                              <PopoverTrigger asChild>
+                                 <Button variant="outline" className="w-full justify-start">
+                                    <PlusCircle className="mr-2"/>
+                                    {field.value.length > 0 ? field.value.map(m => m.name).join(', ') : "Pilih mekanik"}
+                                 </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                                  <Command>
+                                    <CommandInput placeholder="Cari mekanik..." />
+                                    <CommandList>
+                                        <CommandEmpty>Tidak ada mekanik.</CommandEmpty>
+                                        <CommandGroup>
+                                            {mechanics.map((mechanic) => {
+                                                const isSelected = field.value.some(m => m.id === mechanic.id);
+                                                return (
+                                                    <CommandItem
+                                                        key={mechanic.id}
+                                                        onSelect={() => {
+                                                            const currentMechanics = field.value;
+                                                            if (isSelected) {
+                                                                form.setValue("mechanics", currentMechanics.filter(m => m.id !== mechanic.id));
+                                                            } else {
+                                                                form.setValue("mechanics", [...currentMechanics, { id: mechanic.id, name: mechanic.username }]);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
+                                                            <Check className="h-4 w-4" />
+                                                        </div>
+                                                        <span>{mechanic.username}</span>
+                                                    </CommandItem>
+                                                )
+                                            })}
+                                        </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                              </PopoverContent>
+                           </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <FormField
+                            control={form.control}
+                            name="targetDate"
+                            render={({ field }) => (
+                            <FormItem className="flex flex-col">
+                                <FormLabel>Target Selesai</FormLabel>
+                                <Popover>
+                                <PopoverTrigger asChild>
+                                    <FormControl>
+                                    <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                                        {field.value ? format(field.value, "PPP", { locale: localeID }) : <span>Pilih tanggal</span>}
+                                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                    </Button>
+                                    </FormControl>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                                </PopoverContent>
+                                </Popover>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                         <FormField
+                            control={form.control}
+                            name="targetTime"
+                            render={({ field }) => (
+                            <FormItem className="flex flex-col">
+                                <FormLabel>Waktu Target</FormLabel>
+                                <Input type="time" {...field} />
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="outline">Batal</Button></DialogClose>
+                        <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2" />}
+                             Buat Work Order
                         </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="end">
-                        <Calendar mode="single" selected={selectedDate} onSelect={(date) => date && setSelectedDate(date)} initialFocus/>
-                      </PopoverContent>
-                    </Popover>
-                    <Select value={selectedLocation} onValueChange={setSelectedLocation}><SelectTrigger className="w-[220px]"><SelectValue placeholder="Pilih Lokasi" /></SelectTrigger>
-                        <SelectContent><SelectItem value="all">Semua Lokasi</SelectItem>{locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                </div>
-            </CardHeader>
-            <CardContent>
-                {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> 
-                : <AttendanceTable 
-                    records={filteredAttendance}
-                  />
-                }
-            </CardContent>
-        </Card>
+                    </DialogFooter>
+                  </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
     );
+};
 
-    const PhotoWithTimestamp = ({ photo, timestamp, label, formatStr = 'dd MMM, HH:mm' }: { photo?: string | null, timestamp?: any, label: string, formatStr?: string }) => {
-        if (!photo) return null;
-        const formattedTime = timestamp ? safeFormatTimestamp(timestamp, formatStr) : null;
-        return (<Dialog><DialogTrigger asChild><div className="cursor-pointer"><p className="text-xs font-semibold mb-1">{label}</p><img src={photo} className="rounded" alt={`Foto ${label}`} data-ai-hint="activity evidence"/><p className="text-[10px] text-muted-foreground text-center mt-1">{formattedTime || 'Waktu tidak tersedia'}</p></div></DialogTrigger><DialogContent className="max-w-3xl"><DialogHeader><DialogTitle>Foto Kegiatan: {label}</DialogTitle></DialogHeader><img src={photo} className="rounded-lg w-full h-auto" alt={`Foto ${label}`} /></DialogContent></Dialog>);
-    }
-    
-    const getStatusBadge = (status: string) => {
-        switch (status) { case 'completed': return <Badge className="bg-green-100 text-green-800">Selesai</Badge>; case 'in_progress': return <Badge className="bg-blue-100 text-blue-800">Proses</Badge>; case 'pending': return <Badge className="bg-yellow-100 text-yellow-800">Menunggu</Badge>; default: return <Badge>{status}</Badge>; }
-    };
-    
-    const renderActivityContent = (title: string, data: Record<string, ActivityLog[]>) => {
-        const getGroupStatusSummary = (activities: ActivityLog[]) => {
-            const summary = activities.reduce((acc, act) => { const statusKey = act.status || 'unknown'; acc[statusKey] = (acc[statusKey] || 0) + 1; return acc; }, {} as Record<string, number>);
-            return (<div className="flex gap-2 text-xs">{summary.completed > 0 && <Badge variant="secondary" className="bg-green-100 text-green-800">{summary.completed} Selesai</Badge>}{summary.in_progress > 0 && <Badge variant="secondary" className="bg-blue-100 text-blue-800">{summary.in_progress} Proses</Badge>}{summary.pending > 0 && <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">{summary.pending} Menunggu</Badge>}</div>)
-        };
-        return (<Card><CardHeader><CardTitle>{title}</CardTitle><CardDescription>{title === 'Riwayat Kegiatan Karyawan' ? 'Lihat semua aktivitas yang pernah dilaporkan.' : 'Aktivitas yang dilaporkan hari ini, dikelompokkan per karyawan.'}</CardDescription></CardHeader>
-                <CardContent>
-                    {title === 'Riwayat Kegiatan Karyawan' && (
-                        <div className="flex items-center gap-2 mb-4">
-                            <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal", !activityDateRange && "text-muted-foreground" )}><CalendarIcon className="mr-2 h-4 w-4" />{activityDateRange?.from ? ( activityDateRange.to ? (<>{format(activityDateRange.from, "LLL dd, y")} - {format(activityDateRange.to, "LLL dd, y")}</>) : (format(activityDateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="range" selected={activityDateRange} onSelect={setActivityDateRange} numberOfMonths={2}/></PopoverContent></Popover>
-                             <Button variant="ghost" size="icon" onClick={() => setActivityDateRange(undefined)} disabled={!activityDateRange}><FilterX className="h-4 w-4"/></Button>
-                        </div>
-                    )}
-                    {isLoading ? <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div> 
-                               : <Accordion type="single" collapsible className="w-full">{Object.entries(data).length > 0 ? Object.entries(data).map(([username, activities]) => (
-                                         <AccordionItem value={username} key={username}><AccordionTrigger><div className='flex items-center justify-between w-full'><div className="flex items-center gap-3 text-left"><Avatar className="h-9 w-9"><AvatarFallback>{username.charAt(0)}</AvatarFallback></Avatar><div><p className="font-semibold text-sm">{username}</p><p className="text-xs text-muted-foreground">{activities.length} Laporan</p></div></div><div className="hidden sm:block">{getGroupStatusSummary(activities)}</div></div></AccordionTrigger>
-                                            <AccordionContent className="pl-4"><div className="space-y-3 p-2 bg-muted/30 rounded-md">{activities.map(activity => (<div key={activity.id} className="p-3 border rounded-md bg-background"><div className="flex justify-between items-start"><div><p className="text-sm text-muted-foreground">{activity.description}</p><div className="text-xs text-muted-foreground space-y-1 mt-1"><p className="flex items-center gap-2"><Clock size={14}/>Target: {safeFormatTimestamp(activity.targetTimestamp, 'dd MMM, HH:mm')}</p></div></div>{getStatusBadge(activity.status)}</div><div className="grid grid-cols-3 gap-2 pt-3 mt-3 border-t"><PhotoWithTimestamp photo={activity.photoInitial} timestamp={activity.createdAt} label="Awal" /><PhotoWithTimestamp photo={activity.photoInProgress} timestamp={activity.timestampInProgress} label="Proses" /><PhotoWithTimestamp photo={activity.photoCompleted} timestamp={activity.timestampCompleted} label="Selesai" /></div></div>))}</div></AccordionContent>
-                                         </AccordionItem>
-                                    )) : <div className="text-center py-10 text-muted-foreground">Tidak ada aktivitas pada periode ini.</div>}</Accordion>}
-                </CardContent>
-            </Card>
-        );
-    }
-    
-    const renderHistoryContent = () => (
-        <Card className="no-print">
-            <CardHeader>
-                <CardTitle>Riwayat Absensi Karyawan</CardTitle>
-                <CardDescription>Analisis dan cetak riwayat kehadiran karyawan berdasarkan periode.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                 <div className="flex flex-col md:flex-row gap-2">
-                    <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full md:w-auto justify-start text-left font-normal"><UserSearch className="mr-2 h-4 w-4"/>{historySelectedUser ? historySelectedUser.username : 'Semua Karyawan'}</Button></PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-0" align="start">
-                            <Command><CommandInput placeholder="Cari karyawan..."/><CommandList><CommandEmpty>Tidak ada karyawan ditemukan.</CommandEmpty><CommandGroup>
-                                    <CommandItem onSelect={() => setHistorySelectedUser(null)} className="cursor-pointer">Semua Karyawan</CommandItem>
-                                    {allUsers.map(user => <CommandItem key={user.id} value={user.username} onSelect={() => setHistorySelectedUser(user)} className="cursor-pointer">{user.username}</CommandItem>)}
-                            </CommandGroup></CommandList></Command>
-                        </PopoverContent>
-                    </Popover>
-                    <Select onValueChange={(value) => { if(value === 'this') setHistoryDateRange(getThisPeriod()); if(value === 'last') setHistoryDateRange(getLastPeriod()); }}>
-                        <SelectTrigger className="w-full md:w-[250px]"><SelectValue placeholder="Pilih Periode..." /></SelectTrigger>
-                        <SelectContent><SelectItem value="this">Periode Ini (21-20)</SelectItem><SelectItem value="last">Periode Bulan Lalu</SelectItem></SelectContent>
-                    </Select>
-                    <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full md:w-[280px] justify-start text-left font-normal"><CalendarIcon className="mr-2 h-4 w-4"/>{historyDateRange?.from ? format(historyDateRange.from, "d MMM") + (historyDateRange.to ? " - " + format(historyDateRange.to, "d MMM yyyy") : "") : "Pilih Rentang"}</Button></PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start"><Calendar mode="range" selected={historyDateRange} onSelect={setHistoryDateRange} numberOfMonths={2}/></PopoverContent>
-                    </Popover>
-                    <Button onClick={() => window.print()} disabled={isLoading || filteredHistoryRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
-                </div>
-                 {isLoading ? (
-                    <div className="flex justify-center items-center h-60"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
-                 ) : (
-                    <AttendanceTable records={filteredHistoryRecords} />
-                 )}
-            </CardContent>
-        </Card>
-    );
+const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
+    if (!task.vehicle?.targetDate || !task.vehicle?.targetTime || !task.completedAt) return <Badge variant="secondary">N/A</Badge>;
 
-    const renderPenaltyContent = () => (
-        <div className="space-y-6">
-            <Card><CardHeader><CardTitle>Input Penalti Karyawan</CardTitle><CardDescription>Catat penalti untuk karyawan yang melakukan pelanggaran.</CardDescription></CardHeader>
-                <CardContent>
-                    <form onSubmit={handleSavePenalty} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div className="space-y-1"><Label>Nama Karyawan</Label><Select onValueChange={value => setSelectedPenaltyUser(allUsers.find(u => u.id === value) || null)} value={selectedPenaltyUser?.id || ''}><SelectTrigger><SelectValue placeholder="Pilih Karyawan..." /></SelectTrigger><SelectContent>{allUsers.map(user => (<SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>))}</SelectContent></Select></div><div className="space-y-1"><Label>NIK</Label><Input value={selectedPenaltyUser?.nik || ''} disabled /></div><div className="space-y-1"><Label>Jabatan</Label><Input value={selectedPenaltyUser?.jabatan || ''} disabled /></div></div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div className="space-y-1"><Label htmlFor="penaltyPoin">Poin Penalti</Label><Input id="penaltyPoin" type="number" value={penaltyPoin} onChange={e => setPenaltyPoin(e.target.value)} required /></div><div className="space-y-1"><Label htmlFor="penaltyValue">Nilai (Rp)</Label><Input id="penaltyValue" type="number" value={penaltyValue} onChange={e => setPenaltyValue(e.target.value)} /></div><div className="space-y-1"><Label htmlFor="penaltyCause">Penyebab</Label><Input id="penaltyCause" value={penaltyCause} onChange={e => setPenaltyCause(e.target.value)} required /></div></div>
-                        <div className="space-y-1"><Label htmlFor="penaltyDescription">Deskripsi Lengkap</Label><Textarea id="penaltyDescription" value={penaltyDescription} onChange={e => setPenaltyDescription(e.target.value)} required /></div>
-                        <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => handlePrintPenalty()} disabled={isPenaltyPrintButtonDisabled}>Cetak</Button><Button type="submit" disabled={isSubmittingPenalty}>{isSubmittingPenalty && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Simpan</Button></div>
-                    </form>
-                </CardContent>
-            </Card>
-            <Card><CardHeader><CardTitle>Riwayat Penalti</CardTitle></CardHeader>
-                <CardContent><div className="border rounded-md max-h-[500px] overflow-y-auto"><table className="w-full text-sm"><thead><tr className='text-left'><th className='p-2'>Tanggal</th><th className='p-2'>Nama</th><th className='p-2'>Penyebab</th><th className='p-2'>Poin</th><th className='p-2'>Nilai (Rp)</th><th className='p-2'>Detail</th></tr></thead><tbody>{penalties.map(p => (<tr key={p.id} className='border-t'><td className='p-2'>{safeFormatTimestamp(p.createdAt, 'dd MMM yyyy')}</td><td className='p-2'>{p.username}</td><td className='p-2'>{p.penyebab}</td><td className='p-2'>{p.poin}</td><td className='p-2'>{Number(p.nilai || 0).toLocaleString('id-ID')}</td><td className='p-2'><Button variant="ghost" size="icon" onClick={() => handlePrintPenalty(p)}><Eye className="h-4 w-4" /></Button></td></tr>))}</tbody></table></div></CardContent>
-            </Card>
-        </div>
-    );
+    const targetDateTime = new Date(`${task.vehicle.targetDate}T${task.vehicle.targetTime}`);
+    const completedDateTime = new Date(task.completedAt);
     
-    const renderRewardContent = () => (
-        <div className="space-y-6">
-            <Card><CardHeader><CardTitle>Input Reward Karyawan</CardTitle><CardDescription>Berikan apresiasi kepada karyawan berprestasi.</CardDescription></CardHeader>
-                <CardContent>
-                    <form onSubmit={handleSaveReward} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4"><div className="space-y-1"><Label>Nama Karyawan</Label><Select onValueChange={value => setSelectedRewardUser(allUsers.find(u => u.id === value) || null)} value={selectedRewardUser?.id || ''}><SelectTrigger><SelectValue placeholder="Pilih Karyawan..." /></SelectTrigger><SelectContent>{allUsers.map(user => (<SelectItem key={user.id} value={user.id}>{user.username}</SelectItem>))}</SelectContent></Select></div><div className="space-y-1"><Label>NIK</Label><Input value={selectedRewardUser?.nik || ''} disabled /></div><div className="space-y-1"><Label>Jabatan</Label><Input value={selectedRewardUser?.jabatan || ''} disabled /></div></div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div className="space-y-1"><Label htmlFor="rewardPoin">Poin Reward</Label><Input id="rewardPoin" type="number" value={rewardPoin} onChange={e => setRewardPoin(e.target.value)} required /></div><div className="space-y-1"><Label htmlFor="rewardValue">Nilai Reward (Rp)</Label><Input id="rewardValue" type="number" value={rewardValue} onChange={e => setRewardValue(e.target.value)} /></div></div>
-                        <div className="space-y-1"><Label htmlFor="rewardDescription">Deskripsi Lengkap</Label><Textarea id="rewardDescription" value={rewardDescription} onChange={e => setRewardDescription(e.target.value)} required /></div>
-                        <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => handlePrintReward()} disabled={isRewardPrintButtonDisabled}>Cetak</Button><Button type="submit" disabled={isSubmittingReward}>{isSubmittingReward && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}Simpan</Button></div>
-                    </form>
-                </CardContent>
-            </Card>
-            <Card><CardHeader><CardTitle>Riwayat Reward</CardTitle></CardHeader>
-                <CardContent><div className="border rounded-md max-h-[500px] overflow-y-auto"><table className="w-full text-sm"><thead><tr className='text-left'><th className='p-2'>Tanggal</th><th className='p-2'>Nama</th><th className='p-2'>Deskripsi</th><th className='p-2'>Poin</th><th className='p-2'>Nilai (Rp)</th><th className='p-2'>Detail</th></tr></thead><tbody>{rewards.map(r => (<tr key={r.id} className='border-t'><td className='p-2'>{safeFormatTimestamp(r.createdAt, 'dd MMM yyyy')}</td><td className='p-2'>{r.username}</td><td className='p-2'>{r.deskripsi}</td><td className='p-2'>{r.poin}</td><td className='p-2'>{Number(r.nilai || 0).toLocaleString('id-ID')}</td><td className='p-2'><Button variant="ghost" size="icon" onClick={() => handlePrintReward(r)}><Eye className="h-4 w-4" /></Button></td></tr>))}</tbody></table></div></CardContent>
-            </Card>
-        </div>
-    );
+    let totalDelayDuration = task.totalDelayDuration || 0;
 
-    const renderContent = () => {
-        switch(activeMenu) { case 'Absensi Hari Ini': return renderTodayDashboard(); case 'Riwayat Absensi': return renderHistoryContent(); case 'Kegiatan Karyawan Hari Ini': return renderActivityContent('Kegiatan Karyawan Hari Ini', groupedActivities); case 'Riwayat Kegiatan Karyawan': return renderActivityContent('Riwayat Kegiatan Karyawan', groupedActivities); case 'Penalti Karyawan': return renderPenaltyContent(); case 'Reward Karyawan': return renderRewardContent(); default: return <p>Halaman ini dalam pengembangan.</p> }
+    const diffMinutes = differenceInMinutes(completedDateTime, targetDateTime) - (totalDelayDuration / 60000);
+    const diffAbs = Math.abs(diffMinutes);
+    const hours = Math.floor(diffAbs / 60);
+    const minutes = Math.round(diffAbs % 60);
+    
+    let timeText = '';
+    if (hours > 0) timeText += `${hours}j `;
+    if (minutes > 0) timeText += `${minutes}m`;
+    if (timeText.trim() === '') timeText = '0m';
+
+    if (diffMinutes <= 5) {
+        return <Badge className="bg-green-100 text-green-800">Tepat Waktu {diffMinutes <= 0 ? `(Lebih Cepat ${timeText})` : ''}</Badge>;
+    } else {
+        return <Badge variant="destructive">Terlambat ${timeText}</Badge>;
     }
+};
+
+const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null; allTasks: MechanicTask[]; allUsers: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
+    const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
+    const [searchNoPol, setSearchNoPol] = useState('');
+    const [date, setDate] = useState<DateRange | undefined>({
+      from: subDays(new Date(), 29),
+      to: new Date(),
+    });
+
+    const sopirOptions = useMemo(() => {
+        return allUsers.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'))
+            .filter(u => user?.lokasi ? u.lokasi === user.lokasi : true)
+            .sort((a,b) => a.username.localeCompare(b.username));
+    }, [allUsers, user]);
+  
+    const filteredTasks = useMemo(() => {
+      const fromDate = date?.from ? startOfDay(date.from) : null;
+      const toDate = date?.to ? endOfDay(date.to) : null;
+  
+      return allTasks
+        .filter((task) => {
+          if (task.status !== 'COMPLETED' || !task.completedAt) return false;
+          
+          if (user?.lokasi) {
+            const taskLocation = allAlat.find(v => v.nomorLambung === task.vehicle?.hullNumber)?.lokasi;
+            if (taskLocation !== user.lokasi) return false;
+          }
+  
+          if (fromDate && toDate) {
+            const completedDate = new Date(task.completedAt);
+            if (isBefore(completedDate, fromDate) || isAfter(completedDate, toDate)) {
+              return false;
+            }
+          }
+          
+          if (selectedOperatorId !== "all") {
+              const reportForTask = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
+              if (!reportForTask || reportForTask.operatorId !== selectedOperatorId) {
+                  return false;
+              }
+          }
+
+          if (searchNoPol && task.vehicle?.licensePlate) {
+              if (!task.vehicle.licensePlate.toUpperCase().includes(searchNoPol.toUpperCase())) {
+                  return false;
+              }
+          }
+          
+          return true;
+        })
+        .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime());
+    }, [allTasks, date, selectedOperatorId, user, allAlat, allReports, searchNoPol]);
 
     return (
         <>
-            <Dialog open={isPenaltyPrintPreviewOpen} onOpenChange={setIsPenaltyPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b no-print"><DialogTitle>Pratinjau Surat Penalti</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-penalty"><PenaltyPrintLayout penaltyData={penaltyToPrint} /></div><DialogFooter className="p-4 border-t bg-muted no-print"><Button variant="outline" onClick={() => setIsPenaltyPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-penalty')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
-            <Dialog open={isRewardPrintPreviewOpen} onOpenChange={setIsRewardPrintPreviewOpen}><DialogContent className="max-w-4xl p-0"><DialogHeader className="p-4 border-b no-print"><DialogTitle>Pratinjau Surat Reward</DialogTitle><DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose></DialogHeader><div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-reward"><RewardPrintLayout rewardData={rewardToPrint} /></div><DialogFooter className="p-4 border-t bg-muted no-print"><Button variant="outline" onClick={() => setIsRewardPrintPreviewOpen(false)}>Tutup</Button><Button onClick={() => printElement('printable-reward')}>Cetak</Button></DialogFooter></DialogContent></Dialog>
-            
-            <div className="print-only">
-                {historyDateRange?.from && <AttendanceHistoryPrintLayout records={filteredHistoryRecords} period={historyDateRange} summary={historySummary} />}
-            </div>
-
-            <SidebarProvider>
-                <div className="flex min-h-screen bg-background text-foreground no-print">
-                    <Sidebar><SidebarContent><SidebarHeader><h2 className="text-xl font-semibold text-primary">HRD Pusat</h2></SidebarHeader>
-                        <SidebarMenu>
-                            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'Absensi Hari Ini'} onClick={() => setActiveMenu('Absensi Hari Ini')}><UserCheck />Absensi Hari Ini</SidebarMenuButton></SidebarMenuItem>
-                            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'Riwayat Absensi'} onClick={() => setActiveMenu('Riwayat Absensi')}><History />Riwayat Absensi</SidebarMenuButton></SidebarMenuItem>
-                            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'Kegiatan Karyawan Hari Ini'} onClick={() => { setActiveMenu('Kegiatan Karyawan Hari Ini'); setActivityDateRange(undefined); }}><ClipboardList />Kegiatan Karyawan Hari Ini</SidebarMenuButton></SidebarMenuItem>
-                            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'Riwayat Kegiatan Karyawan'} onClick={() => { setActiveMenu('Riwayat Kegiatan Karyawan'); setActivityDateRange({ from: subDays(new Date(), 7), to: new Date() }); }}><History />Riwayat Kegiatan Karyawan</SidebarMenuButton></SidebarMenuItem>
-                            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'Penalti Karyawan'} onClick={() => setActiveMenu('Penalti Karyawan')}><ShieldX />Penalti Karyawan</SidebarMenuButton></SidebarMenuItem>
-                            <SidebarMenuItem><SidebarMenuButton isActive={activeMenu === 'Reward Karyawan'} onClick={() => setActiveMenu('Reward Karyawan')}><Star />Reward Karyawan</SidebarMenuButton></SidebarMenuItem>
-                        </SidebarMenu>
-                        <SidebarFooter><Button variant="ghost" onClick={() => router.push('/login')} className="w-full justify-start"><LogOut className="mr-2 h-4 w-4" /> Keluar</Button></SidebarFooter>
-                    </SidebarContent></Sidebar>
-                    <SidebarInset><main className="p-4 sm:p-6 md:p-8">
-                        <header className="flex items-start sm:items-center justify-between gap-4 mb-8"><div className='flex items-center gap-4'><SidebarTrigger /><div><h1 className="text-2xl font-bold tracking-wider">{activeMenu}</h1><p className="text-muted-foreground">Selamat datang, {userInfo.username}</p></div></div></header>
-                        {renderContent()}
-                    </main></SidebarInset>
+            <div className='hidden'>
+                <div id="history-print-area">
+                    <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
                 </div>
-            </SidebarProvider>
+            </div>
+            <Card>
+                <CardHeader>
+                <CardTitle>Histori Perbaikan Alat</CardTitle>
+                <CardDescription>
+                    Tinjau riwayat pekerjaan perbaikan yang telah diselesaikan.
+                </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2 items-center">
+                    <Input
+                        placeholder="Cari No. Polisi..."
+                        value={searchNoPol}
+                        onChange={e => setSearchNoPol(e.target.value)}
+                        className="w-full sm:w-auto sm:flex-1"
+                    />
+                    <Select value={selectedOperatorId} onValueChange={setSelectedOperatorId}>
+                    <SelectTrigger className="w-full sm:w-auto sm:flex-1">
+                        <SelectValue placeholder="Pilih Operator/Sopir" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Semua Operator/Sopir</SelectItem>
+                        {sopirOptions.map((sopir) => (
+                        <SelectItem key={sopir.id} value={sopir.id}>
+                            {sopir.username}
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                    </Select>
+                    <Popover>
+                    <PopoverTrigger asChild>
+                        <Button id="date" variant={"outline"} className={cn("w-full sm:w-auto sm:flex-1 justify-start text-left font-normal", !date && "text-muted-foreground" )}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {date?.from ? ( date.to ? (<>{format(date.from, "LLL dd, y")} - {format(date.to, "LLL dd, y")}</>) : (format(date.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={2}/>
+                    </PopoverContent>
+                    </Popover>
+                    <Button variant="ghost" onClick={() => { setSearchNoPol(''); setSelectedOperatorId('all'); setDate({ from: subDays(new Date(), 29), to: new Date() }); }}><FilterX className="mr-2 h-4 w-4"/>Reset</Button>
+                    <Button variant="outline" className="ml-auto" onClick={() => printElement('history-print-area')}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
+                </div>
+                <div className="border rounded-md overflow-x-auto">
+                    <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Kendaraan/Sopir</TableHead>
+                            <TableHead>Deskripsi Perbaikan</TableHead>
+                            <TableHead>Mekanik</TableHead>
+                            <TableHead>Waktu Pengerjaan</TableHead>
+                            <TableHead>Total Waktu Tunda</TableHead>
+                            <TableHead>Waktu Efektif</TableHead>
+                            <TableHead>Penyelesaian</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredTasks.length > 0 ? (
+                        filteredTasks.map((task) => {
+                            const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
+                            const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
+                            const calculateEffectiveDuration = (task: MechanicTask) => {
+                                if (!task.startedAt || !task.completedAt) return '-';
+                                const duration = new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime() - (task.totalDelayDuration || 0);
+                                return formatDistanceStrict(0, Math.max(0, duration), { locale: localeID });
+                            }
+                        
+                            const calculateTotalDelay = (task: MechanicTask) => {
+                                if (!task.riwayatTunda || task.riwayatTunda.length === 0) return '-';
+                                let totalMs = 0;
+                                task.riwayatTunda.forEach(tunda => {
+                                    if (tunda.waktuMulai && tunda.waktuSelesai) {
+                                        const start = typeof tunda.waktuMulai === 'number' ? new Date(tunda.waktuMulai) : tunda.waktuMulai;
+                                        const end = typeof tunda.waktuSelesai === 'number' ? new Date(tunda.waktuSelesai) : tunda.waktuSelesai;
+                                        totalMs += end.getTime() - start.getTime();
+                                    }
+                                });
+                                return formatDistanceStrict(0, totalMs, { locale: localeID });
+                            };
+
+                            return (
+                            <TableRow key={task.id}>
+                                <TableCell>
+                                    <p className="font-semibold">{task.vehicle.hullNumber} ({task.vehicle.licensePlate})</p>
+                                    <p className="text-xs text-muted-foreground">{sopir?.username || 'N/A'}</p>
+                                    <p className="text-xs text-muted-foreground">NIK: {sopir?.nik || '-'}</p>
+                                </TableCell>
+                                <TableCell className="max-w-[200px] truncate">{task.mechanicRepairDescription || "(Belum ada deskripsi)"}</TableCell>
+                                <TableCell>{task.mechanics.map(m => m.name).join(', ')}</TableCell>
+                                <TableCell>
+                                    <div className="text-xs space-y-1">
+                                        <p><span className="font-semibold">Mulai:</span> {task.startedAt ? format(new Date(task.startedAt), 'dd/MM HH:mm') : '-'}</p>
+                                        <p><span className="font-semibold">Target:</span> {format(new Date(task.vehicle.targetDate), 'dd/MM')} @ {task.vehicle.targetTime}</p>
+                                        <p><span className="font-semibold">Selesai:</span> {task.completedAt ? format(new Date(task.completedAt), 'dd/MM HH:mm') : '-'}</p>
+                                    </div>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="flex flex-col">
+                                        <span>{calculateTotalDelay(task)}</span>
+                                        {task.riwayatTunda && task.riwayatTunda.length > 0 && (
+                                            <ol className="text-xs text-orange-500 mt-1 italic list-decimal list-inside">
+                                                {task.riwayatTunda.map((tunda, index) => (
+                                                  <li key={index}>{tunda.alasan}</li>
+                                                ))}
+                                            </ol>
+                                          )}
+                                    </div>
+                                </TableCell>
+                                <TableCell>{calculateEffectiveDuration(task)}</TableCell>
+                                <TableCell><CompletionStatusBadge task={task} /></TableCell>
+                            </TableRow>
+                            )
+                        })
+                        ) : (
+                        <TableRow>
+                            <TableCell colSpan={7} className="h-24 text-center">
+                            Tidak ada riwayat perbaikan ditemukan untuk filter yang dipilih.
+                            </TableCell>
+                        </TableRow>
+                        )}
+                    </TableBody>
+                    </Table>
+                </div>
+                </CardContent>
+            </Card>
         </>
     );
+};
+
+
+export default function KepalaMekanikPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dashboard');
+  const [userInfo, setUserInfo] = useState<UserData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [alat, setAlat] = useState<AlatData[]>([]);
+  const [locations, setLocations] = useState<LocationData[]>([]);
+  const [users, setUsers] = useState<UserData[]>([]);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
+  const [isFetchingData, setIsFetchingData] = useState(true);
+
+  // State for Sopir & Batangan
+  const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
+  const [isFetchingPairings, setIsFetchingPairings] = useState(true);
+  const [selectedSopir, setSelectedSopir] = useState<UserData | null>(null);
+  const [selectedAlat, setSelectedAlat] = useState<AlatData | null>(null);
+  const [keterangan, setKeterangan] = useState('');
+  const [editingPairing, setEditingPairing] = useState<SopirBatanganData | null>(null);
+
+  // Mutasi state
+  const [isMutasiDialogOpen, setIsMutasiDialogOpen] = useState(false);
+  const [mutasiTarget, setMutasiTarget] = useState<AlatData | null>(null);
+  const [newLocationForMutasi, setNewLocationForMutasi] = useState('');
+  const [isMutating, setIsMutating] = useState(false);
+
+  // Delete state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<AlatData | SopirBatanganData | null>(null);
+  const [deleteType, setDeleteType] = useState<'alat' | 'pairing' | null>(null);
+
+  // Edit Alat state
+  const [editingAlat, setEditingAlat] = useState<AlatData | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  
+  // Detail List Dialog state
+  const [detailListTitle, setDetailListTitle] = useState('');
+  const [detailListData, setDetailListData] = useState<any[]>([]);
+  const [isDetailListOpen, setIsDetailListOpen] = useState(false);
+
+  // Karantina State
+  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
+  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
+  
+  // Notification state
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
+  const [hasNewMessage, setHasNewMessage] = useState(false);
+  const isInitialLoad = useRef(true);
+
+
+  const getStatusBadge = (status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
+    switch (status) {
+      case 'baik':
+        return <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-300">Baik</Badge>;
+      case 'perlu perhatian':
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Perlu Perhatian</Badge>;
+      case 'rusak':
+        return <Badge variant="destructive">Rusak</Badge>;
+       case 'Karantina':
+        return <Badge variant="destructive">Karantina</Badge>;
+      case 'Tanpa Operator':
+          return <Badge variant="secondary">Tanpa Operator</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+
+  useEffect(() => {
+    const userString = localStorage.getItem('user');
+    if (!userString) {
+      router.replace('/login');
+      return;
+    }
+    const userData = JSON.parse(userString);
+     if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
+      toast({
+        variant: 'destructive',
+        title: 'Akses Ditolak',
+        description: 'Anda tidak memiliki hak untuk mengakses halaman ini.',
+      });
+      router.replace('/login');
+      return;
+    }
+    setUserInfo(userData);
+    setIsLoading(false);
+  }, [router, toast]);
+  
+    const dataTransformer = useCallback((docData: any): any => {
+        const transformedData = { ...docData };
+        const timestampFields = ['timestamp', 'createdAt', 'startedAt', 'completedAt'];
+
+        for (const field of timestampFields) {
+            if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
+                transformedData[field] = transformedData[field].toDate();
+            }
+        }
+
+        if (transformedData.riwayatTunda && Array.isArray(transformedData.riwayatTunda)) {
+            transformedData.riwayatTunda = transformedData.riwayatTunda.map((tundaItem: any) => {
+                const newTundaItem = { ...tundaItem };
+                if (newTundaItem.waktuMulai && typeof newTundaItem.waktuMulai.toDate === 'function') {
+                    newTundaItem.waktuMulai = newTundaItem.waktuMulai.toDate();
+                }
+                if (newTundaItem.waktuSelesai && typeof newTundaItem.waktuSelesai.toDate === 'function') {
+                    newTundaItem.waktuSelesai = newTundaItem.waktuSelesai.toDate();
+                }
+                return newTundaItem;
+            });
+        }
+        
+        return transformedData;
+    }, []);
+
+    const setupListener = useCallback((collectionName: string, setter: React.Dispatch<React.SetStateAction<any[]>>) => {
+        const q = query(collection(db, collectionName));
+        return onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
+            setter(data);
+        }, (error) => {
+            console.error(`Error fetching ${collectionName}:`, error);
+            toast({ variant: 'destructive', title: `Gagal Memuat ${collectionName}` });
+        });
+    }, [dataTransformer, toast]);
+
+    useEffect(() => {
+        if (!userInfo) return;
+    
+        setIsFetchingData(true);
+        isInitialLoad.current = true;
+    
+        const unsubscribers = [
+            setupListener('users', setUsers),
+            setupListener('alat', setAlat),
+            setupListener('locations', setLocations),
+            setupListener('mechanic_tasks', setMechanicTasks),
+        ];
+        
+        const pairingUnsub = onSnapshot(query(collection(db, "sopir_batangan")), (snapshot) => {
+            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
+            setPairings(data);
+            setIsFetchingPairings(false);
+        }, (error) => {
+            console.error(`Error fetching sopir_batangan:`, error);
+            toast({ variant: 'destructive', title: `Gagal Memuat sopir_batangan` });
+            setIsFetchingPairings(false);
+        });
+        unsubscribers.push(pairingUnsub);
+        
+        const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
+            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
+            
+            if (isInitialLoad.current) {
+                const initialDamaged = new Set(data.filter(r => r.overallStatus === 'rusak').map(r => r.id));
+                setSeenDamagedReports(initialDamaged);
+            } else {
+                const newDamagedReports = data.filter(r => r.overallStatus === 'rusak' && !seenDamagedReports.has(r.id));
+                if (newDamagedReports.length > 0) {
+                    audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+                    setHasNewMessage(true);
+                    setSeenDamagedReports(prev => new Set([...Array.from(prev), ...newDamagedReports.map(r => r.id)]));
+                }
+            }
+            setReports(data);
+        });
+        unsubscribers.push(reportsUnsub);
+        
+        const timer = setTimeout(() => {
+            setIsFetchingData(false);
+            isInitialLoad.current = false;
+        }, 2000);
+        unsubscribers.push(() => clearTimeout(timer));
+    
+        return () => unsubscribers.forEach(unsub => unsub());
+    }, [userInfo, setupListener, dataTransformer, toast]);
+
+  const filteredAlatByLocation = useMemo(() => {
+    if (!userInfo?.lokasi) return alat.filter(item => !item.statusKarantina); 
+    return alat.filter(item => item.lokasi === userInfo.lokasi && !item.statusKarantina);
+  }, [alat, userInfo?.lokasi]);
+  
+  const usersInLocation = useMemo(() => {
+    if (!userInfo?.lokasi) return users;
+    return users.filter(user => user.lokasi === userInfo.lokasi);
+  }, [users, userInfo?.lokasi]);
+
+  const sopirOptions = useMemo(() => {
+    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
+  }, [users]);
+  
+  const getLatestReport = (vehicleId: string, allReports: Report[]): Report | undefined => {
+    if (!Array.isArray(allReports)) return undefined;
+    return allReports
+      .filter(r => r.vehicleId === vehicleId)
+      .sort((a, b) => {
+         const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+         const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+         return dateB - dateA;
+      })[0];
+  };
+
+  const statsData = useMemo(() => {
+    const defaultStats = { count: '0', list: [] };
+    if (isFetchingData || !userInfo?.lokasi) {
+        return { totalAlat: defaultStats, sudahChecklist: defaultStats, belumChecklist: defaultStats, alatBaik: defaultStats, perluPerhatian: defaultStats, alatRusak: defaultStats, alatRusakBerat: defaultStats, alatTdkAdaOperator: defaultStats };
+    }
+    const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
+    const existingAlatIds = new Set(alatInLocation.map(a => a.nomorLambung));
+
+    const validReports = reports.filter(r => r.vehicleId && existingAlatIds.has(r.vehicleId));
+
+    const reportsToday = validReports.filter(r => r.timestamp && isSameDay(new Date(r.timestamp), new Date()));
+    const checkedVehicleIdsToday = new Set(reportsToday.map(r => r.vehicleId));
+    
+    const pairedAlatInLocation = alatInLocation.filter(a => pairings.some(p => p.nomorLambung === a.nomorLambung));
+    const alatBelumChecklistList = pairedAlatInLocation.filter(a => !checkedVehicleIdsToday.has(a.nomorLambung));
+
+    const getLatestReportForAlat = (vehicleId: string) => getLatestReport(vehicleId, validReports);
+    
+    const alatBaikList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'baik');
+    const perluPerhatianList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'perlu perhatian');
+    const alatRusakList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'rusak');
+
+    const alatRusakBeratList = alat.filter(a => a.statusKarantina === true);
+    const alatTdkAdaOperatorList = alatInLocation.filter(a => !pairings.some(p => p.nomorLambung === a.nomorLambung) && !a.statusKarantina);
+
+
+    const mapToDetailFormat = (items: AlatData[], statusSource: 'latest' | 'belum' | 'karantina' | 'unpaired') => {
+      return items.map(item => {
+        let status: Report['overallStatus'] | 'Belum Checklist' | 'Karantina' | 'Tanpa Operator' = 'Belum Checklist';
+        
+        if (statusSource === 'latest') {
+          const report = getLatestReportForAlat(item.nomorLambung);
+          status = report?.overallStatus || 'Belum Checklist';
+        } else if (statusSource === 'karantina') {
+          status = 'Karantina';
+        } else if (statusSource === 'unpaired') {
+          status = 'Tanpa Operator';
+        }
+
+        const pairing = pairings.find(p => p.nomorLambung === item.nomorLambung);
+        return { id: item.id, nomorPolisi: item.nomorPolisi || 'N/A', nomorLambung: item.nomorLambung, operatorPelapor: pairing?.namaSopir || 'Belum Ada Sopir', status: status };
+      });
+    };
+
+    return {
+      totalAlat: { count: String(alatInLocation.length), list: mapToDetailFormat(alatInLocation, 'latest') },
+      sudahChecklist: { count: String(checkedVehicleIdsToday.size), list: mapToDetailFormat(alatInLocation.filter(a => checkedVehicleIdsToday.has(a.nomorLambung)), 'latest') },
+      belumChecklist: { count: String(alatBelumChecklistList.length), list: mapToDetailFormat(alatBelumChecklistList, 'belum') },
+      alatBaik: { count: String(alatBaikList.length), list: mapToDetailFormat(alatBaikList, 'latest') },
+      perluPerhatian: { count: String(perluPerhatianList.length), list: mapToDetailFormat(perluPerhatianList, 'latest') },
+      alatRusak: { count: String(alatRusakList.length), list: mapToDetailFormat(alatRusakList, 'latest') },
+      alatRusakBerat: { count: String(alatRusakBeratList.length), list: mapToDetailFormat(alatRusakBeratList, 'karantina') },
+      alatTdkAdaOperator: { count: String(alatTdkAdaOperatorList.length), list: mapToDetailFormat(alatTdkAdaOperatorList, 'unpaired') },
+    };
+}, [alat, userInfo?.lokasi, reports, pairings, isFetchingData]);
+  
+  const statCards = useMemo(() => {
+    return [
+      { title: 'Total Alat', value: statsData.totalAlat.count, description: 'Total alat di lokasi Anda', icon: Copy, color: 'text-blue-400' },
+      { title: 'Alat Sudah Checklist', value: statsData.sudahChecklist.count, description: 'Alat yang sudah dicek hari ini', icon: CheckCircle, color: 'text-green-400' },
+      { title: 'Alat Belum Checklist', value: statsData.belumChecklist.count, description: 'Alat (dengan sopir) yang belum dicek', icon: AlertTriangle, color: 'text-yellow-400' },
+      { title: 'Alat Baik', value: statsData.alatBaik.count, description: 'Status terakhir "Baik"', icon: CheckCircle, color: 'text-green-400' },
+      { title: 'Perlu Perhatian', value: statsData.perluPerhatian.count, description: 'Status terakhir "Perlu Perhatian"', icon: AlertTriangle, color: 'text-yellow-400' },
+      { title: 'Alat Rusak', value: statsData.alatRusak.count, description: 'Status terakhir "Rusak"', icon: WrenchIcon, color: 'text-red-400' },
+      { title: 'Alat Rusak Berat', value: statsData.alatRusakBerat.count, description: 'Alat yang dikarantina', icon: ShieldAlert, color: 'text-destructive' },
+      { title: 'Alat Tdk Ada Operator', value: statsData.alatTdkAdaOperator.count, description: 'Alat tanpa sopir/operator', icon: UserX, color: 'text-orange-400' },
+    ];
+  }, [statsData]);
+
+  const handleStatCardClick = (title: string) => {
+    if (isFetchingData || !userInfo?.lokasi) return;
+
+    setDetailListTitle(title);
+    
+    switch (title) {
+        case 'Total Alat': setDetailListData(statsData.totalAlat.list); break;
+        case 'Alat Sudah Checklist': setDetailListData(statsData.sudahChecklist.list); break;
+        case 'Alat Belum Checklist': setDetailListData(statsData.belumChecklist.list); break;
+        case 'Alat Baik': setDetailListData(statsData.alatBaik.list); break;
+        case 'Perlu Perhatian': setDetailListData(statsData.perluPerhatian.list); break;
+        case 'Alat Rusak': setDetailListData(statsData.alatRusak.list); break;
+        case 'Alat Rusak Berat': setDetailListData(statsData.alatRusakBerat.list); break;
+        case 'Alat Tdk Ada Operator': setDetailListData(statsData.alatTdkAdaOperator.list); break;
+        default: toast({ title: `Detail untuk: ${title}`, description: 'Fungsionalitas detail belum tersedia.' }); return;
+    }
+    
+    setIsDetailListOpen(true);
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    router.push('/login');
+  };
+  
+  const handleAddAlat = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!userInfo?.lokasi) {
+        toast({ title: 'Lokasi Pengguna Tidak Ditemukan', variant: 'destructive' });
+        return;
+    }
+
+    setIsSubmitting(true);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    const newAlatData: Omit<AlatData, 'id'> = {
+      nomorLambung: (formData.get('nomorLambung') as string).toUpperCase(),
+      nomorPolisi: (formData.get('nomorPolisi') as string).toUpperCase(),
+      jenisKendaraan: (formData.get('jenisKendaraan') as string).toUpperCase(),
+      lokasi: userInfo.lokasi,
+      statusKarantina: false,
+    };
+
+    if (!newAlatData.nomorLambung || !newAlatData.nomorPolisi || !newAlatData.jenisKendaraan) {
+        toast({ title: 'Input Tidak Lengkap', variant: 'destructive' });
+        setIsSubmitting(false);
+        return;
+    }
+
+    try {
+        await addDoc(collection(db, 'alat'), newAlatData);
+        toast({ title: 'Alat Ditambahkan' });
+        form.reset();
+    } catch(error) {
+        toast({ title: 'Error', description: 'Gagal menambahkan alat.', variant: 'destructive'});
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleMutasiRequest = (alatToMutate: AlatData) => {
+    setMutasiTarget(alatToMutate);
+    setIsMutasiDialogOpen(true);
+  };
+  
+  const handleConfirmMutasi = async () => {
+    if (!mutasiTarget || !newLocationForMutasi) {
+        toast({ title: 'Lokasi Tujuan Diperlukan', variant: 'destructive' });
+        return;
+    }
+    setIsMutating(true);
+    
+    try {
+        const alatDocRef = doc(db, 'alat', mutasiTarget.id);
+        await updateDoc(alatDocRef, { lokasi: newLocationForMutasi });
+        toast({ title: 'Mutasi Berhasil' });
+    } catch (error) {
+        toast({ title: 'Mutasi Gagal', variant: 'destructive' });
+    } finally {
+        setIsMutating(false);
+        setIsMutasiDialogOpen(false);
+        setMutasiTarget(null);
+        setNewLocationForMutasi('');
+    }
+  };
+
+  const handleDeleteRequest = (item: AlatData | SopirBatanganData, type: 'alat' | 'pairing') => {
+    setItemToDelete(item);
+    setDeleteType(type);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete || !deleteType) return;
+    setIsSubmitting(true);
+    try {
+        const collectionName = deleteType === 'alat' ? 'alat' : 'sopir_batangan';
+        const docRef = doc(db, collectionName, itemToDelete.id);
+        await deleteDoc(docRef);
+        toast({ title: 'Data Dihapus' });
+    } catch (error) {
+        toast({ title: 'Gagal Menghapus', variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+        setIsDeleteDialogOpen(false);
+        setItemToDelete(null);
+        setDeleteType(null);
+    }
+  };
+
+  const handleEditRequest = (alatToEdit: AlatData) => {
+    setEditingAlat(alatToEdit);
+  };
+
+  const handleConfirmEdit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingAlat) return;
+    setIsEditing(true);
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    
+    const updatedAlatData = {
+      nomorLambung: (formData.get('editNomorLambung') as string).toUpperCase(),
+      nomorPolisi: (formData.get('editNomorPolisi') as string).toUpperCase(),
+      jenisKendaraan: (formData.get('editJenisKendaraan') as string).toUpperCase(),
+    };
+    
+    try {
+        const alatDocRef = doc(db, 'alat', editingAlat.id);
+        await updateDoc(alatDocRef, updatedAlatData);
+        toast({ title: 'Alat Diperbarui' });
+        setEditingAlat(null);
+    } catch (error) {
+        toast({ title: 'Error', variant: 'destructive' });
+    } finally {
+        setIsEditing(false);
+    }
+  };
+
+  // Sopir & Batangan Handlers
+  const handleSavePairing = async () => {
+    if (!selectedSopir || !selectedAlat || !userInfo?.lokasi) {
+        toast({ title: 'Data Tidak Lengkap', description: 'Pilih sopir dan alat terlebih dahulu.', variant: 'destructive' });
+        return;
+    }
+    setIsSubmitting(true);
+
+    const pairingData: Omit<SopirBatanganData, 'id' | 'timestamp'> = {
+        userId: selectedSopir.id,
+        namaSopir: selectedSopir.username,
+        nik: selectedSopir.nik,
+        vehicleId: selectedAlat.id,
+        nomorPolisi: selectedAlat.nomorPolisi,
+        nomorLambung: selectedAlat.nomorLambung,
+        keterangan: keterangan,
+        lokasi: userInfo.lokasi,
+    };
+    
+    try {
+        if (editingPairing) {
+            const pairingDocRef = doc(db, 'sopir_batangan', editingPairing.id);
+            await updateDoc(pairingDocRef, pairingData);
+            toast({ title: "Pasangan Diperbarui" });
+        } else {
+            const finalData = { ...pairingData, timestamp: Timestamp.now() };
+            await addDoc(collection(db, 'sopir_batangan'), finalData);
+            toast({ title: 'Pasangan Disimpan' });
+        }
+        // Reset form
+        setSelectedSopir(null);
+        setSelectedAlat(null);
+        setKeterangan('');
+        setEditingPairing(null);
+    } catch (error) {
+        toast({ title: 'Gagal Menyimpan', variant: 'destructive' });
+        console.error(error);
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
+
+  const handleEditPairing = (pairing: SopirBatanganData) => {
+    setEditingPairing(pairing);
+    setSelectedSopir(sopirOptions.find(s => s.id === pairing.userId) || null);
+    setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
+    setKeterangan(pairing.keterangan);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const handleQuarantineRequest = (item: AlatData) => {
+      setQuarantineTarget(item);
+      setIsQuarantineConfirmOpen(true);
+  }
+
+  const handleConfirmQuarantine = async () => {
+    if (!quarantineTarget) return;
+    setIsSubmitting(true);
+    const newStatus = !quarantineTarget.statusKarantina;
+    
+    try {
+        const alatDocRef = doc(db, 'alat', quarantineTarget.id);
+        await updateDoc(alatDocRef, { statusKarantina: newStatus });
+        
+        if (newStatus) { // if the vehicle is being quarantined
+            const q = query(collection(db, "sopir_batangan"), where("nomorLambung", "==", quarantineTarget.nomorLambung));
+            const pairingSnapshot = await getDocs(q);
+            if (!pairingSnapshot.empty) {
+                const pairingDoc = pairingSnapshot.docs[0];
+                await deleteDoc(doc(db, "sopir_batangan", pairingDoc.id));
+                toast({ title: 'Sopir Dilepaskan', description: `Sopir untuk ${quarantineTarget.nomorLambung} telah dilepaskan.` });
+            }
+             toast({
+                title: `Alat Dikarantina`,
+                description: `${quarantineTarget.nomorLambung} telah dimasukkan ke karantina.`
+            });
+        } else { // if the vehicle is being RELEASED from quarantine
+            const dummyReport: Omit<Report, 'id' | 'timestamp'> & { timestamp: any } = {
+                timestamp: Timestamp.now(),
+                vehicleId: quarantineTarget.nomorLambung,
+                operatorName: 'SISTEM',
+                operatorId: 'SISTEM',
+                location: quarantineTarget.lokasi,
+                overallStatus: 'rusak',
+                description: 'Alat ini baru dilepas dari karantina dan membutuhkan pengecekan serta perbaikan menyeluruh.',
+                photo: '',
+            };
+            await addDoc(collection(db, 'checklist_reports'), dummyReport);
+            toast({
+                title: `Alat Dilepas dari Karantina`,
+                description: `${quarantineTarget.nomorLambung} telah dilepas dan WO baru telah dibuat otomatis.`
+            });
+        }
+    } catch (error) {
+        console.error("Error toggling quarantine status:", error);
+        toast({ title: 'Gagal Memperbarui Status', variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+        setIsQuarantineConfirmOpen(false);
+        setQuarantineTarget(null);
+    }
+  };
+
+  const renderLaporanLogistik = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+  
+  const renderContent = () => {
+    switch (activeMenu) {
+        case 'Dashboard':
+            return (
+              <main>
+                 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-4 gap-6 mb-8">
+                   {isFetchingData ? (
+                       Array.from({ length: 8 }).map((_, i) => (
+                          <Card key={i}><CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><Skeleton className="h-5 w-2/4" /><Skeleton className="h-6 w-6 rounded-full" /></CardHeader><CardContent><Skeleton className="h-12 w-1/4 mt-2" /><Skeleton className="h-4 w-3/4 mt-2" /></CardContent></Card>
+                       ))
+                   ) : statCards.map(card => (<StatCard key={card.title} {...card} onClick={() => handleStatCardClick(card.title)}/>))}
+                </div>
+              </main>
+            );
+        case 'Alat Rusak Berat/Karantina':
+            return (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Alat Rusak Berat / Karantina</CardTitle>
+                        <CardDescription>Daftar alat yang ditandai sebagai rusak berat atau sedang dalam masa karantina.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                         <div className="overflow-x-auto border rounded-lg">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Nomor Lambung</TableHead>
+                                        <TableHead>Nomor Polisi</TableHead>
+                                        <TableHead>Jenis Kendaraan</TableHead>
+                                        <TableHead>Laporan Terakhir</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead className='text-right'>Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isFetchingData ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : statsData.alatRusakBerat.list.length > 0 ? (statsData.alatRusakBerat.list.map((item:any) => {
+                                        const latestReport = getLatestReport(item.nomorLambung, reports);
+                                        return (
+                                        <TableRow key={item.id}>
+                                            <TableCell className="font-medium">{item.nomorLambung}</TableCell>
+                                            <TableCell>{item.nomorPolisi}</TableCell>
+                                            <TableCell>{alat.find(a => a.id === item.id)?.jenisKendaraan}</TableCell>
+                                            <TableCell>
+                                                <p>{latestReport?.description || 'N/A'}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {latestReport?.timestamp ? format(new Date(latestReport.timestamp), 'dd MMM yyyy', {locale: localeID}) : 'N/A'}
+                                                </p>
+                                            </TableCell>
+                                            <TableCell>{getStatusBadge('Karantina')}</TableCell>
+                                            <TableCell className='text-right'>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <div className="space-y-1">
+                                                         <h4 className="font-semibold text-xs text-right">Karantina</h4>
+                                                         <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
+                                                            Lepas Karantina
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )})) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
+                                </TableBody>
+                            </Table>
+                         </div>
+                    </CardContent>
+                </Card>
+            );
+        case 'Sopir & Batangan':
+            return (
+                <main className="space-y-8">
+                    <Card><CardHeader><CardTitle className="flex items-center gap-3"><PlusCircle />{editingPairing ? 'Edit' : 'Tambah'} Pasangan Sopir & Batangan</CardTitle><CardDescription>Pasangkan sopir dengan kendaraan yang akan dioperasikan.</CardDescription></CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                                <div className="md:col-span-2 space-y-2"><Label>Nama Sopir</Label>
+                                    <Select value={selectedSopir?.id || ''} onValueChange={(val) => setSelectedSopir(sopirOptions.find(s => s.id === val) || null)}>
+                                        <SelectTrigger><SelectValue placeholder="Pilih Sopir..." /></SelectTrigger>
+                                        <SelectContent>{sopirOptions.map(s => <SelectItem key={s.id} value={s.id}>{s.username}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>NIK</Label><Input value={selectedSopir?.nik || ''} disabled className="bg-muted" /></div>
+                                <div className="space-y-2"><Label>Nomor Polisi</Label>
+                                     <Select value={selectedAlat?.id || ''} onValueChange={(val) => setSelectedAlat(alat.find(a => a.id === val) || null)}>
+                                        <SelectTrigger><SelectValue placeholder="Pilih Kendaraan..." /></SelectTrigger>
+                                        <SelectContent>{filteredAlatByLocation.map(a => <SelectItem key={a.id} value={a.id}>{a.nomorPolisi}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>Nomor Lambung</Label><Input value={selectedAlat?.nomorLambung || ''} disabled className="bg-muted" /></div>
+                                <div className="md:col-span-3 space-y-2"><Label>Keterangan</Label><Input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Keterangan (jika ada)..." /></div>
+                                <div className="md:col-span-3 flex gap-2">
+                                <Button className="w-full" onClick={handleSavePairing} disabled={isSubmitting}><Save className="mr-2" />{editingPairing ? 'Update' : 'Simpan'}</Button>
+                                    {editingPairing && <Button className="w-full" variant="outline" onClick={() => { setEditingPairing(null); setSelectedSopir(null); setSelectedAlat(null); setKeterangan(''); }}>Batal</Button>}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card><CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <Table><TableHeader><TableRow><TableHead>Nama Sopir</TableHead><TableHead>NIK</TableHead><TableHead>Nomor Polisi</TableHead><TableHead>Nomor Lambung</TableHead><TableHead>Keterangan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {isFetchingPairings ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => {
+                                                const vehicle = alat.find(a => a.id === p.vehicleId);
+                                                return (
+                                                <TableRow key={p.id}>
+                                                    <TableCell>{p.namaSopir}</TableCell>
+                                                    <TableCell>{p.nik}</TableCell>
+                                                    <TableCell>{p.nomorPolisi}</TableCell>
+                                                    <TableCell>{p.nomorLambung}</TableCell>
+                                                    <TableCell>{p.keterangan}</TableCell>
+                                                    <TableCell className="text-right space-x-1">
+                                                        <Button size="icon" variant="ghost" onClick={() => handleEditPairing(p)}><Pencil className="h-4 w-4 text-amber-500" /></Button>
+                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(vehicle)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>}
+                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(vehicle)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>}
+                                                        <Button size="icon" variant="ghost" onClick={() => handleDeleteRequest(p, 'pairing')}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                                )
+                                            })) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>)}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
+            );
+        case 'Histori Perbaikan Alat':
+             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
+        case 'Laporan Logistik':
+             return renderLaporanLogistik();
+        case 'Manajemen Pengguna':
+            return (
+                <main>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Manajemen Pengguna</CardTitle>
+                            <CardDescription>Daftar semua pengguna yang terdaftar di lokasi Anda.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Nama</TableHead>
+                                            <TableHead>Username</TableHead>
+                                            <TableHead>NIK</TableHead>
+                                            <TableHead>Jabatan</TableHead>
+                                            <TableHead>Lokasi</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isFetchingData ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                        ) : usersInLocation.length > 0 ? (
+                                            usersInLocation.map(user => (
+                                                <TableRow key={user.id}>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar>
+                                                                <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="font-medium">{user.username}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>{user.username}</TableCell>
+                                                    <TableCell>{user.nik}</TableCell>
+                                                    <TableCell>{user.jabatan}</TableCell>
+                                                    <TableCell>{user.lokasi}</TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada data pengguna.</TableCell></TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
+            );
+        default:
+            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
+    }
+  }
+
+  if (isLoading || !userInfo) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <>
+     <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Anda yakin akan menghapus data ini secara permanen? Tindakan ini tidak dapat diurungkan.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmDelete} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Ya, Hapus
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+     <Dialog open={isMutasiDialogOpen} onOpenChange={setIsMutasiDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Konfirmasi Mutasi Alat: {mutasiTarget?.nomorLambung}</DialogTitle>
+                <DialogDescription>
+                    Pindahkan alat dari lokasi <strong>{mutasiTarget?.lokasi}</strong> ke lokasi baru. Pastikan Anda yakin sebelum melanjutkan.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Label htmlFor="mutasi-location">Pilih Lokasi Tujuan</Label>
+                <Select value={newLocationForMutasi} onValueChange={setNewLocationForMutasi}>
+                    <SelectTrigger id="mutasi-location">
+                        <SelectValue placeholder="Pilih lokasi..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {locations.filter(l => l.name !== mutasiTarget?.lokasi).map(loc => (
+                            <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setIsMutasiDialogOpen(false)}>Batal</Button>
+                <Button onClick={handleConfirmMutasi} disabled={isMutating}>
+                    {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Konfirmasi & Pindahkan
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+     <Dialog open={!!editingAlat} onOpenChange={(isOpen) => !isOpen && setEditingAlat(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Edit Alat</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleConfirmEdit} className="space-y-4 pt-4">
+                <div>
+                    <Label htmlFor="editNomorLambung">Nomor Lambung</Label>
+                    <Input id="editNomorLambung" name="editNomorLambung" defaultValue={editingAlat?.nomorLambung} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <div>
+                    <Label htmlFor="editNomorPolisi">Nomor Polisi</Label>
+                    <Input id="editNomorPolisi" name="editNomorPolisi" defaultValue={editingAlat?.nomorPolisi} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                 <div>
+                    <Label htmlFor="editJenisKendaraan">Jenis Kendaraan</Label>
+                    <Input id="editJenisKendaraan" name="editJenisKendaraan" defaultValue={editingAlat?.jenisKendaraan} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setEditingAlat(null)}>Batal</Button>
+                    <Button type="submit" disabled={isEditing}>
+                        {isEditing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+    
+      <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
+        <DialogContent className="max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>Detail: {detailListTitle}</DialogTitle>
+                <DialogDescription>
+                    Berikut adalah daftar alat yang termasuk dalam kategori ini di lokasi Anda.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto mt-4 pr-2">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>No. Polisi</TableHead>
+                            <TableHead>No. Lambung</TableHead>
+                            <TableHead>Sopir (Batangan)</TableHead>
+                            <TableHead>Status</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {detailListData.length > 0 ? (
+                            detailListData.map(item => (
+                                <TableRow key={item.id}>
+                                    <TableCell>{item.nomorPolisi}</TableCell>
+                                    <TableCell>{item.nomorLambung}</TableCell>
+                                    <TableCell>{item.operatorPelapor}</TableCell>
+                                    <TableCell>{getStatusBadge(item.status)}</TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={4} className="text-center h-24">
+                                    Tidak ada alat dalam kategori ini.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
+            <DialogFooter className="mt-4">
+                <DialogClose asChild>
+                    <Button type="button" variant="secondary">Tutup</Button>
+                </DialogClose>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+       <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Konfirmasi Status Karantina</AlertDialogTitle>
+                <AlertDialogDescription>
+                   Anda yakin ingin {quarantineTarget?.statusKarantina ? 'mengeluarkan' : 'memasukkan'} kendaraan <strong>{quarantineTarget?.nomorLambung}</strong> {quarantineTarget?.statusKarantina ? 'dari' : 'ke dalam'} karantina?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmQuarantine}>
+                    Ya, Konfirmasi
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+
+    <SidebarProvider>
+      <div className="flex min-h-screen bg-background text-foreground">
+        <Sidebar>
+          <SidebarContent className="flex flex-col">
+            <SidebarHeader>
+              <h2 className="text-lg font-semibold text-primary px-2">Dasbor Mekanik</h2>
+            </SidebarHeader>
+            <SidebarMenu className="flex-1">
+              {menuItems.map((item) => (
+                <SidebarMenuItem key={item.name}>
+                    <SidebarMenuButton
+                        isActive={activeMenu === item.name}
+                        onClick={() => setActiveMenu(item.name as ActiveMenu)}
+                        className="h-9 relative"
+                    >
+                        <item.icon className="h-4 w-4" />
+                        <span className="text-sm">{item.name}</span>
+                         {item.name === 'Pesan Masuk' && hasNewMessage && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
+                         )}
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+            <SidebarFooter className="p-2 space-y-2">
+                 <div className="text-center p-4 border rounded-lg">
+                     <p className='font-bold'>{userInfo.username}</p>
+                     <p className='text-xs text-muted-foreground'>{userInfo.nik} - {userInfo.jabatan}</p>
+                 </div>
+                <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-muted-foreground">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                </Button>
+            </SidebarFooter>
+          </SidebarContent>
+        </Sidebar>
+        <SidebarInset>
+          <div className="flex-1 p-6 lg:p-10">
+            <header className="flex justify-between items-start mb-8">
+                <div>
+                     <h1 className="text-3xl font-bold text-foreground">
+                        {activeMenu}
+                     </h1>
+                     <p className="text-sm text-muted-foreground">
+                         Lokasi: {userInfo.lokasi}
+                     </p>
+                </div>
+            </header>
+            
+            {renderContent()}
+
+          </div>
+        </SidebarInset>
+      </div>
+    </SidebarProvider>
+    </>
+  );
 }
