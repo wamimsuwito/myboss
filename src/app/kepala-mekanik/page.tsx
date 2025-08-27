@@ -93,12 +93,6 @@ const menuItems = [
     { name: 'Histori Perbaikan Alat', icon: History },
     { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert },
     { name: 'Anggota Mekanik', icon: Users },
-    { name: 'Laporan Logistik', icon: Truck },
-    { name: 'Manajemen Pengguna', icon: Users },
-    { name: 'Riwayat Penalti', icon: ShieldX },
-    { name: 'Komplain dari Sopir', icon: MessageSquareWarning },
-    { name: 'Usulan / Saran dari Sopir', icon: Lightbulb },
-    { name: 'Pesan Masuk', icon: Mail },
 ];
 
 type ActiveMenu = 
@@ -106,13 +100,7 @@ type ActiveMenu =
   | 'Sopir & Batangan' 
   | 'Histori Perbaikan Alat' 
   | 'Alat Rusak Berat/Karantina' 
-  | 'Anggota Mekanik'
-  | 'Laporan Logistik'
-  | 'Manajemen Pengguna'
-  | 'Riwayat Penalti'
-  | 'Komplain dari Sopir'
-  | 'Usulan / Saran dari Sopir'
-  | 'Pesan Masuk';
+  | 'Anggota Mekanik';
 
 
 const taskFormSchema = z.object({
@@ -1030,25 +1018,6 @@ export default function KepalaMekanikPage() {
         setQuarantineTarget(null);
     }
   };
-
-  const renderLaporanLogistik = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Laporan Pemakaian Barang</CardTitle>
-        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
-            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
-            <Button>Simpan Laporan</Button>
-        </form>
-        <div className="mt-6 text-center text-muted-foreground">
-            <p>(Fitur masih dalam pengembangan)</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
   
   const renderContent = () => {
     switch (activeMenu) {
@@ -1178,58 +1147,6 @@ export default function KepalaMekanikPage() {
             );
         case 'Histori Perbaikan Alat':
              return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
-        case 'Laporan Logistik':
-             return renderLaporanLogistik();
-        case 'Manajemen Pengguna':
-            return (
-                <main>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Manajemen Pengguna</CardTitle>
-                            <CardDescription>Daftar semua pengguna yang terdaftar di lokasi Anda.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="overflow-x-auto border rounded-lg">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Nama</TableHead>
-                                            <TableHead>Username</TableHead>
-                                            <TableHead>NIK</TableHead>
-                                            <TableHead>Jabatan</TableHead>
-                                            <TableHead>Lokasi</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {isFetchingData ? (
-                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                        ) : usersInLocation.length > 0 ? (
-                                            usersInLocation.map(user => (
-                                                <TableRow key={user.id}>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-3">
-                                                            <Avatar>
-                                                                <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
-                                                            </Avatar>
-                                                            <span className="font-medium">{user.username}</span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>{user.username}</TableCell>
-                                                    <TableCell>{user.nik}</TableCell>
-                                                    <TableCell>{user.jabatan}</TableCell>
-                                                    <TableCell>{user.lokasi}</TableCell>
-                                                </TableRow>
-                                            ))
-                                        ) : (
-                                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada data pengguna.</TableCell></TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </main>
-            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
