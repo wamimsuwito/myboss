@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from '@/components/ui/button';
@@ -1089,55 +1089,36 @@ export default function KepalaMekanikPage() {
         case 'Sopir & Batangan':
             return (
                 <main className="space-y-8">
-                    <Card><CardHeader><CardTitle className="flex items-center gap-3"><PlusCircle />{editingPairing ? 'Edit' : 'Tambah'} Pasangan Sopir & Batangan</CardTitle><CardDescription>Pasangkan sopir dengan kendaraan yang akan dioperasikan.</CardDescription></CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-                                <div className="md:col-span-2 space-y-2"><Label>Nama Sopir</Label>
-                                    <Select value={selectedSopir?.id || ''} onValueChange={(val) => setSelectedSopir(sopirOptions.find(s => s.id === val) || null)}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih Sopir..." /></SelectTrigger>
-                                        <SelectContent>{sopirOptions.map(s => <SelectItem key={s.id} value={s.id}>{s.username}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2"><Label>NIK</Label><Input value={selectedSopir?.nik || ''} disabled className="bg-muted" /></div>
-                                <div className="space-y-2"><Label>Nomor Polisi</Label>
-                                     <Select value={selectedAlat?.id || ''} onValueChange={(val) => setSelectedAlat(alat.find(a => a.id === val) || null)}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih Kendaraan..." /></SelectTrigger>
-                                        <SelectContent>{filteredAlatByLocation.map(a => <SelectItem key={a.id} value={a.id}>{a.nomorPolisi}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2"><Label>Nomor Lambung</Label><Input value={selectedAlat?.nomorLambung || ''} disabled className="bg-muted" /></div>
-                                <div className="md:col-span-3 space-y-2"><Label>Keterangan</Label><Input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Keterangan (jika ada)..." /></div>
-                                <div className="md:col-span-3 flex gap-2">
-                                <Button className="w-full" onClick={handleSavePairing} disabled={isSubmitting}><Save className="mr-2" />{editingPairing ? 'Update' : 'Simpan'}</Button>
-                                    {editingPairing && <Button className="w-full" variant="outline" onClick={() => { setEditingPairing(null); setSelectedSopir(null); setSelectedAlat(null); setKeterangan(''); }}>Batal</Button>}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card><CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
+                    <Card>
+                      <CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
                         <CardContent>
                             <div className="overflow-x-auto border rounded-lg">
-                                <Table><TableHeader><TableRow><TableHead>Nama Sopir</TableHead><TableHead>NIK</TableHead><TableHead>Nomor Polisi</TableHead><TableHead>Nomor Lambung</TableHead><TableHead>Keterangan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Nama Sopir</TableHead>
+                                            <TableHead>NIK</TableHead>
+                                            <TableHead>Nomor Polisi</TableHead>
+                                            <TableHead>Nomor Lambung</TableHead>
+                                            <TableHead>Keterangan</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
                                     <TableBody>
-                                        {isFetchingPairings ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => {
-                                                const vehicle = alat.find(a => a.id === p.vehicleId);
-                                                return (
+                                        {isFetchingPairings ? (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                        ) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (
+                                            pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => (
                                                 <TableRow key={p.id}>
                                                     <TableCell>{p.namaSopir}</TableCell>
                                                     <TableCell>{p.nik}</TableCell>
                                                     <TableCell>{p.nomorPolisi}</TableCell>
                                                     <TableCell>{p.nomorLambung}</TableCell>
                                                     <TableCell>{p.keterangan}</TableCell>
-                                                    <TableCell className="text-right space-x-1">
-                                                        <Button size="icon" variant="ghost" onClick={() => handleEditPairing(p)}><Pencil className="h-4 w-4 text-amber-500" /></Button>
-                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(vehicle)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>}
-                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(vehicle)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>}
-                                                        <Button size="icon" variant="ghost" onClick={() => handleDeleteRequest(p, 'pairing')}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                                                    </TableCell>
                                                 </TableRow>
-                                                )
-                                            })) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>)}
+                                            ))
+                                        ) : (
+                                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>
+                                        )}
                                     </TableBody>
                                 </Table>
                             </div>
