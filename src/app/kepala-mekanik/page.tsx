@@ -987,28 +987,53 @@ export default function KepalaMekanikPage() {
                 </Card>
             );
         case 'Sopir & Batangan':
-            return (
+             return (
                  <Card>
-                      <CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
-                        <CardContent>
-                            <div className="overflow-x-auto border rounded-lg">
-                                <Table>
-                                    <TableHeader>
+                    <CardHeader>
+                        <CardTitle>Daftar Sopir & Batangan Aktif</CardTitle>
+                        <CardDescription>Hanya dapat melihat, tidak dapat mengubah.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto border rounded-lg">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Nama Sopir</TableHead>
+                                        <TableHead>NIK</TableHead>
+                                        <TableHead>Nomor Polisi</TableHead>
+                                        <TableHead>Nomor Lambung</TableHead>
+                                        <TableHead>Keterangan</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isFetchingPairings ? (
                                         <TableRow>
-                                            <TableHead>Nama Sopir</TableHead>
-                                            <TableHead>NIK</TableHead>
-                                            <TableHead>Nomor Polisi</TableHead>
-                                            <TableHead>Nomor Lambung</TableHead>
-                                            <TableHead>Keterangan</TableHead>
+                                            <TableCell colSpan={5} className="h-24 text-center">
+                                                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                                            </TableCell>
                                         </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {isFetchingPairings ? (<TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => (<TableRow key={p.id}><TableCell>{p.namaSopir}</TableCell><TableCell>{p.nik}</TableCell><TableCell>{p.nomorPolisi}</TableCell><TableCell>{p.nomorLambung}</TableCell><TableCell>{p.keterangan}</TableCell></TableRow>))) : (<TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>)}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </CardContent>
-                    </Card>
+                                    ) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (
+                                        pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => (
+                                            <TableRow key={p.id}>
+                                                <TableCell>{p.namaSopir}</TableCell>
+                                                <TableCell>{p.nik}</TableCell>
+                                                <TableCell>{p.nomorPolisi}</TableCell>
+                                                <TableCell>{p.nomorLambung}</TableCell>
+                                                <TableCell>{p.keterangan}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                                Belum ada pasangan sopir & batangan.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                 </Card>
             );
         case 'Histori Perbaikan Alat':
              return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
@@ -1084,7 +1109,7 @@ export default function KepalaMekanikPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction>
+                <AlertDialogAction onClick={() => {}}>
                     Ya, Konfirmasi
                 </AlertDialogAction>
             </AlertDialogFooter>
