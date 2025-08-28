@@ -436,7 +436,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
                         {filteredTasks.length > 0 ? (
                         filteredTasks.map((task) => {
                             const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
-                            const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
+                            const sopir = users.find(u => u.id === triggeringReport?.operatorId);
                             const calculateEffectiveDuration = (task: MechanicTask) => {
                                 if (!task.startedAt || !task.completedAt) return '-';
                                 const duration = new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime() - (task.totalDelayDuration || 0);
@@ -776,7 +776,7 @@ export default function KepalaMekanikPage() {
     router.push('/login');
   };
   
-    const woList = useMemo(() => {
+  const woList = useMemo(() => {
     const existingTaskReportIds = new Set(mechanicTasks.map(task => task.vehicle?.triggeringReportId));
     return reports
       .filter(report => report.overallStatus === 'rusak' && !existingTaskReportIds.has(report.id))
@@ -787,7 +787,19 @@ export default function KepalaMekanikPage() {
       users.filter(u => u.jabatan?.toUpperCase().includes('MEKANIK') && u.lokasi === userInfo?.lokasi), 
   [users, userInfo?.lokasi]);
 
+  const activeTasks = useMemo(() => {
+    return mechanicTasks.filter(task => task.status !== 'COMPLETED');
+  }, [mechanicTasks]);
   
+  const getTaskStatusBadge = (status: MechanicTask['status']) => {
+    switch (status) {
+      case 'PENDING': return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Menunggu</Badge>;
+      case 'IN_PROGRESS': return <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-300 animate-pulse">Dikerjakan</Badge>;
+      case 'DELAYED': return <Badge variant="destructive">Tunda</Badge>;
+      default: return <Badge>{status}</Badge>;
+    }
+  };
+
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -857,7 +869,81 @@ export default function KepalaMekanikPage() {
                 </Card>
             );
         case 'Work order aktif':
-             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
+            return (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Work Order Aktif</CardTitle>
+                    <CardDescription>
+                      Daftar semua pekerjaan perbaikan yang sedang menunggu atau dalam proses.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Kendaraan</TableHead>
+                            <TableHead>Pelapor</TableHead>
+                            <TableHead>Mekanik Bertugas</TableHead>
+                            <TableHead>Target Selesai</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {isFetchingData ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="h-24 text-center">
+                                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                              </TableCell>
+                            </TableRow>
+                          ) : activeTasks.length > 0 ? (
+                            activeTasks.map((task) => {
+                              const triggeringReport = reports.find(
+                                (r) => r.id === task.vehicle?.triggeringReportId
+                              );
+                              const sopir = users.find(
+                                (u) => u.id === triggeringReport?.operatorId
+                              );
+                              return (
+                                <TableRow key={task.id}>
+                                  <TableCell>
+                                    <p className="font-semibold">
+                                      {task.vehicle.hullNumber}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {task.vehicle.licensePlate}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell>
+                                    <p>{sopir?.username || 'N/A'}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatRelative(new Date(task.createdAt), new Date(), { locale: localeID })}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell>
+                                    {task.mechanics.map((m) => m.name).join(', ')}
+                                  </TableCell>
+                                  <TableCell>
+                                    {format(new Date(task.vehicle.targetDate), 'dd MMM yyyy')}
+                                    {' @ '}{task.vehicle.targetTime}
+                                  </TableCell>
+                                  <TableCell>{getTaskStatusBadge(task.status)}</TableCell>
+                                </TableRow>
+                              );
+                            })
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                Tidak ada work order yang sedang aktif.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
         case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
@@ -943,49 +1029,49 @@ export default function KepalaMekanikPage() {
     <>
      <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
       <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
-        <DialogContent className="max-w-3xl">
-            <DialogHeader>
-                <DialogTitle>Detail: {detailListTitle}</DialogTitle>
-                <DialogDescription>
-                    Berikut adalah daftar alat yang termasuk dalam kategori ini di lokasi Anda.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto mt-4 pr-2">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>No. Polisi</TableHead>
-                            <TableHead>No. Lambung</TableHead>
-                            <TableHead>Sopir (Batangan)</TableHead>
-                            <TableHead>Status</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {detailListData.length > 0 ? (
-                            detailListData.map(item => (
-                                <TableRow key={item.id}>
-                                    <TableCell>{item.nomorPolisi}</TableCell>
-                                    <TableCell>{item.nomorLambung}</TableCell>
-                                    <TableCell>{item.operatorPelapor}</TableCell>
-                                    <TableCell>{getStatusBadge(item.status)}</TableCell>
-                                </TableRow>
-                            ))
-                        ) : (
+            <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Detail: {detailListTitle}</DialogTitle>
+                    <DialogDescription>
+                        Berikut adalah daftar alat yang termasuk dalam kategori ini di lokasi Anda.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[60vh] overflow-y-auto mt-4 pr-2">
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center h-24">
-                                    Tidak ada alat dalam kategori ini.
-                                </TableCell>
+                                <TableHead>No. Polisi</TableHead>
+                                <TableHead>No. Lambung</TableHead>
+                                <TableHead>Sopir (Batangan)</TableHead>
+                                <TableHead>Status</TableHead>
                             </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
-            <DialogFooter className="mt-4">
-                <DialogClose asChild>
-                    <Button type="button" variant="secondary">Tutup</Button>
-                </DialogClose>
-            </DialogFooter>
-        </DialogContent>
+                        </TableHeader>
+                        <TableBody>
+                            {detailListData.length > 0 ? (
+                                detailListData.map(item => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{item.nomorPolisi}</TableCell>
+                                        <TableCell>{item.nomorLambung}</TableCell>
+                                        <TableCell>{item.operatorPelapor}</TableCell>
+                                        <TableCell>{getStatusBadge(item.status)}</TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="text-center h-24">
+                                        Tidak ada alat dalam kategori ini.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+                <DialogFooter className="mt-4">
+                    <DialogClose asChild>
+                        <Button type="button" variant="secondary">Tutup</Button>
+                    </DialogClose>
+                </DialogFooter>
+            </DialogContent>
       </Dialog>
       
        <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
