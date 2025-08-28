@@ -534,6 +534,8 @@ export default function KepalaMekanikPage() {
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
 
+  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
+
 
   const getStatusBadge = (status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
     switch (status) {
@@ -902,8 +904,7 @@ export default function KepalaMekanikPage() {
             );
         case 'Sopir & Batangan':
             return (
-                <main className="space-y-8">
-                     <Card>
+                 <Card>
                       <CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
                         <CardContent>
                             <div className="overflow-x-auto border rounded-lg">
@@ -918,27 +919,12 @@ export default function KepalaMekanikPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {isFetchingPairings ? (
-                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                        ) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (
-                                            pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => (
-                                                <TableRow key={p.id}>
-                                                    <TableCell>{p.namaSopir}</TableCell>
-                                                    <TableCell>{p.nik}</TableCell>
-                                                    <TableCell>{p.nomorPolisi}</TableCell>
-                                                    <TableCell>{p.nomorLambung}</TableCell>
-                                                    <TableCell>{p.keterangan}</TableCell>
-                                                </TableRow>
-                                            ))
-                                        ) : (
-                                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>
-                                        )}
+                                        {isFetchingPairings ? (<TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => (<TableRow key={p.id}><TableCell>{p.namaSopir}</TableCell><TableCell>{p.nik}</TableCell><TableCell>{p.nomorPolisi}</TableCell><TableCell>{p.nomorLambung}</TableCell><TableCell>{p.keterangan}</TableCell></TableRow>))) : (<TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>)}
                                     </TableBody>
                                 </Table>
                             </div>
                         </CardContent>
                     </Card>
-                </main>
             );
         case 'Histori Perbaikan Alat':
              return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
