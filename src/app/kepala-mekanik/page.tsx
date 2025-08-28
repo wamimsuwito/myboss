@@ -527,10 +527,6 @@ export default function KepalaMekanikPage() {
   const [detailListTitle, setDetailListTitle] = useState('');
   const [detailListData, setDetailListData] = useState<any[]>([]);
   const [isDetailListOpen, setIsDetailListOpen] = useState(false);
-
-  // Karantina State
-  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
-  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
   
   // Notification state
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -664,10 +660,6 @@ export default function KepalaMekanikPage() {
         return () => unsubscribers.forEach(unsub => unsub());
     }, [userInfo, setupListener, dataTransformer, toast]);
 
-  const filteredAlatByLocation = useMemo(() => {
-    if (!userInfo?.lokasi) return alat.filter(item => !item.statusKarantina); 
-    return alat.filter(item => item.lokasi === userInfo.lokasi && !item.statusKarantina);
-  }, [alat, userInfo?.lokasi]);
   
   const usersInLocation = useMemo(() => {
     if (!userInfo?.lokasi) return users;
