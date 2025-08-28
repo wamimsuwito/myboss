@@ -90,6 +90,7 @@ import HistoryPrintLayout from '@/components/history-print-layout';
 const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
     { name: 'Work order saya (WO)', icon: ClipboardList },
+    { name: 'Work order aktif', icon: ActivitySquare },
     { name: 'Sopir & Batangan', icon: Users },
     { name: 'Histori Perbaikan Alat', icon: History },
     { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert },
@@ -99,6 +100,7 @@ const menuItems = [
 type ActiveMenu = 
   | 'Dashboard' 
   | 'Work order saya (WO)'
+  | 'Work order aktif'
   | 'Sopir & Batangan' 
   | 'Histori Perbaikan Alat' 
   | 'Alat Rusak Berat/Karantina' 
@@ -518,6 +520,8 @@ export default function KepalaMekanikPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(true);
+  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
+  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
 
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
@@ -534,8 +538,6 @@ export default function KepalaMekanikPage() {
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
 
-  const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
-  const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
 
 
   const getStatusBadge = (status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
@@ -668,10 +670,6 @@ export default function KepalaMekanikPage() {
     if (!userInfo?.lokasi) return users;
     return users.filter(user => user.lokasi === userInfo.lokasi);
   }, [users, userInfo?.lokasi]);
-
-  const sopirOptions = useMemo(() => {
-    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
-  }, [users]);
   
   const getLatestReport = (vehicleId: string, allReports: Report[]): Report | undefined => {
     if (!Array.isArray(allReports)) return undefined;
@@ -858,6 +856,8 @@ export default function KepalaMekanikPage() {
                     </CardContent>
                 </Card>
             );
+        case 'Work order aktif':
+             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
         case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
@@ -875,11 +875,10 @@ export default function KepalaMekanikPage() {
                                         <TableHead>Jenis Kendaraan</TableHead>
                                         <TableHead>Laporan Terakhir</TableHead>
                                         <TableHead>Status</TableHead>
-                                        <TableHead className='text-right'>Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {isFetchingData ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : statsData.alatRusakBerat.list.length > 0 ? (statsData.alatRusakBerat.list.map((item:any) => {
+                                    {isFetchingData ? (<TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : statsData.alatRusakBerat.list.length > 0 ? (statsData.alatRusakBerat.list.map((item:any) => {
                                         const latestReport = getLatestReport(item.nomorLambung, reports);
                                         return (
                                         <TableRow key={item.id}>
@@ -893,10 +892,8 @@ export default function KepalaMekanikPage() {
                                                 </p>
                                             </TableCell>
                                             <TableCell>{getStatusBadge('Karantina')}</TableCell>
-                                            <TableCell className='text-right'>
-                                            </TableCell>
                                         </TableRow>
-                                    )})) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
+                                    )})) : (<TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
                                 </TableBody>
                             </Table>
                          </div>
