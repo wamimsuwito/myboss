@@ -797,6 +797,54 @@ export default function KepalaMekanikPage() {
     return mechanicTasks.filter(task => task.status !== 'COMPLETED');
   }, [mechanicTasks]);
   
+  const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status']) => {
+    const taskDocRef = doc(db, 'mechanic_tasks', task.id);
+    const updateData: Partial<MechanicTask> = { status: newStatus };
+
+    if (newStatus === 'DELAYED') {
+      const reason = prompt("Masukkan alasan menunda pekerjaan:");
+      if (reason) {
+        updateData.delayReason = reason;
+        updateData.delayStartedAt = new Date().getTime();
+        updateData.riwayatTunda = [...(task.riwayatTunda || []), { alasan: reason, waktuMulai: Timestamp.now(), waktuSelesai: null! }];
+      } else {
+        return; // User cancelled
+      }
+    }
+
+    if (newStatus === 'IN_PROGRESS' && task.status === 'PENDING' && !task.startedAt) {
+      updateData.startedAt = new Date().getTime();
+    } else if (newStatus === 'IN_PROGRESS' && task.status === 'DELAYED') {
+      const lastDelay = task.riwayatTunda?.[task.riwayatTunda.length - 1];
+      if (lastDelay && !lastDelay.waktuSelesai) {
+          lastDelay.waktuSelesai = Timestamp.now();
+          const delayDuration = lastDelay.waktuSelesai.toMillis() - lastDelay.waktuMulai.toMillis();
+          updateData.totalDelayDuration = (task.totalDelayDuration || 0) + delayDuration;
+          updateData.riwayatTunda = task.riwayatTunda;
+      }
+    }
+    
+    if (newStatus === 'COMPLETED') {
+        const repairDescription = prompt("Masukkan deskripsi perbaikan yang telah dilakukan:");
+        if (repairDescription) {
+            updateData.completedAt = new Date().getTime();
+            updateData.mechanicRepairDescription = repairDescription;
+        } else {
+            toast({ title: "Aksi Dibatalkan", description: "Deskripsi perbaikan wajib diisi untuk menyelesaikan WO.", variant: "destructive" });
+            return;
+        }
+    }
+
+
+    try {
+      await updateDoc(taskDocRef, updateData as any);
+      toast({ title: `Status WO Diperbarui`, description: `Status untuk ${task.vehicle.hullNumber} diubah menjadi ${newStatus}.` });
+    } catch (error) {
+      console.error("Error updating task status:", error);
+      toast({ title: "Gagal Memperbarui Status", variant: "destructive" });
+    }
+  };
+
   const getTaskStatusBadge = (status: MechanicTask['status']) => {
     switch (status) {
       case 'PENDING': return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Menunggu</Badge>;
@@ -933,7 +981,19 @@ export default function KepalaMekanikPage() {
                                     {format(new Date(task.vehicle.targetDate), 'dd MMM yyyy')}
                                     {' @ '}{task.vehicle.targetTime}
                                   </TableCell>
-                                  <TableCell>{getTaskStatusBadge(task.status)}</TableCell>
+                                  <TableCell>
+                                    <Select value={task.status} onValueChange={(newStatus) => handleTaskStatusChange(task, newStatus as MechanicTask['status'])}>
+                                      <SelectTrigger className="w-36">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="PENDING">Menunggu</SelectItem>
+                                        <SelectItem value="IN_PROGRESS">Dikerjakan</SelectItem>
+                                        <SelectItem value="DELAYED">Tunda</SelectItem>
+                                        <SelectItem value="COMPLETED">Selesai</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
                                 </TableRow>
                               );
                             })
@@ -967,10 +1027,11 @@ export default function KepalaMekanikPage() {
                                         <TableHead>Jenis Kendaraan</TableHead>
                                         <TableHead>Laporan Terakhir</TableHead>
                                         <TableHead>Status</TableHead>
+                                        <TableHead className='text-right'>Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {isFetchingData ? (<TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : statsData.alatRusakBerat.list.length > 0 ? (statsData.alatRusakBerat.list.map((item:any) => {
+                                    {isFetchingData ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : statsData.alatRusakBerat.list.length > 0 ? (statsData.alatRusakBerat.list.map((item:any) => {
                                         const latestReport = getLatestReport(item.nomorLambung, reports);
                                         return (
                                         <TableRow key={item.id}>
@@ -984,65 +1045,26 @@ export default function KepalaMekanikPage() {
                                                 </p>
                                             </TableCell>
                                             <TableCell>{getStatusBadge('Karantina')}</TableCell>
+                                            <TableCell className='text-right'>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <div className="space-y-1">
+                                                         <h4 className="font-semibold text-xs text-right">Karantina</h4>
+                                                         <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
+                                                            Lepas Karantina
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
                                         </TableRow>
-                                    )})) : (<TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
+                                    )})) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
                                 </TableBody>
                             </Table>
                          </div>
                     </CardContent>
                 </Card>
             );
-        case 'Sopir & Batangan':
-             return (
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Daftar Sopir & Batangan Aktif</CardTitle>
-                        <CardDescription>Hanya dapat melihat, tidak dapat mengubah.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto border rounded-lg">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Nama Sopir</TableHead>
-                                        <TableHead>NIK</TableHead>
-                                        <TableHead>Nomor Polisi</TableHead>
-                                        <TableHead>Nomor Lambung</TableHead>
-                                        <TableHead>Keterangan</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isFetchingData ? (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="h-24 text-center">
-                                                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (
-                                        pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => (
-                                            <TableRow key={p.id}>
-                                                <TableCell>{p.namaSopir}</TableCell>
-                                                <TableCell>{p.nik}</TableCell>
-                                                <TableCell>{p.nomorPolisi}</TableCell>
-                                                <TableCell>{p.nomorLambung}</TableCell>
-                                                <TableCell>{p.keterangan}</TableCell>
-                                            </TableRow>
-                                        ))
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                                                Belum ada pasangan sopir & batangan.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </CardContent>
-                 </Card>
-            );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} alat={alat} allReports={reports} />;
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1115,7 +1137,7 @@ export default function KepalaMekanikPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={() => {}}>
+                <AlertDialogAction onClick={handleConfirmQuarantine}>
                     Ya, Konfirmasi
                 </AlertDialogAction>
             </AlertDialogFooter>
@@ -1184,3 +1206,4 @@ export default function KepalaMekanikPage() {
     </>
   );
 }
+
