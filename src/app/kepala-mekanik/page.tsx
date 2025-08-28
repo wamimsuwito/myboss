@@ -520,8 +520,10 @@ export default function KepalaMekanikPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(true);
+  
   const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
   const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
+
 
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
@@ -779,7 +781,7 @@ export default function KepalaMekanikPage() {
   const woList = useMemo(() => {
     const existingTaskReportIds = new Set(mechanicTasks.map(task => task.vehicle?.triggeringReportId));
     return reports
-      .filter(report => report.overallStatus === 'rusak' && !existingTaskReportIds.has(report.id))
+      .filter(report => (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian') && !existingTaskReportIds.has(report.id))
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [reports, mechanicTasks]);
 
@@ -1006,7 +1008,7 @@ export default function KepalaMekanikPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {isFetchingPairings ? (
+                                    {isFetchingData ? (
                                         <TableRow>
                                             <TableCell colSpan={5} className="h-24 text-center">
                                                 <Loader2 className="mx-auto h-6 w-6 animate-spin" />
