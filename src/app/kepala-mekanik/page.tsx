@@ -63,6 +63,7 @@ import {
     Fingerprint,
     Briefcase,
     ShieldX,
+    Eye,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { UserData, Report, LocationData, SopirBatanganData, AlatData, MechanicTask } from '@/lib/types';
@@ -933,7 +934,7 @@ export default function KepalaMekanikPage() {
                            <Table>
                                <TableHeader>
                                    <TableRow>
-                                       <TableHead>Waktu Laporan</TableHead>
+                                       <TableHead>Waktu Pelaporan</TableHead>
                                        <TableHead>Sopir/Operator</TableHead>
                                        <TableHead>Nomor Kendaraan</TableHead>
                                        <TableHead>Deskripsi Kerusakan</TableHead>
@@ -991,6 +992,8 @@ export default function KepalaMekanikPage() {
                           <TableRow>
                             <TableHead>Kendaraan</TableHead>
                             <TableHead>Pelapor</TableHead>
+                            <TableHead>Deskripsi</TableHead>
+                            <TableHead>Foto</TableHead>
                             <TableHead>Mekanik Bertugas</TableHead>
                             <TableHead>Target Selesai</TableHead>
                             <TableHead>Status</TableHead>
@@ -999,7 +1002,7 @@ export default function KepalaMekanikPage() {
                         <TableBody>
                           {isFetchingData ? (
                             <TableRow>
-                              <TableCell colSpan={5} className="h-24 text-center">
+                              <TableCell colSpan={7} className="h-24 text-center">
                                 <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                               </TableCell>
                             </TableRow>
@@ -1027,6 +1030,26 @@ export default function KepalaMekanikPage() {
                                       {formatRelative(new Date(task.createdAt), new Date(), { locale: localeID })}
                                     </p>
                                   </TableCell>
+                                  <TableCell className="max-w-[200px] truncate">
+                                    {triggeringReport?.description || 'N/A'}
+                                  </TableCell>
+                                  <TableCell>
+                                    {triggeringReport?.photo && (
+                                        <Dialog>
+                                            <DialogTrigger asChild>
+                                                <Button variant="ghost" size="icon">
+                                                    <Eye className="h-5 w-5" />
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="max-w-3xl">
+                                                <DialogHeader>
+                                                    <DialogTitle>Foto Laporan Kerusakan</DialogTitle>
+                                                </DialogHeader>
+                                                <img src={Array.isArray(triggeringReport.photo) ? triggeringReport.photo[0] : triggeringReport.photo} alt="Foto Kerusakan" className="rounded-lg w-full h-auto" />
+                                            </DialogContent>
+                                        </Dialog>
+                                    )}
+                                  </TableCell>
                                   <TableCell>
                                     {task.mechanics.map((m) => m.name).join(', ')}
                                   </TableCell>
@@ -1052,7 +1075,7 @@ export default function KepalaMekanikPage() {
                             })
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                              <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                                 Tidak ada work order yang sedang aktif.
                               </TableCell>
                             </TableRow>
