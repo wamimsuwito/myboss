@@ -26,7 +26,7 @@ export interface LocationData {
 export interface Report {
     id: string;
     timestamp: any;
-    vehicleId: string;
+    nomorLambung: string; // Changed from vehicleId for consistency
     operatorName: string;
     operatorId: string;
     location: string;

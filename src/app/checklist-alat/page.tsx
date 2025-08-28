@@ -17,7 +17,7 @@ import { resizeImage } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 
-type ChecklistStatus = 'baik' | 'rusak' | 'perlu perhatian';
+type ChecklistStatus = 'baik' | 'perlu perhatian' | 'rusak';
 
 export default function ChecklistAlatPage() {
   const router = useRouter();
@@ -78,7 +78,7 @@ export default function ChecklistAlatPage() {
         // Fetch last report for the vehicle
         const reportQuery = query(
             collection(db, 'checklist_reports'), 
-            where("vehicleId", "==", pairingData.nomorLambung),
+            where("nomorLambung", "==", pairingData.nomorLambung),
             orderBy("timestamp", "desc"),
             limit(1)
         );
@@ -233,7 +233,7 @@ export default function ChecklistAlatPage() {
     // Check if there is an existing 'rusak' or 'perlu perhatian' report for this vehicle
     const q = query(
       collection(db, 'checklist_reports'),
-      where('vehicleId', '==', assignedAlat.nomorLambung),
+      where('nomorLambung', '==', assignedAlat.nomorLambung),
       where('overallStatus', 'in', ['rusak', 'perlu perhatian']),
       orderBy('timestamp', 'desc'),
       limit(1)
@@ -265,7 +265,7 @@ export default function ChecklistAlatPage() {
       // --- CREATE NEW REPORT ---
       const reportData: Omit<Report, 'id'> = {
           timestamp: Timestamp.now(),
-          vehicleId: assignedAlat.nomorLambung,
+          nomorLambung: assignedAlat.nomorLambung,
           operatorName: userInfo.username,
           operatorId: userInfo.id,
           location: assignedAlat.lokasi,

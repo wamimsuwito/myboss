@@ -674,10 +674,10 @@ export default function KepalaMekanikPage() {
     return users.filter(user => user.lokasi === userInfo.lokasi);
   }, [users, userInfo?.lokasi]);
   
-  const getLatestReport = (vehicleId: string, allReports: Report[]): Report | undefined => {
+  const getLatestReport = (nomorLambung: string, allReports: Report[]): Report | undefined => {
     if (!Array.isArray(allReports)) return undefined;
     return allReports
-      .filter(r => r.vehicleId === vehicleId)
+      .filter(r => r.nomorLambung === nomorLambung)
       .sort((a, b) => {
          const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
          const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
@@ -693,15 +693,15 @@ export default function KepalaMekanikPage() {
     const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
     const existingAlatIds = new Set(alatInLocation.map(a => a.nomorLambung));
 
-    const validReports = reports.filter(r => r.vehicleId && existingAlatIds.has(r.vehicleId));
+    const validReports = reports.filter(r => r.nomorLambung && existingAlatIds.has(r.nomorLambung));
 
     const reportsToday = validReports.filter(r => r.timestamp && isSameDay(new Date(r.timestamp), new Date()));
-    const checkedVehicleIdsToday = new Set(reportsToday.map(r => r.vehicleId));
+    const checkedVehicleIdsToday = new Set(reportsToday.map(r => r.nomorLambung));
     
     const pairedAlatInLocation = alatInLocation.filter(a => pairings.some(p => p.nomorLambung === a.nomorLambung));
     const alatBelumChecklistList = pairedAlatInLocation.filter(a => !checkedVehicleIdsToday.has(a.nomorLambung));
 
-    const getLatestReportForAlat = (vehicleId: string) => getLatestReport(vehicleId, validReports);
+    const getLatestReportForAlat = (nomorLambung: string) => getLatestReport(nomorLambung, validReports);
     
     const alatBaikList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'baik');
     const perluPerhatianList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'perlu perhatian');
@@ -782,7 +782,10 @@ export default function KepalaMekanikPage() {
   const woList = useMemo(() => {
     const existingTaskReportIds = new Set(mechanicTasks.map(task => task.vehicle?.triggeringReportId));
     return reports
-      .filter(report => (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian') && !existingTaskReportIds.has(report.id))
+      .filter(report => 
+        (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian') && 
+        !existingTaskReportIds.has(report.id)
+      )
       .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [reports, mechanicTasks]);
 
@@ -841,7 +844,7 @@ export default function KepalaMekanikPage() {
                                      <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
                                    ) : woList.length > 0 ? (
                                      woList.map(report => {
-                                       const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+                                       const vehicle = alat.find(a => a.nomorLambung === report.nomorLambung);
                                        const operator = users.find(u => u.id === report.operatorId);
                                        if (!vehicle) return null;
                                        return (
@@ -1039,7 +1042,7 @@ export default function KepalaMekanikPage() {
                  </Card>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
