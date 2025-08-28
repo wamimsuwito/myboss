@@ -89,6 +89,7 @@ import HistoryPrintLayout from '@/components/history-print-layout';
 
 const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
+    { name: 'Work order saya (WO)', icon: ClipboardList },
     { name: 'Sopir & Batangan', icon: Users },
     { name: 'Histori Perbaikan Alat', icon: History },
     { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert },
@@ -97,6 +98,7 @@ const menuItems = [
 
 type ActiveMenu = 
   | 'Dashboard' 
+  | 'Work order saya (WO)'
   | 'Sopir & Batangan' 
   | 'Histori Perbaikan Alat' 
   | 'Alat Rusak Berat/Karantina' 
@@ -1033,6 +1035,18 @@ export default function KepalaMekanikPage() {
                 </div>
               </main>
             );
+        case 'Work order saya (WO)':
+            return (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Work Order Saya</CardTitle>
+                        <CardDescription>Daftar tugas perbaikan yang ditugaskan kepada Anda.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-center text-muted-foreground p-8">Halaman ini dalam pengembangan.</p>
+                    </CardContent>
+                </Card>
+            );
         case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
@@ -1089,7 +1103,7 @@ export default function KepalaMekanikPage() {
         case 'Sopir & Batangan':
             return (
                 <main className="space-y-8">
-                    <Card>
+                     <Card>
                       <CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
                         <CardContent>
                             <div className="overflow-x-auto border rounded-lg">
