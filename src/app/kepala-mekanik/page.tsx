@@ -522,25 +522,6 @@ export default function KepalaMekanikPage() {
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
   const [isFetchingPairings, setIsFetchingPairings] = useState(true);
-  const [selectedSopir, setSelectedSopir] = useState<UserData | null>(null);
-  const [selectedAlat, setSelectedAlat] = useState<AlatData | null>(null);
-  const [keterangan, setKeterangan] = useState('');
-  const [editingPairing, setEditingPairing] = useState<SopirBatanganData | null>(null);
-
-  // Mutasi state
-  const [isMutasiDialogOpen, setIsMutasiDialogOpen] = useState(false);
-  const [mutasiTarget, setMutasiTarget] = useState<AlatData | null>(null);
-  const [newLocationForMutasi, setNewLocationForMutasi] = useState('');
-  const [isMutating, setIsMutating] = useState(false);
-
-  // Delete state
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<AlatData | SopirBatanganData | null>(null);
-  const [deleteType, setDeleteType] = useState<'alat' | 'pairing' | null>(null);
-
-  // Edit Alat state
-  const [editingAlat, setEditingAlat] = useState<AlatData | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
   
   // Detail List Dialog state
   const [detailListTitle, setDetailListTitle] = useState('');
@@ -802,224 +783,17 @@ export default function KepalaMekanikPage() {
     router.push('/login');
   };
   
-  const handleAddAlat = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!userInfo?.lokasi) {
-        toast({ title: 'Lokasi Pengguna Tidak Ditemukan', variant: 'destructive' });
-        return;
-    }
+    const woList = useMemo(() => {
+    const existingTaskReportIds = new Set(mechanicTasks.map(task => task.vehicle?.triggeringReportId));
+    return reports
+      .filter(report => report.overallStatus === 'rusak' && !existingTaskReportIds.has(report.id))
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [reports, mechanicTasks]);
 
-    setIsSubmitting(true);
-    const form = event.currentTarget;
-    const formData = new FormData(form);
+  const mechanicsInLocation = useMemo(() => 
+      users.filter(u => u.jabatan?.toUpperCase().includes('MEKANIK') && u.lokasi === userInfo?.lokasi), 
+  [users, userInfo?.lokasi]);
 
-    const newAlatData: Omit<AlatData, 'id'> = {
-      nomorLambung: (formData.get('nomorLambung') as string).toUpperCase(),
-      nomorPolisi: (formData.get('nomorPolisi') as string).toUpperCase(),
-      jenisKendaraan: (formData.get('jenisKendaraan') as string).toUpperCase(),
-      lokasi: userInfo.lokasi,
-      statusKarantina: false,
-    };
-
-    if (!newAlatData.nomorLambung || !newAlatData.nomorPolisi || !newAlatData.jenisKendaraan) {
-        toast({ title: 'Input Tidak Lengkap', variant: 'destructive' });
-        setIsSubmitting(false);
-        return;
-    }
-
-    try {
-        await addDoc(collection(db, 'alat'), newAlatData);
-        toast({ title: 'Alat Ditambahkan' });
-        form.reset();
-    } catch(error) {
-        toast({ title: 'Error', description: 'Gagal menambahkan alat.', variant: 'destructive'});
-    } finally {
-        setIsSubmitting(false);
-    }
-  };
-
-  const handleMutasiRequest = (alatToMutate: AlatData) => {
-    setMutasiTarget(alatToMutate);
-    setIsMutasiDialogOpen(true);
-  };
-  
-  const handleConfirmMutasi = async () => {
-    if (!mutasiTarget || !newLocationForMutasi) {
-        toast({ title: 'Lokasi Tujuan Diperlukan', variant: 'destructive' });
-        return;
-    }
-    setIsMutating(true);
-    
-    try {
-        const alatDocRef = doc(db, 'alat', mutasiTarget.id);
-        await updateDoc(alatDocRef, { lokasi: newLocationForMutasi });
-        toast({ title: 'Mutasi Berhasil' });
-    } catch (error) {
-        toast({ title: 'Mutasi Gagal', variant: 'destructive' });
-    } finally {
-        setIsMutating(false);
-        setIsMutasiDialogOpen(false);
-        setMutasiTarget(null);
-        setNewLocationForMutasi('');
-    }
-  };
-
-  const handleDeleteRequest = (item: AlatData | SopirBatanganData, type: 'alat' | 'pairing') => {
-    setItemToDelete(item);
-    setDeleteType(type);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!itemToDelete || !deleteType) return;
-    setIsSubmitting(true);
-    try {
-        const collectionName = deleteType === 'alat' ? 'alat' : 'sopir_batangan';
-        const docRef = doc(db, collectionName, itemToDelete.id);
-        await deleteDoc(docRef);
-        toast({ title: 'Data Dihapus' });
-    } catch (error) {
-        toast({ title: 'Gagal Menghapus', variant: 'destructive' });
-    } finally {
-        setIsSubmitting(false);
-        setIsDeleteDialogOpen(false);
-        setItemToDelete(null);
-        setDeleteType(null);
-    }
-  };
-
-  const handleEditRequest = (alatToEdit: AlatData) => {
-    setEditingAlat(alatToEdit);
-  };
-
-  const handleConfirmEdit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!editingAlat) return;
-    setIsEditing(true);
-
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    
-    const updatedAlatData = {
-      nomorLambung: (formData.get('editNomorLambung') as string).toUpperCase(),
-      nomorPolisi: (formData.get('editNomorPolisi') as string).toUpperCase(),
-      jenisKendaraan: (formData.get('editJenisKendaraan') as string).toUpperCase(),
-    };
-    
-    try {
-        const alatDocRef = doc(db, 'alat', editingAlat.id);
-        await updateDoc(alatDocRef, updatedAlatData);
-        toast({ title: 'Alat Diperbarui' });
-        setEditingAlat(null);
-    } catch (error) {
-        toast({ title: 'Error', variant: 'destructive' });
-    } finally {
-        setIsEditing(false);
-    }
-  };
-
-  // Sopir & Batangan Handlers
-  const handleSavePairing = async () => {
-    if (!selectedSopir || !selectedAlat || !userInfo?.lokasi) {
-        toast({ title: 'Data Tidak Lengkap', description: 'Pilih sopir dan alat terlebih dahulu.', variant: 'destructive' });
-        return;
-    }
-    setIsSubmitting(true);
-
-    const pairingData: Omit<SopirBatanganData, 'id' | 'timestamp'> = {
-        userId: selectedSopir.id,
-        namaSopir: selectedSopir.username,
-        nik: selectedSopir.nik,
-        vehicleId: selectedAlat.id,
-        nomorPolisi: selectedAlat.nomorPolisi,
-        nomorLambung: selectedAlat.nomorLambung,
-        keterangan: keterangan,
-        lokasi: userInfo.lokasi,
-    };
-    
-    try {
-        if (editingPairing) {
-            const pairingDocRef = doc(db, 'sopir_batangan', editingPairing.id);
-            await updateDoc(pairingDocRef, pairingData);
-            toast({ title: "Pasangan Diperbarui" });
-        } else {
-            const finalData = { ...pairingData, timestamp: Timestamp.now() };
-            await addDoc(collection(db, 'sopir_batangan'), finalData);
-            toast({ title: 'Pasangan Disimpan' });
-        }
-        // Reset form
-        setSelectedSopir(null);
-        setSelectedAlat(null);
-        setKeterangan('');
-        setEditingPairing(null);
-    } catch (error) {
-        toast({ title: 'Gagal Menyimpan', variant: 'destructive' });
-        console.error(error);
-    } finally {
-        setIsSubmitting(false);
-    }
-  }
-
-  const handleEditPairing = (pairing: SopirBatanganData) => {
-    setEditingPairing(pairing);
-    setSelectedSopir(sopirOptions.find(s => s.id === pairing.userId) || null);
-    setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
-    setKeterangan(pairing.keterangan);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  const handleQuarantineRequest = (item: AlatData) => {
-      setQuarantineTarget(item);
-      setIsQuarantineConfirmOpen(true);
-  }
-
-  const handleConfirmQuarantine = async () => {
-    if (!quarantineTarget) return;
-    setIsSubmitting(true);
-    const newStatus = !quarantineTarget.statusKarantina;
-    
-    try {
-        const alatDocRef = doc(db, 'alat', quarantineTarget.id);
-        await updateDoc(alatDocRef, { statusKarantina: newStatus });
-        
-        if (newStatus) { // if the vehicle is being quarantined
-            const q = query(collection(db, "sopir_batangan"), where("nomorLambung", "==", quarantineTarget.nomorLambung));
-            const pairingSnapshot = await getDocs(q);
-            if (!pairingSnapshot.empty) {
-                const pairingDoc = pairingSnapshot.docs[0];
-                await deleteDoc(doc(db, "sopir_batangan", pairingDoc.id));
-                toast({ title: 'Sopir Dilepaskan', description: `Sopir untuk ${quarantineTarget.nomorLambung} telah dilepaskan.` });
-            }
-             toast({
-                title: `Alat Dikarantina`,
-                description: `${quarantineTarget.nomorLambung} telah dimasukkan ke karantina.`
-            });
-        } else { // if the vehicle is being RELEASED from quarantine
-            const dummyReport: Omit<Report, 'id' | 'timestamp'> & { timestamp: any } = {
-                timestamp: Timestamp.now(),
-                vehicleId: quarantineTarget.nomorLambung,
-                operatorName: 'SISTEM',
-                operatorId: 'SISTEM',
-                location: quarantineTarget.lokasi,
-                overallStatus: 'rusak',
-                description: 'Alat ini baru dilepas dari karantina dan membutuhkan pengecekan serta perbaikan menyeluruh.',
-                photo: '',
-            };
-            await addDoc(collection(db, 'checklist_reports'), dummyReport);
-            toast({
-                title: `Alat Dilepas dari Karantina`,
-                description: `${quarantineTarget.nomorLambung} telah dilepas dan WO baru telah dibuat otomatis.`
-            });
-        }
-    } catch (error) {
-        console.error("Error toggling quarantine status:", error);
-        toast({ title: 'Gagal Memperbarui Status', variant: 'destructive' });
-    } finally {
-        setIsSubmitting(false);
-        setIsQuarantineConfirmOpen(false);
-        setQuarantineTarget(null);
-    }
-  };
   
   const renderContent = () => {
     switch (activeMenu) {
@@ -1039,11 +813,53 @@ export default function KepalaMekanikPage() {
             return (
                 <Card>
                     <CardHeader>
-                        <CardTitle>Work Order Saya</CardTitle>
-                        <CardDescription>Daftar tugas perbaikan yang ditugaskan kepada Anda.</CardDescription>
+                        <CardTitle>Daftar Laporan Kerusakan (Work Order)</CardTitle>
+                        <CardDescription>Daftar kendaraan yang dilaporkan rusak dan membutuhkan perbaikan segera.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-center text-muted-foreground p-8">Halaman ini dalam pengembangan.</p>
+                       <div className="overflow-x-auto border rounded-lg">
+                           <Table>
+                               <TableHeader>
+                                   <TableRow>
+                                       <TableHead>Waktu Laporan</TableHead>
+                                       <TableHead>Sopir/Operator</TableHead>
+                                       <TableHead>Nomor Kendaraan</TableHead>
+                                       <TableHead>Deskripsi Kerusakan</TableHead>
+                                       <TableHead className='text-right'>Aksi</TableHead>
+                                   </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                   {isFetchingData ? (
+                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                   ) : woList.length > 0 ? (
+                                     woList.map(report => {
+                                       const vehicle = alat.find(a => a.nomorLambung === report.vehicleId);
+                                       const operator = users.find(u => u.id === report.operatorId);
+                                       if (!vehicle) return null;
+                                       return (
+                                         <TableRow key={report.id}>
+                                             <TableCell>{format(new Date(report.timestamp), 'dd MMM, HH:mm', { locale: localeID })}</TableCell>
+                                             <TableCell>
+                                                 <p>{operator?.username || 'N/A'}</p>
+                                                 <p className="text-xs text-muted-foreground">NIK: {operator?.nik || '-'}</p>
+                                             </TableCell>
+                                             <TableCell>
+                                                 <p className="font-semibold">{vehicle.nomorLambung}</p>
+                                                 <p className="text-xs text-muted-foreground">{vehicle.nomorPolisi} ({vehicle.jenisKendaraan})</p>
+                                             </TableCell>
+                                             <TableCell className="max-w-xs truncate">{report.description}</TableCell>
+                                             <TableCell className="text-right">
+                                                 <CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={mechanicsInLocation} onTaskCreated={() => {}} />
+                                             </TableCell>
+                                         </TableRow>
+                                       );
+                                     })
+                                   ) : (
+                                       <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>
+                                   )}
+                               </TableBody>
+                           </Table>
+                       </div>
                     </CardContent>
                 </Card>
             );
@@ -1083,14 +899,6 @@ export default function KepalaMekanikPage() {
                                             </TableCell>
                                             <TableCell>{getStatusBadge('Karantina')}</TableCell>
                                             <TableCell className='text-right'>
-                                                <div className="flex flex-col items-end gap-2">
-                                                    <div className="space-y-1">
-                                                         <h4 className="font-semibold text-xs text-right">Karantina</h4>
-                                                         <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
-                                                            Lepas Karantina
-                                                        </Button>
-                                                    </div>
-                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     )})) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
@@ -1158,81 +966,6 @@ export default function KepalaMekanikPage() {
   return (
     <>
      <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
-    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Anda yakin akan menghapus data ini secara permanen? Tindakan ini tidak dapat diurungkan.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirmDelete} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
-                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Ya, Hapus
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
-     <Dialog open={isMutasiDialogOpen} onOpenChange={setIsMutasiDialogOpen}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Konfirmasi Mutasi Alat: {mutasiTarget?.nomorLambung}</DialogTitle>
-                <DialogDescription>
-                    Pindahkan alat dari lokasi <strong>{mutasiTarget?.lokasi}</strong> ke lokasi baru. Pastikan Anda yakin sebelum melanjutkan.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-                <Label htmlFor="mutasi-location">Pilih Lokasi Tujuan</Label>
-                <Select value={newLocationForMutasi} onValueChange={setNewLocationForMutasi}>
-                    <SelectTrigger id="mutasi-location">
-                        <SelectValue placeholder="Pilih lokasi..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {locations.filter(l => l.name !== mutasiTarget?.lokasi).map(loc => (
-                            <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-            <DialogFooter>
-                <Button variant="outline" onClick={() => setIsMutasiDialogOpen(false)}>Batal</Button>
-                <Button onClick={handleConfirmMutasi} disabled={isMutating}>
-                    {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Konfirmasi & Pindahkan
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-     <Dialog open={!!editingAlat} onOpenChange={(isOpen) => !isOpen && setEditingAlat(null)}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Edit Alat</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleConfirmEdit} className="space-y-4 pt-4">
-                <div>
-                    <Label htmlFor="editNomorLambung">Nomor Lambung</Label>
-                    <Input id="editNomorLambung" name="editNomorLambung" defaultValue={editingAlat?.nomorLambung} required style={{ textTransform: 'uppercase' }} />
-                </div>
-                <div>
-                    <Label htmlFor="editNomorPolisi">Nomor Polisi</Label>
-                    <Input id="editNomorPolisi" name="editNomorPolisi" defaultValue={editingAlat?.nomorPolisi} required style={{ textTransform: 'uppercase' }} />
-                </div>
-                 <div>
-                    <Label htmlFor="editJenisKendaraan">Jenis Kendaraan</Label>
-                    <Input id="editJenisKendaraan" name="editJenisKendaraan" defaultValue={editingAlat?.jenisKendaraan} required style={{ textTransform: 'uppercase' }} />
-                </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setEditingAlat(null)}>Batal</Button>
-                    <Button type="submit" disabled={isEditing}>
-                        {isEditing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
-                    </Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
-    </Dialog>
-    
       <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
@@ -1289,7 +1022,7 @@ export default function KepalaMekanikPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirmQuarantine}>
+                <AlertDialogAction>
                     Ya, Konfirmasi
                 </AlertDialogAction>
             </AlertDialogFooter>
