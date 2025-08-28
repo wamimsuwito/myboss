@@ -854,6 +854,59 @@ export default function KepalaMekanikPage() {
     }
   };
 
+    const handleQuarantineRequest = (item: AlatData) => {
+      setQuarantineTarget(item);
+      setIsQuarantineConfirmOpen(true);
+  }
+
+  const handleConfirmQuarantine = async () => {
+    if (!quarantineTarget) return;
+    setIsSubmitting(true);
+    const newStatus = !quarantineTarget.statusKarantina;
+    
+    try {
+        const alatDocRef = doc(db, 'alat', quarantineTarget.id);
+        await updateDoc(alatDocRef, { statusKarantina: newStatus });
+        
+        if (newStatus) { // if the vehicle is being quarantined
+            const q = query(collection(db, "sopir_batangan"), where("nomorLambung", "==", quarantineTarget.nomorLambung));
+            const pairingSnapshot = await getDocs(q);
+            if (!pairingSnapshot.empty) {
+                const pairingDoc = pairingSnapshot.docs[0];
+                await deleteDoc(doc(db, "sopir_batangan", pairingDoc.id));
+                toast({ title: 'Sopir Dilepaskan', description: `Sopir untuk ${quarantineTarget.nomorLambung} telah dilepaskan.` });
+            }
+             toast({
+                title: `Alat Dikarantina`,
+                description: `${quarantineTarget.nomorLambung} telah dimasukkan ke karantina.`
+            });
+        } else { // if the vehicle is being RELEASED from quarantine
+            const dummyReport: Omit<Report, 'id' | 'timestamp'> & { timestamp: any } = {
+                timestamp: Timestamp.now(),
+                nomorLambung: quarantineTarget.nomorLambung,
+                operatorName: 'SISTEM',
+                operatorId: 'SISTEM',
+                location: quarantineTarget.lokasi,
+                overallStatus: 'rusak',
+                description: 'Alat ini baru dilepas dari karantina dan membutuhkan pengecekan serta perbaikan menyeluruh.',
+                photo: '',
+            };
+            await addDoc(collection(db, 'checklist_reports'), dummyReport);
+            toast({
+                title: `Alat Dilepas dari Karantina`,
+                description: `${quarantineTarget.nomorLambung} telah dilepas dan WO baru telah dibuat otomatis.`
+            });
+        }
+    } catch (error) {
+        console.error("Error toggling quarantine status:", error);
+        toast({ title: 'Gagal Memperbarui Status', variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+        setIsQuarantineConfirmOpen(false);
+        setQuarantineTarget(null);
+    }
+  };
+
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1064,7 +1117,7 @@ export default function KepalaMekanikPage() {
                 </Card>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} alat={alat} allReports={reports} />;
+             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
