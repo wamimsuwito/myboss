@@ -2,6 +2,7 @@
 
 'use client';
 
+import * as React from 'react';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from "react-hook-form";
@@ -707,10 +708,10 @@ export default function WorkshopPage() {
     return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
   }, [users]);
   
-  const getLatestReport = (vehicleId: string, allReports: Report[]): Report | undefined => {
+  const getLatestReport = (nomorLambung: string, allReports: Report[]): Report | undefined => {
     if (!Array.isArray(allReports)) return undefined;
     return allReports
-      .filter(r => r.vehicleId === vehicleId)
+      .filter(r => r.nomorLambung === nomorLambung)
       .sort((a, b) => {
          const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
          const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
@@ -726,15 +727,15 @@ export default function WorkshopPage() {
     const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
     const existingAlatIds = new Set(alatInLocation.map(a => a.nomorLambung));
 
-    const validReports = reports.filter(r => r.vehicleId && existingAlatIds.has(r.vehicleId));
+    const validReports = reports.filter(r => r.nomorLambung && existingAlatIds.has(r.nomorLambung));
 
     const reportsToday = validReports.filter(r => r.timestamp && isSameDay(new Date(r.timestamp), new Date()));
-    const checkedVehicleIdsToday = new Set(reportsToday.map(r => r.vehicleId));
+    const checkedVehicleIdsToday = new Set(reportsToday.map(r => r.nomorLambung));
     
     const pairedAlatInLocation = alatInLocation.filter(a => pairings.some(p => p.nomorLambung === a.nomorLambung));
     const alatBelumChecklistList = pairedAlatInLocation.filter(a => !checkedVehicleIdsToday.has(a.nomorLambung));
 
-    const getLatestReportForAlat = (vehicleId: string) => getLatestReport(vehicleId, validReports);
+    const getLatestReportForAlat = (nomorLambung: string) => getLatestReport(nomorLambung, validReports);
     
     const alatBaikList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'baik');
     const perluPerhatianList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'perlu perhatian');
@@ -1007,7 +1008,7 @@ export default function WorkshopPage() {
         } else { // if the vehicle is being RELEASED from quarantine
             const dummyReport: Omit<Report, 'id' | 'timestamp'> & { timestamp: any } = {
                 timestamp: Timestamp.now(),
-                vehicleId: quarantineTarget.nomorLambung,
+                nomorLambung: quarantineTarget.nomorLambung,
                 operatorName: 'SISTEM',
                 operatorId: 'SISTEM',
                 location: quarantineTarget.lokasi,
