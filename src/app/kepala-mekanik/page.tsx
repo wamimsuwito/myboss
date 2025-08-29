@@ -975,7 +975,7 @@ export default function KepalaMekanikPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Daftar Laporan Kerusakan (Work Order)</CardTitle>
-                        <CardDescription>Daftar kendaraan yang dilaporkan rusak dan membutuhkan perbaikan segera.</CardDescription>
+                        <CardDescription>Daftar kendaraan yang dilaporkan rusak atau perlu perhatian dan membutuhkan perbaikan segera.</CardDescription>
                     </CardHeader>
                     <CardContent>
                        <div className="overflow-x-auto border rounded-lg">
@@ -1189,6 +1189,52 @@ export default function KepalaMekanikPage() {
             );
         case 'Histori Perbaikan Alat':
              return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
+        case 'Anggota Mekanik':
+             const activeMechanicIds = new Set(
+                mechanicTasks
+                    .filter(task => task.status === 'IN_PROGRESS' || task.status === 'DELAYED')
+                    .flatMap(task => task.mechanics.map(m => m.id))
+            );
+            return (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Anggota Tim Mekanik</CardTitle>
+                        <CardDescription>Daftar semua mekanik di lokasi {userInfo?.lokasi} dan status ketersediaan mereka.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                         <div className="border rounded-md">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Nama Mekanik</TableHead>
+                                        <TableHead>NIK</TableHead>
+                                        <TableHead>Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {mechanicsInLocation.map(mech => {
+                                        const isActive = activeMechanicIds.has(mech.id);
+                                        return (
+                                            <TableRow key={mech.id}>
+                                                <TableCell className="font-medium">{mech.username}</TableCell>
+                                                <TableCell>{mech.nik}</TableCell>
+                                                <TableCell>
+                                                    <Badge className={isActive ? 'bg-amber-500' : 'bg-green-500'}>
+                                                        {isActive ? 'Aktif' : 'Standby'}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                     {mechanicsInLocation.length === 0 && (
+                                        <TableRow><TableCell colSpan={3} className="h-24 text-center text-muted-foreground">Tidak ada mekanik di lokasi ini.</TableCell></TableRow>
+                                     )}
+                                </TableBody>
+                            </Table>
+                         </div>
+                    </CardContent>
+                </Card>
+            )
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
