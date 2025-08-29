@@ -130,6 +130,16 @@
         padding: 0 !important;
         animation: none !important;
     }
+
+    body.print-active [role="dialog"] > div[data-radix-dialog-content-wrapper] {
+      max-height: none !important;
+      overflow-y: visible !important;
+    }
+
+     #printable-test-report, #printable-penalty, #printable-reward, #printable-ticket, #printable-detail-ticket {
+      max-height: none !important;
+      overflow-y: visible !important;
+    }
     
     .no-print, .no-print * {
         display: none !important;
