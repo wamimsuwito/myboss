@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X } from 'lucide-react';
+import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X, Beaker } from 'lucide-react';
 import type { UserData, RencanaPemasukan, QCInspectionData, ProductionData } from '@/lib/types';
 import { format, isSameDay, addDays, differenceInDays, startOfDay, isAfter } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
@@ -671,10 +671,23 @@ export default function QCPage() {
   const menuItems = [
     { name: 'Inspeksi Material Masuk', icon: FileSearch, href: '/qc' },
     { name: 'Jadwal Uji Tekan Hari Ini', icon: TestTube, href: '/qc' },
+    { name: 'Pembuatan Benda Uji', icon: Beaker, href: '/qc' },
     { name: 'Riwayat Uji Tekan', icon: History, href: '/riwayat-uji-tekan' }
   ];
 
   const isMobileLayout = activeMenu === 'Inspeksi Material Masuk';
+  const renderContent = () => {
+      switch(activeMenu) {
+          case 'Inspeksi Material Masuk':
+              return <RFIComponent />;
+          case 'Jadwal Uji Tekan Hari Ini':
+              return <UjiTekanComponent />;
+          case 'Pembuatan Benda Uji':
+              return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
+          default:
+              return null;
+      }
+  }
 
   return (
     <SidebarProvider>
@@ -709,7 +722,7 @@ export default function QCPage() {
         </Sidebar>
         <SidebarInset>
             <main className={isMobileLayout ? 'no-print' : 'p-4 sm:p-6 lg:p-10 no-print'}>
-               <div className={isMobileLayout ? 'no-print' : 'flex items-center gap-4 mb-8'}>
+               <div className={isMobileLayout ? 'hidden' : 'flex items-center gap-4 mb-8'}>
                     <SidebarTrigger className="md:hidden" />
                     {!isMobileLayout && (<div>
                         <h1 className="text-2xl font-bold text-foreground">{activeMenu}</h1>
@@ -720,8 +733,7 @@ export default function QCPage() {
                     </div>)}
                 </div>
                 
-                {activeMenu === 'Inspeksi Material Masuk' && <RFIComponent />}
-                {activeMenu === 'Jadwal Uji Tekan Hari Ini' && <UjiTekanComponent />}
+                {renderContent()}
 
             </main>
         </SidebarInset>
