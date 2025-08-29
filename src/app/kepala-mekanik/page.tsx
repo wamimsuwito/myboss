@@ -438,7 +438,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
                         {filteredTasks.length > 0 ? (
                         filteredTasks.map((task) => {
                             const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
-                            const sopir = users.find(u => u.id === triggeringReport?.operatorId);
+                            const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
                             const calculateEffectiveDuration = (task: MechanicTask) => {
                                 if (!task.startedAt || !task.completedAt) return '-';
                                 const duration = new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime() - (task.totalDelayDuration || 0);
@@ -1045,7 +1045,7 @@ export default function KepalaMekanikPage() {
                                                 <DialogHeader>
                                                     <DialogTitle>Foto Laporan Kerusakan</DialogTitle>
                                                 </DialogHeader>
-                                                <img src={Array.isArray(triggeringReport.photo) ? triggeringReport.photo[0] : triggeringReport.photo} alt="Foto Kerusakan" className="rounded-lg w-full h-auto" />
+                                                <img src={Array.isArray(triggeringReport.photo) ? triggeringReport.photo[0] : triggeringReport.photo} alt="Foto Kerusakan" className="rounded-lg w-full h-auto" data-ai-hint="mechanic report broken" />
                                             </DialogContent>
                                         </Dialog>
                                     )}
