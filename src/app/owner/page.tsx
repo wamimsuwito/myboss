@@ -209,7 +209,7 @@ export default function OwnerPage() {
                 const baik: { [key: string]: number } = {};
                 
                  alatData.forEach(vehicle => {
-                    const report = reportsToday.find(r => r.vehicleId === vehicle.nomorLambung);
+                    const report = reportsToday.find(r => r.nomorLambung === vehicle.nomorLambung);
                     const jenis = vehicle.jenisKendaraan.toLowerCase().replace(/\s+/g, '_');
                     
                     if (report && (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian')) {
