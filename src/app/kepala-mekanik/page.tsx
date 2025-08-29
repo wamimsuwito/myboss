@@ -320,7 +320,7 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     }
 };
 
-const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null; allTasks: MechanicTask[]; allUsers: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
+const HistoryComponent = ({ user, allTasks, allUsers, allReports }: { user: UserData | null; allTasks: MechanicTask[]; allUsers: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
     const [date, setDate] = useState<DateRange | undefined>({
@@ -525,6 +525,9 @@ export default function KepalaMekanikPage() {
   
   const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
   const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
+  
+  const [completionTask, setCompletionTask] = useState<MechanicTask | null>(null);
+  const [repairDescription, setRepairDescription] = useState('');
 
 
   // State for Sopir & Batangan
@@ -587,7 +590,9 @@ export default function KepalaMekanikPage() {
 
         for (const field of timestampFields) {
             if (transformedData[field] && typeof transformedData[field].toDate === 'function') {
-                transformedData[field] = transformedData[field].toDate();
+                transformedData[field] = new Date(transformedData[field].toDate());
+            } else if (typeof transformedData[field] === 'number') {
+                transformedData[field] = new Date(transformedData[field]);
             }
         }
 
@@ -799,6 +804,12 @@ export default function KepalaMekanikPage() {
   }, [mechanicTasks]);
   
   const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status']) => {
+    if (newStatus === 'COMPLETED') {
+        setCompletionTask(task);
+        setRepairDescription('');
+        return;
+    }
+
     const taskDocRef = doc(db, 'mechanic_tasks', task.id);
     const updateData: Partial<MechanicTask> = { status: newStatus };
 
@@ -825,18 +836,6 @@ export default function KepalaMekanikPage() {
       }
     }
     
-    if (newStatus === 'COMPLETED') {
-        const repairDescription = prompt("Masukkan deskripsi perbaikan yang telah dilakukan:");
-        if (repairDescription) {
-            updateData.completedAt = new Date().getTime();
-            updateData.mechanicRepairDescription = repairDescription;
-        } else {
-            toast({ title: "Aksi Dibatalkan", description: "Deskripsi perbaikan wajib diisi untuk menyelesaikan WO.", variant: "destructive" });
-            return;
-        }
-    }
-
-
     try {
       await updateDoc(taskDocRef, updateData as any);
       toast({ title: `Status WO Diperbarui`, description: `Status untuk ${task.vehicle.hullNumber} diubah menjadi ${newStatus}.` });
@@ -845,6 +844,32 @@ export default function KepalaMekanikPage() {
       toast({ title: "Gagal Memperbarui Status", variant: "destructive" });
     }
   };
+
+  const handleConfirmCompletion = async () => {
+    if (!completionTask || !repairDescription) {
+        toast({ title: "Deskripsi Wajib Diisi", variant: "destructive" });
+        return;
+    }
+    setIsSubmitting(true);
+    const taskDocRef = doc(db, 'mechanic_tasks', completionTask.id);
+    const updateData: Partial<MechanicTask> = {
+        status: 'COMPLETED',
+        completedAt: new Date().getTime(),
+        mechanicRepairDescription: repairDescription,
+    };
+    try {
+        await updateDoc(taskDocRef, updateData as any);
+        toast({ title: "Work Order Selesai", description: `Pekerjaan untuk ${completionTask.vehicle.hullNumber} telah selesai.` });
+        setCompletionTask(null);
+        setRepairDescription('');
+    } catch (error) {
+        console.error("Error completing task:", error);
+        toast({ title: "Gagal Menyelesaikan WO", variant: "destructive" });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
 
   const getTaskStatusBadge = (status: MechanicTask['status']) => {
     switch (status) {
@@ -1219,6 +1244,32 @@ export default function KepalaMekanikPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+    
+    <Dialog open={!!completionTask} onOpenChange={() => setCompletionTask(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Selesaikan Work Order: {completionTask?.vehicle.hullNumber}</DialogTitle>
+                <DialogDescription>Masukkan deskripsi perbaikan yang telah dilakukan sebelum menyelesaikan pekerjaan ini.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Label htmlFor="repair-description" className="sr-only">Deskripsi Perbaikan</Label>
+                <Textarea
+                    id="repair-description"
+                    placeholder="Contoh: Mengganti filter oli dan membersihkan karburator..."
+                    value={repairDescription}
+                    onChange={(e) => setRepairDescription(e.target.value)}
+                    rows={4}
+                />
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setCompletionTask(null)}>Batal</Button>
+                <Button onClick={handleConfirmCompletion} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Simpan & Selesaikan
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 
 
     <SidebarProvider>
