@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X, Beaker, Plus } from 'lucide-react';
-import type { UserData, RencanaPemasukan, QCInspectionData, ProductionData, BendaUji } from '@/lib/types';
+import type { UserData, RencanaPemasukan, QCInspectionData, ProductionData, BendaUji, ScheduleRow } from '@/lib/types';
 import { format, isSameDay, addDays, differenceInDays, startOfDay, isAfter } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Textarea } from '@/components/ui/textarea';
@@ -218,7 +218,7 @@ const RFIComponent = () => {
 };
 
 const PembuatanBendaUjiComponent = () => {
-    const [activeProductions, setActiveProductions] = useState<ProductionData[]>([]);
+    const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
     const [sampleRecords, setSampleRecords] = useState<BendaUji[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
@@ -228,62 +228,58 @@ const PembuatanBendaUjiComponent = () => {
     const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
 
     useEffect(() => {
-        if(!userInfo.lokasi) return;
-
-        const q = query(
-            collection(db, "productions"),
-            where('lokasiProduksi', '==', userInfo.lokasi),
-            where('status', 'in', ['proses', 'selesai'])
+        const qSchedules = query(
+            collection(db, "schedules_today"),
+            where('STATUS', 'in', ['proses', 'selesai'])
         );
         
-        const unsubscribeProd = onSnapshot(q, (snapshot) => {
-            const prods = snapshot.docs.map(d => ({ ...d.data(), id: d.id }) as ProductionData)
-                .filter(p => p.jamSelesai);
-            setActiveProductions(prods.sort((a,b) => new Date(b.jamSelesai).getTime() - new Date(a.jamSelesai).getTime()));
+        const unsubscribeSchedules = onSnapshot(qSchedules, (snapshot) => {
+            const prods = snapshot.docs.map(d => ({ ...d.data(), id: d.id }) as ScheduleRow);
+            setSchedules(prods.sort((a,b) => (a['NO'] || '0').localeCompare(b['NO'] || '0')));
             setIsLoading(false);
         });
         
-        const qSamples = query(
-            collection(db, "benda_uji"),
-            where('lokasi', '==', userInfo.lokasi)
-        );
+        const qSamples = query(collection(db, "benda_uji"));
         const unsubscribeSamples = onSnapshot(qSamples, (snapshot) => {
             const samples = snapshot.docs.map(d => ({...d.data(), id: d.id}) as BendaUji);
             setSampleRecords(samples);
         });
 
         return () => {
-            unsubscribeProd();
+            unsubscribeSchedules();
             unsubscribeSamples();
         };
-    }, [userInfo.lokasi]);
+    }, []);
 
-    const handleSaveSample = async (production: ProductionData) => {
-        const productionId = production.id;
-        if (!productionId) return;
+    const handleSaveSample = async (schedule: ScheduleRow) => {
+        const scheduleId = schedule.id;
+        if (!scheduleId) return;
 
-        const sampleCount = parseInt(inputSamples[productionId] || '0', 10);
+        const sampleCount = parseInt(inputSamples[scheduleId] || '0', 10);
         if (isNaN(sampleCount) || sampleCount <= 0) {
             toast({ title: "Jumlah tidak valid", description: "Masukkan jumlah sampel yang valid.", variant: 'destructive'});
             return;
         }
 
-        setIsSubmitting(productionId);
+        setIsSubmitting(scheduleId);
+        
+        const productionId = `${schedule.NO}-${schedule.LOKASI}-${schedule.GRADE}`;
 
         const newSampleRecord: Omit<BendaUji, 'id'> = {
             productionId: productionId,
+            scheduleId: scheduleId,
             qcId: userInfo.id,
             qcName: userInfo.username,
             jumlahSample: sampleCount,
             createdAt: Timestamp.now(),
-            lokasi: production.lokasiProyek,
-            mutuBeton: production.mutuBeton,
+            lokasi: schedule.LOKASI,
+            mutuBeton: schedule.GRADE,
         };
         
         try {
             await addDoc(collection(db, "benda_uji"), newSampleRecord);
             toast({ title: "Sukses", description: `${sampleCount} sampel berhasil dicatat.`});
-            setInputSamples(prev => ({...prev, [productionId]: ''}));
+            setInputSamples(prev => ({...prev, [scheduleId]: ''}));
         } catch (error) {
             console.error("Error saving sample:", error);
             toast({ title: "Gagal Menyimpan", variant: 'destructive'});
@@ -293,16 +289,16 @@ const PembuatanBendaUjiComponent = () => {
     };
     
     const jobsWithSamples = useMemo(() => {
-        return activeProductions.map(prod => {
-            const relatedSamples = sampleRecords.filter(s => s.productionId === prod.id);
+        return schedules.map(sched => {
+            const relatedSamples = sampleRecords.filter(s => s.scheduleId === sched.id);
             const totalSamples = relatedSamples.reduce((sum, s) => sum + s.jumlahSample, 0);
             return {
-                ...prod,
+                ...sched,
                 samples: relatedSamples.sort((a,b) => a.createdAt.toDate().getTime() - b.createdAt.toDate().getTime()),
                 totalSamples,
             };
         });
-    }, [activeProductions, sampleRecords]);
+    }, [schedules, sampleRecords]);
 
     return (
         <Card>
@@ -318,11 +314,11 @@ const PembuatanBendaUjiComponent = () => {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-[30%]">Pelanggan & Lokasi</TableHead>
+                                    <TableHead className="w-[25%]">Pelanggan & Lokasi</TableHead>
                                     <TableHead>Mutu/Slump</TableHead>
-                                    <TableHead>Volume</TableHead>
+                                    <TableHead>Vol (M³)</TableHead>
                                     <TableHead className="w-[200px]">Jumlah Sampel</TableHead>
-                                    <TableHead className="w-[200px]">Riwayat Pembuatan</TableHead>
+                                    <TableHead className="w-[250px]">Riwayat Pembuatan</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -330,11 +326,11 @@ const PembuatanBendaUjiComponent = () => {
                                 {jobsWithSamples.length > 0 ? jobsWithSamples.map(job => (
                                     <TableRow key={job.id}>
                                         <TableCell>
-                                            <p className="font-semibold">{job.namaPelanggan}</p>
-                                            <p className="text-xs text-muted-foreground">{job.lokasiProyek}</p>
+                                            <p className="font-semibold">{job['NAMA']}</p>
+                                            <p className="text-xs text-muted-foreground">{job['LOKASI']}</p>
                                         </TableCell>
-                                        <TableCell>{job.mutuBeton} / {job.slump || '-'} cm</TableCell>
-                                        <TableCell>{job.targetVolume} m³</TableCell>
+                                        <TableCell>{job['GRADE']} / {job['SLUMP (CM)'] || '-'} cm</TableCell>
+                                        <TableCell>{job['TERKIRIM M³']} / {job['TOTAL M³']}</TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <Input 

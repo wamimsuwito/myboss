@@ -465,6 +465,7 @@ export interface OvertimeRecord {
 export interface BendaUji {
     id?: string;
     productionId: string;
+    scheduleId: string;
     qcId: string;
     qcName: string;
     jumlahSample: number;
