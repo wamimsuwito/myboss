@@ -24,7 +24,7 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
   }
 
   const groupedResults = results.reduce((acc: Record<string, any[]>, item: any) => {
-    const key = `${item.pelanggan}|${item.lokasi}|${item.mutu}|${item.umurUji}|${format(getDate(item.tanggalPembuatan), 'dd/MM/yy')}`;
+    const key = `${item.pelanggan}|${item.lokasi}|${item.mutu}|${item.umurUji}`;
     if (!acc[key]) {
       acc[key] = [];
     }
@@ -73,7 +73,7 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
               <thead>
                 <tr>
                   <th style={{ width: '3%' }}>No</th>
-                  <th style={{ width: '15%' }}>Pelanggan</th>
+                  <th style={{ width: '13%' }}>Pelanggan</th>
                   <th style={{ width: '15%' }}>Lokasi Proyek</th>
                   <th style={{ width: '5%' }}>Mutu</th>
                   <th style={{ width: '5%' }}>Umur</th>
@@ -87,12 +87,12 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
                 </tr>
               </thead>
               <tbody>
-                {Object.keys(groupedResults).flatMap((key) => {
+                {Object.keys(groupedResults).map((key) => {
                   const group = groupedResults[key];
                   const totalStrength = group.reduce((sum: number, item: any) => sum + (item.actualStrength || 0), 0);
                   const averageStrength = group.length > 0 ? totalStrength / group.length : 0;
 
-                  const rows = group.map((item: any, index: number) => (
+                  const groupRows = group.map((item: any, index: number) => (
                     <tr key={`${key}-${index}`}>
                       <td>{index + 1}</td>
                       <td className="text-left">{item.pelanggan}</td>
@@ -109,15 +109,15 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
                     </tr>
                   ));
 
-                  rows.push(
+                  const summaryRow = (
                     <tr key={`summary-${key}`} className='summary-row'>
                       <td colSpan={9} className="text-center font-bold">Kuat Tekan Rata-rata</td>
-                      <td className="text-right font-bold">{averageStrength.toFixed(2)}</td>
+                      <td className="text-center font-bold">{averageStrength.toFixed(2)}</td>
                       <td colSpan={2}></td>
                     </tr>
                   );
 
-                  return rows;
+                  return [...groupRows, summaryRow];
                 })}
               </tbody>
             </table>
