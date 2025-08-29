@@ -320,7 +320,7 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     }
 };
 
-const HistoryComponent = ({ user, allTasks, allUsers, allReports }: { user: UserData | null; allTasks: MechanicTask[]; allUsers: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
+const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null; allTasks: MechanicTask[]; allUsers: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
     const [date, setDate] = useState<DateRange | undefined>({
@@ -528,7 +528,8 @@ export default function KepalaMekanikPage() {
   
   const [completionTask, setCompletionTask] = useState<MechanicTask | null>(null);
   const [repairDescription, setRepairDescription] = useState('');
-
+  const [delayTask, setDelayTask] = useState<MechanicTask | null>(null);
+  const [delayReason, setDelayReason] = useState('');
 
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
@@ -810,19 +811,14 @@ export default function KepalaMekanikPage() {
         return;
     }
 
+    if (newStatus === 'DELAYED') {
+        setDelayTask(task);
+        setDelayReason('');
+        return;
+    }
+
     const taskDocRef = doc(db, 'mechanic_tasks', task.id);
     const updateData: Partial<MechanicTask> = { status: newStatus };
-
-    if (newStatus === 'DELAYED') {
-      const reason = prompt("Masukkan alasan menunda pekerjaan:");
-      if (reason) {
-        updateData.delayReason = reason;
-        updateData.delayStartedAt = new Date().getTime();
-        updateData.riwayatTunda = [...(task.riwayatTunda || []), { alasan: reason, waktuMulai: Timestamp.now(), waktuSelesai: null! }];
-      } else {
-        return; // User cancelled
-      }
-    }
 
     if (newStatus === 'IN_PROGRESS' && task.status === 'PENDING' && !task.startedAt) {
       updateData.startedAt = new Date().getTime();
@@ -844,6 +840,33 @@ export default function KepalaMekanikPage() {
       toast({ title: "Gagal Memperbarui Status", variant: "destructive" });
     }
   };
+  
+    const handleConfirmDelay = async () => {
+        if (!delayTask || !delayReason) {
+            toast({ title: "Alasan Wajib Diisi", variant: "destructive" });
+            return;
+        }
+        setIsSubmitting(true);
+        const taskDocRef = doc(db, 'mechanic_tasks', delayTask.id);
+        const updateData: Partial<MechanicTask> = {
+            status: 'DELAYED',
+            delayReason: delayReason,
+            delayStartedAt: new Date().getTime(),
+            riwayatTunda: [...(delayTask.riwayatTunda || []), { alasan: delayReason, waktuMulai: Timestamp.now(), waktuSelesai: null! }]
+        };
+        try {
+            await updateDoc(taskDocRef, updateData as any);
+            toast({ title: "Pekerjaan Ditunda", description: `WO untuk ${delayTask.vehicle.hullNumber} telah ditunda.` });
+            setDelayTask(null);
+            setDelayReason('');
+        } catch (error) {
+            console.error("Error delaying task:", error);
+            toast({ title: "Gagal Menunda WO", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
 
   const handleConfirmCompletion = async () => {
     if (!completionTask || !repairDescription) {
@@ -1266,6 +1289,32 @@ export default function KepalaMekanikPage() {
                 <Button onClick={handleConfirmCompletion} disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Simpan & Selesaikan
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    <Dialog open={!!delayTask} onOpenChange={() => setDelayTask(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Tunda Work Order: {delayTask?.vehicle.hullNumber}</DialogTitle>
+                <DialogDescription>Masukkan alasan mengapa pekerjaan ini perlu ditunda.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Label htmlFor="delay-reason" className="sr-only">Alasan Penundaan</Label>
+                <Textarea
+                    id="delay-reason"
+                    placeholder="Contoh: Menunggu spare part datang..."
+                    value={delayReason}
+                    onChange={(e) => setDelayReason(e.target.value)}
+                    rows={4}
+                />
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setDelayTask(null)}>Batal</Button>
+                <Button onClick={handleConfirmDelay} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Simpan & Tunda
                 </Button>
             </DialogFooter>
         </DialogContent>
