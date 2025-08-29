@@ -26,7 +26,7 @@ export interface LocationData {
 export interface Report {
     id: string;
     timestamp: any;
-    nomorLambung: string; // Changed from vehicleId for consistency
+    nomorLambung: string;
     operatorName: string;
     operatorId: string;
     location: string;
@@ -460,4 +460,15 @@ export interface OvertimeRecord {
     checkOutLocationName?: string;
     checkOutPhoto?: string | null;
     checkOutDistance?: number | null;
+}
+
+export interface BendaUji {
+    id?: string;
+    productionId: string;
+    qcId: string;
+    qcName: string;
+    jumlahSample: number;
+    createdAt: any; // Firestore Timestamp
+    lokasi: string;
+    mutuBeton: string;
 }

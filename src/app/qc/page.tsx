@@ -8,8 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X, Beaker } from 'lucide-react';
-import type { UserData, RencanaPemasukan, QCInspectionData, ProductionData } from '@/lib/types';
+import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X, Beaker, Plus } from 'lucide-react';
+import type { UserData, RencanaPemasukan, QCInspectionData, ProductionData, BendaUji } from '@/lib/types';
 import { format, isSameDay, addDays, differenceInDays, startOfDay, isAfter } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,6 +24,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFo
 import TestReportPrintLayout from '@/components/test-report-print-layout';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { printElement } from '@/lib/utils';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 
 
 const PhotoInput = ({ label, onFileChange, photoPreview }: { label: string; onFileChange: (file: string | null) => void; photoPreview: string | null; }) => {
@@ -215,6 +216,169 @@ const RFIComponent = () => {
         </div>
     );
 };
+
+// --- Pembuatan Benda Uji Component ---
+const PembuatanBendaUjiComponent = () => {
+    const [activeProductions, setActiveProductions] = useState<ProductionData[]>([]);
+    const [sampleRecords, setSampleRecords] = useState<BendaUji[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+    const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    const [inputSamples, setInputSamples] = useState<Record<string, string>>({});
+    const [isSubmitting, setIsSubmitting] = useState<string | null>(null);
+
+    useEffect(() => {
+        if(!userInfo.lokasi) return;
+
+        const q = query(
+            collection(db, "productions"),
+            where('lokasiProduksi', '==', userInfo.lokasi),
+            where('tanggal', '>=', Timestamp.fromDate(addDays(new Date(), -7))) // Ambil data 7 hari terakhir
+        );
+
+        const unsubscribeProd = onSnapshot(q, (snapshot) => {
+            const prods = snapshot.docs.map(d => ({ ...d.data(), id: d.id }) as ProductionData)
+                .filter(p => p.jamSelesai); // Hanya yang sudah selesai
+            setActiveProductions(prods.sort((a,b) => new Date(b.jamSelesai).getTime() - new Date(a.jamSelesai).getTime()));
+            setIsLoading(false);
+        });
+        
+        const qSamples = query(
+            collection(db, "benda_uji"),
+            where('lokasi', '==', userInfo.lokasi)
+        );
+        const unsubscribeSamples = onSnapshot(qSamples, (snapshot) => {
+            const samples = snapshot.docs.map(d => ({...d.data(), id: d.id}) as BendaUji);
+            setSampleRecords(samples);
+        });
+
+        return () => {
+            unsubscribeProd();
+            unsubscribeSamples();
+        };
+
+    }, [userInfo.lokasi]);
+
+    const handleSaveSample = async (production: ProductionData) => {
+        const productionId = production.id;
+        if (!productionId) return;
+
+        const sampleCount = parseInt(inputSamples[productionId] || '0', 10);
+        if (isNaN(sampleCount) || sampleCount <= 0) {
+            toast({ title: "Jumlah tidak valid", description: "Masukkan jumlah sampel yang valid.", variant: 'destructive'});
+            return;
+        }
+
+        setIsSubmitting(productionId);
+
+        const newSampleRecord: Omit<BendaUji, 'id'> = {
+            productionId: productionId,
+            qcId: userInfo.id,
+            qcName: userInfo.username,
+            jumlahSample: sampleCount,
+            createdAt: Timestamp.now(),
+            lokasi: production.lokasiProyek,
+            mutuBeton: production.mutuBeton,
+        };
+        
+        try {
+            await addDoc(collection(db, "benda_uji"), newSampleRecord);
+            toast({ title: "Sukses", description: `${sampleCount} sampel berhasil dicatat.`});
+            setInputSamples(prev => ({...prev, [productionId]: ''}));
+        } catch (error) {
+            console.error("Error saving sample:", error);
+            toast({ title: "Gagal Menyimpan", variant: 'destructive'});
+        } finally {
+            setIsSubmitting(null);
+        }
+    };
+
+    const jobsWithSamples = useMemo(() => {
+        return activeProductions.map(prod => {
+            const relatedSamples = sampleRecords.filter(s => s.productionId === prod.id);
+            const totalSamples = relatedSamples.reduce((sum, s) => sum + s.jumlahSample, 0);
+            return {
+                ...prod,
+                samples: relatedSamples.sort((a,b) => a.createdAt.toDate().getTime() - b.createdAt.toDate().getTime()),
+                totalSamples,
+            };
+        });
+    }, [activeProductions, sampleRecords]);
+    
+    return (
+      <div className="space-y-6">
+        <Card>
+            <CardHeader>
+                <CardTitle>Pekerjaan Pengecoran Aktif</CardTitle>
+                <CardDescription>Catat jumlah benda uji yang Anda buat untuk setiap pekerjaan pengecoran yang telah selesai.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="flex justify-center items-center h-40"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
+                ) : jobsWithSamples.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">Tidak ada pekerjaan pengecoran aktif/selesai dalam 7 hari terakhir.</p>
+                ) : (
+                     <Accordion type="single" collapsible className="w-full">
+                        {jobsWithSamples.map(job => (
+                             <AccordionItem value={job.id!} key={job.id}>
+                                <AccordionTrigger>
+                                    <div className="flex justify-between items-center w-full pr-4">
+                                        <div className="text-left">
+                                            <p className="font-semibold">{job.namaPelanggan}</p>
+                                            <p className="text-sm text-muted-foreground">{job.lokasiProyek}</p>
+                                            <p className="text-xs text-muted-foreground">{job.mutuBeton} | {job.slump} cm | {job.targetVolume} m³</p>
+                                        </div>
+                                        <div className="flex flex-col items-center gap-1">
+                                            <Beaker className="h-5 w-5 text-primary"/>
+                                            <span className="text-lg font-bold">{job.totalSamples}</span>
+                                            <span className="text-xs text-muted-foreground -mt-1">sampel</span>
+                                        </div>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent className="p-2 space-y-4">
+                                    <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+                                        <div className="grid grid-cols-3 gap-2 items-end">
+                                            <div className="col-span-2 space-y-1">
+                                                <Label htmlFor={`sample-${job.id}`}>Jumlah Sampel Dibuat</Label>
+                                                <Input 
+                                                    id={`sample-${job.id}`}
+                                                    type="number" 
+                                                    placeholder="0"
+                                                    value={inputSamples[job.id!] || ''}
+                                                    onChange={e => setInputSamples(prev => ({...prev, [job.id!]: e.target.value}))}
+                                                />
+                                            </div>
+                                            <Button onClick={() => handleSaveSample(job)} disabled={isSubmitting === job.id}>
+                                                {isSubmitting === job.id ? <Loader2 className="animate-spin"/> : <Save/>}
+                                            </Button>
+                                        </div>
+                                        
+                                        {job.samples.length > 0 && (
+                                            <div className="pt-3 border-t">
+                                                <h4 className="text-xs font-semibold text-muted-foreground mb-2">Riwayat Pembuatan Sampel:</h4>
+                                                <ul className="space-y-1 text-xs">
+                                                    {job.samples.map(sample => (
+                                                        <li key={sample.id} className="flex justify-between items-center bg-background/50 p-1.5 rounded">
+                                                            <span><span className="font-semibold">{sample.qcName}</span> membuat <span className="font-bold">{sample.jumlahSample}</span> sampel</span>
+                                                            <span className="text-muted-foreground">{format(sample.createdAt.toDate(), 'HH:mm')}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </div>
+                                </AccordionContent>
+                             </AccordionItem>
+                        ))}
+                     </Accordion>
+                )}
+            </CardContent>
+        </Card>
+      </div>
+    )
+};
+
 
 // --- Uji Tekan Component (Desktop View) ---
 const UjiTekanComponent = () => {
@@ -683,7 +847,7 @@ export default function QCPage() {
           case 'Jadwal Uji Tekan Hari Ini':
               return <UjiTekanComponent />;
           case 'Pembuatan Benda Uji':
-              return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
+              return <PembuatanBendaUjiComponent />;
           default:
               return null;
       }
