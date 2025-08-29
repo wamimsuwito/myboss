@@ -217,7 +217,6 @@ const RFIComponent = () => {
     );
 };
 
-// --- Pembuatan Benda Uji Component ---
 const PembuatanBendaUjiComponent = () => {
     const [activeProductions, setActiveProductions] = useState<ProductionData[]>([]);
     const [sampleRecords, setSampleRecords] = useState<BendaUji[]>([]);
@@ -234,12 +233,12 @@ const PembuatanBendaUjiComponent = () => {
         const q = query(
             collection(db, "productions"),
             where('lokasiProduksi', '==', userInfo.lokasi),
-            where('tanggal', '>=', Timestamp.fromDate(addDays(new Date(), -7))) // Ambil data 7 hari terakhir
+            where('status', 'in', ['proses', 'selesai'])
         );
-
+        
         const unsubscribeProd = onSnapshot(q, (snapshot) => {
             const prods = snapshot.docs.map(d => ({ ...d.data(), id: d.id }) as ProductionData)
-                .filter(p => p.jamSelesai); // Hanya yang sudah selesai
+                .filter(p => p.jamSelesai);
             setActiveProductions(prods.sort((a,b) => new Date(b.jamSelesai).getTime() - new Date(a.jamSelesai).getTime()));
             setIsLoading(false);
         });
@@ -257,7 +256,6 @@ const PembuatanBendaUjiComponent = () => {
             unsubscribeProd();
             unsubscribeSamples();
         };
-
     }, [userInfo.lokasi]);
 
     const handleSaveSample = async (production: ProductionData) => {
@@ -293,7 +291,7 @@ const PembuatanBendaUjiComponent = () => {
             setIsSubmitting(null);
         }
     };
-
+    
     const jobsWithSamples = useMemo(() => {
         return activeProductions.map(prod => {
             const relatedSamples = sampleRecords.filter(s => s.productionId === prod.id);
@@ -305,78 +303,82 @@ const PembuatanBendaUjiComponent = () => {
             };
         });
     }, [activeProductions, sampleRecords]);
-    
+
     return (
-      <div className="space-y-6">
         <Card>
             <CardHeader>
-                <CardTitle>Pekerjaan Pengecoran Aktif</CardTitle>
-                <CardDescription>Catat jumlah benda uji yang Anda buat untuk setiap pekerjaan pengecoran yang telah selesai.</CardDescription>
+                <CardTitle className="flex items-center gap-3"><Beaker />Pencatatan Benda Uji</CardTitle>
+                <CardDescription>Catat jumlah benda uji yang dibuat untuk setiap pekerjaan pengecoran yang telah selesai.</CardDescription>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
                     <div className="flex justify-center items-center h-40"><Loader2 className="animate-spin h-8 w-8 text-primary"/></div>
-                ) : jobsWithSamples.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">Tidak ada pekerjaan pengecoran aktif/selesai dalam 7 hari terakhir.</p>
                 ) : (
-                     <Accordion type="single" collapsible className="w-full">
-                        {jobsWithSamples.map(job => (
-                             <AccordionItem value={job.id!} key={job.id}>
-                                <AccordionTrigger>
-                                    <div className="flex justify-between items-center w-full pr-4">
-                                        <div className="text-left">
+                    <div className="border rounded-md overflow-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[30%]">Pelanggan & Lokasi</TableHead>
+                                    <TableHead>Mutu/Slump</TableHead>
+                                    <TableHead>Volume</TableHead>
+                                    <TableHead className="w-[200px]">Jumlah Sampel</TableHead>
+                                    <TableHead className="w-[200px]">Riwayat Pembuatan</TableHead>
+                                    <TableHead className="text-right">Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {jobsWithSamples.length > 0 ? jobsWithSamples.map(job => (
+                                    <TableRow key={job.id}>
+                                        <TableCell>
                                             <p className="font-semibold">{job.namaPelanggan}</p>
-                                            <p className="text-sm text-muted-foreground">{job.lokasiProyek}</p>
-                                            <p className="text-xs text-muted-foreground">{job.mutuBeton} | {job.slump} cm | {job.targetVolume} m³</p>
-                                        </div>
-                                        <div className="flex flex-col items-center gap-1">
-                                            <Beaker className="h-5 w-5 text-primary"/>
-                                            <span className="text-lg font-bold">{job.totalSamples}</span>
-                                            <span className="text-xs text-muted-foreground -mt-1">sampel</span>
-                                        </div>
-                                    </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="p-2 space-y-4">
-                                    <div className="p-4 bg-muted/30 rounded-lg space-y-3">
-                                        <div className="grid grid-cols-3 gap-2 items-end">
-                                            <div className="col-span-2 space-y-1">
-                                                <Label htmlFor={`sample-${job.id}`}>Jumlah Sampel Dibuat</Label>
+                                            <p className="text-xs text-muted-foreground">{job.lokasiProyek}</p>
+                                        </TableCell>
+                                        <TableCell>{job.mutuBeton} / {job.slump || '-'} cm</TableCell>
+                                        <TableCell>{job.targetVolume} m³</TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
                                                 <Input 
                                                     id={`sample-${job.id}`}
                                                     type="number" 
                                                     placeholder="0"
+                                                    className="w-20"
                                                     value={inputSamples[job.id!] || ''}
                                                     onChange={e => setInputSamples(prev => ({...prev, [job.id!]: e.target.value}))}
+                                                    disabled={isSubmitting === job.id}
                                                 />
+                                                <Button size="sm" onClick={() => handleSaveSample(job)} disabled={isSubmitting === job.id}>
+                                                    {isSubmitting === job.id ? <Loader2 className="animate-spin"/> : <Save/>}
+                                                </Button>
                                             </div>
-                                            <Button onClick={() => handleSaveSample(job)} disabled={isSubmitting === job.id}>
-                                                {isSubmitting === job.id ? <Loader2 className="animate-spin"/> : <Save/>}
-                                            </Button>
-                                        </div>
-                                        
-                                        {job.samples.length > 0 && (
-                                            <div className="pt-3 border-t">
-                                                <h4 className="text-xs font-semibold text-muted-foreground mb-2">Riwayat Pembuatan Sampel:</h4>
-                                                <ul className="space-y-1 text-xs">
-                                                    {job.samples.map(sample => (
-                                                        <li key={sample.id} className="flex justify-between items-center bg-background/50 p-1.5 rounded">
-                                                            <span><span className="font-semibold">{sample.qcName}</span> membuat <span className="font-bold">{sample.jumlahSample}</span> sampel</span>
-                                                            <span className="text-muted-foreground">{format(sample.createdAt.toDate(), 'HH:mm')}</span>
+                                        </TableCell>
+                                        <TableCell>
+                                            {job.samples.length > 0 ? (
+                                                <ul className="text-xs space-y-1">
+                                                    {job.samples.map(s => (
+                                                        <li key={s.id} className="flex justify-between">
+                                                            <span>{s.qcName}: <span className="font-bold">{s.jumlahSample} pcs</span></span>
+                                                            <span className="text-muted-foreground">{format(s.createdAt.toDate(), 'HH:mm')}</span>
                                                         </li>
                                                     ))}
                                                 </ul>
-                                            </div>
-                                        )}
-                                    </div>
-                                </AccordionContent>
-                             </AccordionItem>
-                        ))}
-                     </Accordion>
+                                            ) : <span className="text-xs text-muted-foreground">Belum ada</span>}
+                                        </TableCell>
+                                        <TableCell className="text-right font-bold text-lg">{job.totalSamples}</TableCell>
+                                    </TableRow>
+                                )) : (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                                            Tidak ada pekerjaan pengecoran yang aktif di lokasi Anda.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 )}
             </CardContent>
         </Card>
-      </div>
-    )
+    );
 };
 
 
@@ -820,22 +822,15 @@ export default function QCPage() {
     localStorage.removeItem('user');
     router.push('/login');
   };
-
-  const getDate = (timestamp: any): Date => {
-    if (timestamp && typeof timestamp.toDate === 'function') {
-      return timestamp.toDate();
-    }
-    return new Date(timestamp);
-}
-
+  
   if (!userInfo) {
     return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-16 w-16 animate-spin text-primary" /></div>;
   }
   
   const menuItems = [
-    { name: 'Inspeksi Material Masuk', icon: FileSearch, href: '/qc' },
-    { name: 'Jadwal Uji Tekan Hari Ini', icon: TestTube, href: '/qc' },
-    { name: 'Pembuatan Benda Uji', icon: Beaker, href: '/qc' },
+    { name: 'Inspeksi Material Masuk', icon: FileSearch },
+    { name: 'Jadwal Uji Tekan Hari Ini', icon: TestTube },
+    { name: 'Pembuatan Benda Uji', icon: Beaker },
     { name: 'Riwayat Uji Tekan', icon: History, href: '/riwayat-uji-tekan' }
   ];
 
@@ -872,7 +867,7 @@ export default function QCPage() {
                     <SidebarMenuItem key={item.name}>
                         <SidebarMenuButton 
                             isActive={activeMenu === item.name} 
-                            onClick={() => item.href === '/qc' ? setActiveMenu(item.name) : router.push(item.href)}
+                            onClick={() => item.href ? router.push(item.href) : setActiveMenu(item.name)}
                         >
                             <item.icon/>{item.name}
                         </SidebarMenuButton>
