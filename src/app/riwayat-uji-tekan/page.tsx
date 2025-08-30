@@ -23,17 +23,6 @@ export default function RiwayatUjiTekanPage() {
   const [selectedSession, setSelectedSession] = useState<any | null>(null);
 
   useEffect(() => {
-    if (isPreviewing) {
-      document.body.classList.add('print-active');
-    } else {
-      document.body.classList.remove('print-active');
-    }
-    return () => {
-      document.body.classList.remove('print-active');
-    };
-  }, [isPreviewing]);
-
-  useEffect(() => {
     const fetchHistory = async () => {
       setIsLoading(true);
       try {

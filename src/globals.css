@@ -110,35 +110,37 @@
         margin: 0.5in;
     }
 
-    body.print-active > * {
-        display: none !important;
-    }
-    
-    body.print-active [role="dialog"] {
-        display: block !important;
-        position: static !important;
-        width: 100% !important;
-        max-width: none !important;
-        box-shadow: none !important;
-        padding: 0 !important;
-        margin: 0 !important;
-        animation: none !important;
-        border: none !important;
-        transform: none !important;
+    body, html {
+        background-color: white !important;
+        overflow: visible !important;
     }
 
     .no-print, .no-print * {
         display: none !important;
     }
-    
-    html, body {
-      overflow: visible !important;
-      background: white !important;
-      color: black !important;
+
+    [role="dialog"] {
+        position: static !important;
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        transform: none !important;
+        animation: none !important;
     }
 
-    #printable-test-report {
-      max-height: none !important;
-      overflow: visible !important;
+    #printable-test-report, #printable-penalty, #printable-reward, #production-history-print-area, #printable-ticket {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    #printable-test-report *, #printable-penalty *, #printable-reward *, #production-history-print-area *, #printable-ticket * {
+      color: black !important;
+      background-color: white !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
     }
 }
