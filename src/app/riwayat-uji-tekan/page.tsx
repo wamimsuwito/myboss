@@ -66,7 +66,7 @@ export default function RiwayatUjiTekanPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="min-h-screen p-4 sm:p-6 md:p-8 no-print">
+      <div className="min-h-screen p-4 sm:p-6 md:p-8">
         <header className="flex items-center gap-4 mb-8">
           <Button variant="outline" size="icon" onClick={() => router.back()}><ArrowLeft /></Button>
           <div>
