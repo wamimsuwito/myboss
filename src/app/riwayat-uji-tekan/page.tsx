@@ -29,7 +29,6 @@ export default function RiwayatUjiTekanPage() {
     } else {
       document.body.classList.remove('print-active');
     }
-    // Cleanup on component unmount
     return () => {
       document.body.classList.remove('print-active');
     };
@@ -55,7 +54,7 @@ export default function RiwayatUjiTekanPage() {
   }, [toast]);
 
   const handlePrint = () => {
-    window.print();
+    printElement('printable-test-report');
   };
 
   const handleViewDetails = (session: any) => {
@@ -67,10 +66,14 @@ export default function RiwayatUjiTekanPage() {
     <>
       <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
         <DialogContent className="max-w-4xl p-0">
-          <div id="printable-test-report" className="p-6 max-h-[80vh]">
+          <DialogHeader className="p-4 border-b no-print">
+            <DialogTitle>Pratinjau Laporan Uji Tekan</DialogTitle>
+            <DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X /></Button></DialogClose>
+          </DialogHeader>
+          <div id="printable-test-report" className="p-6 max-h-[80vh] overflow-y-auto">
             <TestReportPrintLayout sessionData={selectedSession} />
           </div>
-          <DialogFooter className="p-4 border-t bg-muted/50 no-print">
+          <DialogFooter className="p-4 border-t bg-muted no-print">
             <Button variant="outline" onClick={() => setIsPreviewing(false)}>Tutup</Button>
             <Button onClick={handlePrint}><Printer className="mr-2"/>Cetak Laporan</Button>
           </DialogFooter>
