@@ -1,3 +1,4 @@
+
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -6,8 +7,8 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Triggers a print dialog for a specific HTML element.
- * Hides all other elements and prints only the content of the element with the given ID.
+ * Triggers a print dialog for a specific HTML element by opening its content
+ * in a new, isolated window. This avoids CSS conflicts from the main page.
  * @param elementId The ID of the element to print.
  */
 export function printElement(elementId: string) {
@@ -16,17 +17,36 @@ export function printElement(elementId: string) {
     console.error(`Element with ID #${elementId} not found.`);
     return;
   }
-  
-  // Temporarily add a class to the body to hide non-printable elements
-  document.body.classList.add('printing-active');
 
-  // A brief timeout can help ensure the browser has processed any recent DOM changes
-  // before opening the print dialog.
-  setTimeout(() => {
-    window.print();
-    // Clean up the class after printing is done or cancelled
-    document.body.classList.remove('printing-active');
-  }, 100);
+  const printWindow = window.open('', '_blank', 'height=800,width=800');
+  
+  if (printWindow) {
+    printWindow.document.write('<html><head><title>Cetak Laporan</title>');
+
+    // Link all stylesheets from the main document to the new window
+    document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+      printWindow.document.write(link.outerHTML);
+    });
+
+    // Copy all style tags from the main document
+     document.querySelectorAll('style').forEach(style => {
+      printWindow.document.write(style.outerHTML);
+    });
+    
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(printableElement.innerHTML);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+
+    // Use a timeout to ensure all styles are loaded before printing
+    setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+    }, 500);
+  } else {
+    alert("Please allow pop-ups for this website to print the report.");
+  }
 }
 
 
