@@ -124,18 +124,40 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
             </table>
           </div>
         </main>
-        <footer className="signature-section mt-16 flex justify-around text-sm" style={{ pageBreakInside: 'avoid' }}>
-            <div className="signature-col text-center">
-                <p>Diuji oleh,</p>
-                <div className="signature-box h-20 w-40"></div>
-                <p className="font-bold underline">({testerName || '....................'})</p>
-                <p>Quality Control</p>
+        <footer className="signature-section-new mt-16 text-sm" style={{ pageBreakInside: 'avoid' }}>
+          <div className="flex justify-between w-full">
+            {/* Bagian Kiri: Prepared By */}
+            <div className="text-left w-1/2 pr-8">
+              <p>Prepared By,</p>
+              <p className="font-bold">PT FARIKA RIAU PERKASA</p>
+              <div className="mt-20"> {/* Sesuaikan margin atas */}
+                <div className="flex justify-between">
+                  <span className="w-1/2 border-b border-black"></span>
+                  <span className="w-1/2 border-b border-black"></span>
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                  <p className="w-1/2">Admin QC</p>
+                  <p className="w-1/2">Quality Control</p>
+                </div>
+              </div>
             </div>
-             <div className="signature-col text-center">
-                <p>Diketahui oleh,</p>
-                <div className="signature-box h-20 w-40"></div>
-                <p>(Pimpinan)</p>
+
+            {/* Bagian Kanan: Witnessed By */}
+            <div className="text-left w-1/2 pl-8">
+              <p>Witnessed By,</p>
+              <p className="font-bold">PT OKI PULP AND PAPER MILLS</p>
+              <div className="mt-20">
+                <div className="flex justify-between">
+                  <span className="w-1/2 border-b border-black"></span>
+                  <span className="w-1/2 border-b border-black"></span>
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                  <p className="w-1/2">PIC OKI</p>
+                  <p className="w-1/2">QC OKI</p>
+                </div>
+              </div>
             </div>
+          </div>
         </footer>
     </div>
   );
