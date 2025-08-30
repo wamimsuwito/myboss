@@ -72,22 +72,22 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
             <table className="print-table">
               <thead>
                 <tr>
-                  <th style={{ width: '3%' }}>No</th>
-                  <th style={{ width: '13%' }}>Pelanggan</th>
-                  <th style={{ width: '15%' }}>Lokasi Proyek</th>
-                  <th style={{ width: '5%' }}>Mutu</th>
-                  <th style={{ width: '5%' }}>Umur</th>
-                  <th style={{ width: '7%' }}>Tgl Prod</th>
-                  <th style={{ width: '5%' }}>Slump</th>
-                  <th style={{ width: '7%' }}>Berat (kg)</th>
-                  <th style={{ width: '7%' }}>KN</th>
-                  <th style={{ width: '10%' }}>Hasil Uji ({resultUnit})</th>
-                  <th style={{ width: '11%' }}>Prediksi 28 Hari ({resultUnit})</th>
-                  <th style={{ width: '10%' }}>Target thd Mutu (%)</th>
+                  <th>No</th>
+                  <th>Pelanggan</th>
+                  <th>Lokasi Proyek</th>
+                  <th>Mutu</th>
+                  <th>Umur</th>
+                  <th>Tgl Prod</th>
+                  <th>Slump</th>
+                  <th>Berat (kg)</th>
+                  <th>KN</th>
+                  <th>Hasil Uji ({resultUnit})</th>
+                  <th>Prediksi 28 Hari ({resultUnit})</th>
+                  <th>Target thd Mutu (%)</th>
                 </tr>
               </thead>
               <tbody>
-                {Object.keys(groupedResults).map((key) => {
+                {Object.keys(groupedResults).flatMap((key, groupIndex) => {
                   const group = groupedResults[key];
                   const totalStrength = group.reduce((sum: number, item: any) => sum + (item.actualStrength || 0), 0);
                   const averageStrength = group.length > 0 ? totalStrength / group.length : 0;

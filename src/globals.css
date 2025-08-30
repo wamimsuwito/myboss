@@ -117,34 +117,38 @@
       margin: 0.5in;
     }
 
-    body {
-        background: white !important;
-        color: black !important;
+    body.print-active {
+      background: white !important;
     }
     
     body.print-active > * {
-        display: none !important;
+      display: none !important;
     }
     
     body.print-active > [role="dialog"] {
-        display: block !important;
-        position: absolute !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-        margin: 0 auto !important;
-        box-shadow: none !important;
-        border: none !important;
-        padding: 0 !important;
-        animation: none !important;
+      display: block !important;
+      position: static !important;
+      width: 100% !important;
+      height: auto !important;
+      box-shadow: none !important;
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      animation: none !important;
+      overflow: visible !important;
     }
 
-    body.print-active [role="dialog"] > div[data-radix-dialog-content-wrapper] > div,
-    body.print-active [role="dialog"] > div[data-radix-dialog-content-wrapper] > div > div[id^="printable"] {
-      max-height: none !important;
-      overflow-y: visible !important;
+    body.print-active [role="dialog"] > div[data-radix-dialog-content-wrapper] {
+      box-shadow: none !important;
+    }
+
+    body.print-active [role="dialog"] > div[data-radix-dialog-content-wrapper] > div {
+       max-height: none !important;
+       overflow-y: visible !important;
+       box-shadow: none !important;
+       border: none !important;
+       padding: 0 !important;
+       margin: 0 !important;
     }
 
     .no-print, .no-print * {
@@ -263,5 +267,3 @@
         margin-top: 5px;
     }
 }
-
-    
