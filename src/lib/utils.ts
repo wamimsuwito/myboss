@@ -6,11 +6,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/**
- * Triggers a print dialog for a specific HTML element by opening its content
- * in a new, isolated window. This avoids CSS conflicts from the main page.
- * @param elementId The ID of the element to print.
- */
 export function printElement(elementId: string) {
   const printableElement = document.getElementById(elementId);
   if (!printableElement) {
@@ -18,35 +13,18 @@ export function printElement(elementId: string) {
     return;
   }
 
-  const printWindow = window.open('', '_blank', 'height=800,width=800');
+  // Create a container for the print content that will be temporarily added to the body
+  const printContainer = document.createElement('div');
+  printContainer.id = 'print-container-temp';
+  printContainer.className = 'print-container'; // Used by CSS to isolate the print view
+  printContainer.innerHTML = printableElement.closest('[role="dialog"]')?.outerHTML || printableElement.outerHTML;
+
+  document.body.appendChild(printContainer);
+
+  window.print();
   
-  if (printWindow) {
-    printWindow.document.write('<html><head><title>Cetak Laporan</title>');
-
-    // Link all stylesheets from the main document to the new window
-    document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-      printWindow.document.write(link.outerHTML);
-    });
-
-    // Copy all style tags from the main document
-     document.querySelectorAll('style').forEach(style => {
-      printWindow.document.write(style.outerHTML);
-    });
-    
-    printWindow.document.write('</head><body>');
-    printWindow.document.write(printableElement.innerHTML);
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-
-    // Use a timeout to ensure all styles are loaded before printing
-    setTimeout(() => {
-        printWindow.focus();
-        printWindow.print();
-        printWindow.close();
-    }, 500);
-  } else {
-    alert("Please allow pop-ups for this website to print the report.");
-  }
+  // Clean up after printing
+  document.body.removeChild(printContainer);
 }
 
 
