@@ -37,6 +37,7 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
 
   return (
     <div className="printable-area bg-white text-black p-4 font-sans">
+        <div className="watermark">PT FARIKA RIAU PERKASA</div>
         <header className="print-header text-center mb-8">
             <img src="https://i.imgur.com/CxaNLPj.png" alt="Logo" className="print-logo h-24 w-auto" data-ai-hint="logo company" style={{ float: 'left', marginRight: '20px' }}/>
             <div className="text-left" style={{ marginLeft: '110px' }}>
@@ -46,7 +47,6 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
                 <p className="text-xs mt-1">Jl. Soekarno Hatta Komp. SKA No. 62 E Pekanbaru Telp. (0761) 7090228 - 571662</p>
             </div>
             <div style={{ clear: 'both' }}></div>
-            <div className="watermark">PT FARIKA RIAU PERKASA</div>
         </header>
         <hr className="header-divider border-t-2 border-black my-2" />
         <h2 className="report-title text-center font-bold text-lg uppercase my-4">LAPORAN HASIL UJI KUAT TEKAN BETON</h2>
@@ -126,7 +126,6 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
         </main>
         <footer className="signature-section-new mt-16 text-sm" style={{ pageBreakInside: 'avoid' }}>
           <div className="flex justify-between w-full">
-            {/* Bagian Kiri: Prepared By */}
             <div className="text-left w-1/2 pr-8">
               <p>Prepared By,</p>
               <p className="font-bold">PT FARIKA RIAU PERKASA</p>
@@ -142,7 +141,6 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
               </div>
             </div>
 
-            {/* Bagian Kanan: Witnessed By */}
             <div className="text-left w-1/2 pl-8">
               <p>Witnessed By,</p>
               <p className="font-bold">PT OKI PULP AND PAPER MILLS</p>

@@ -35,6 +35,7 @@ export default function PenaltyPrintLayout({ penaltyData }: PenaltyPrintLayoutPr
 
   return (
     <div className="bg-white text-black p-8 font-serif printable-area" id="penalty-letter">
+        <div className="watermark">PT FARIKA RIAU PERKASA</div>
         <header className="print-header text-center mb-8">
             <img src="https://i.imgur.com/CxaNLPj.png" alt="Logo" className="print-logo h-24 w-auto" data-ai-hint="logo company" style={{ float: 'left', marginRight: '20px' }}/>
             <div className="text-left" style={{ marginLeft: '110px' }}>
@@ -44,7 +45,6 @@ export default function PenaltyPrintLayout({ penaltyData }: PenaltyPrintLayoutPr
                 <p className="text-xs mt-1">Jl. Soekarno Hatta Komp. SKA No. 62 E Pekanbaru Telp. (0761) 7090228 - 571662</p>
             </div>
             <div style={{ clear: 'both' }}></div>
-            <div className="watermark">PT FARIKA RIAU PERKASA</div>
         </header>
          <hr className="border-t-2 border-black my-2" />
         <main className="text-justify text-base leading-relaxed">

@@ -44,6 +44,7 @@ export default function ProductionHistoryPrintLayout({ data, dateRange }: Produc
 
   return (
     <div className="bg-white text-black p-4 font-sans printable-area">
+        <div className="watermark">PT FARIKA RIAU PERKASA</div>
       <header className="print-header text-center mb-8">
             <img src="https://i.imgur.com/CxaNLPj.png" alt="Logo" className="print-logo h-24 w-auto" data-ai-hint="logo company" style={{ float: 'left', marginRight: '20px' }}/>
             <div className="text-left" style={{ marginLeft: '110px' }}>
@@ -53,7 +54,6 @@ export default function ProductionHistoryPrintLayout({ data, dateRange }: Produc
                 <p className="text-xs mt-1">Jl. Soekarno Hatta Komp. SKA No. 62 E Pekanbaru Telp. (0761) 7090228 - 571662</p>
             </div>
             <div style={{ clear: 'both' }}></div>
-            <div className="watermark">PT FARIKA RIAU PERKASA</div>
         </header>
         <hr className="border-t-2 border-black my-2" />
         <h2 className="text-center font-bold text-lg uppercase my-4">Laporan Riwayat Produksi</h2>
