@@ -112,6 +112,16 @@
 
 
 @media print {
+    @page {
+      size: A4;
+      margin: 0.5in;
+    }
+
+    body {
+        background: white !important;
+        color: black !important;
+    }
+    
     body.print-active > * {
         display: none !important;
     }
@@ -131,28 +141,14 @@
         animation: none !important;
     }
 
-    body.print-active [role="dialog"] > div[data-radix-dialog-content-wrapper] {
+    body.print-active [role="dialog"] > div[data-radix-dialog-content-wrapper] > div,
+    body.print-active [role="dialog"] > div[data-radix-dialog-content-wrapper] > div > div[id^="printable"] {
       max-height: none !important;
       overflow-y: visible !important;
     }
 
-     #printable-test-report, #printable-penalty, #printable-reward, #printable-ticket, #printable-detail-ticket {
-      max-height: none !important;
-      overflow-y: visible !important;
-    }
-    
     .no-print, .no-print * {
         display: none !important;
-    }
-    
-    @page {
-        size: A4;
-        margin: 0.5in;
-    }
-
-    body {
-        background: white !important;
-        color: black !important;
     }
 
     .print-report-container, .print-report-container * {
@@ -164,9 +160,9 @@
     .print-report-container .print-header { display: flex; align-items: flex-start; justify-content: flex-start; gap: 20px; margin-bottom: 1rem; }
     .print-report-container .print-logo { height: 80px; width: auto; }
     .print-report-container .company-info { text-align: left; }
-    .print-report-container .company-name { font-size: 1.25rem; font-weight: bold; color: #DC2626; }
-    .print-report-container .company-tagline { font-size: 0.875rem; font-weight: 600; font-style: italic; color: #2563EB; }
-    .print-report-container .company-services { font-size: 0.875rem; font-weight: 600; color: #2563EB; }
+    .print-report-container .company-name { font-size: 1.25rem; font-weight: bold; color: #DC2626 !important; }
+    .print-report-container .company-tagline { font-size: 0.875rem; font-weight: 600; font-style: italic; color: #2563EB !important; }
+    .print-report-container .company-services { font-size: 0.875rem; font-weight: 600; color: #2563EB !important; }
     .print-report-container .company-address { font-size: 0.75rem; margin-top: 0.25rem; }
     .print-report-container .header-divider { border-top: 2px solid black; margin-top: 0.5rem; margin-bottom: 0.5rem; }
     .print-report-container .report-title { text-align: center; font-weight: bold; font-size: 1.125rem; text-transform: uppercase; margin: 1rem 0; }
@@ -267,3 +263,5 @@
         margin-top: 5px;
     }
 }
+
+    
