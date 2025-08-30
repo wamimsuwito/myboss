@@ -12,7 +12,6 @@ import { id as localeID } from 'date-fns/locale';
 import { db, collection, getDocs, query, orderBy } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import TestReportPrintLayout from '@/components/test-report-print-layout';
-import styles from '@/components/test-report-print.module.css'; // Import styles
 
 export default function RiwayatUjiTekanPage() {
   const router = useRouter();
@@ -41,7 +40,6 @@ export default function RiwayatUjiTekanPage() {
   }, [toast]);
 
   const handlePrint = () => {
-    // This now relies on the @media print styles
     window.print();
   };
 
@@ -53,13 +51,12 @@ export default function RiwayatUjiTekanPage() {
   return (
     <>
       <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
-        <DialogContent className="max-w-4xl p-0">
+        <DialogContent className="max-w-4xl p-0 printable-area-container">
           <DialogHeader className="p-4 border-b no-print">
             <DialogTitle>Pratinjau Laporan Uji Tekan</DialogTitle>
             <DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose>
           </DialogHeader>
-          {/* This div will be targeted by the print styles */}
-          <div className="overflow-y-auto max-h-[80vh]">
+          <div className="overflow-y-auto max-h-[80vh] p-6 printable-content">
              <TestReportPrintLayout sessionData={selectedSession} />
           </div>
           <DialogFooter className="p-4 border-t bg-muted no-print">
@@ -121,3 +118,4 @@ export default function RiwayatUjiTekanPage() {
     </>
   );
 }
+
