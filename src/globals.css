@@ -105,24 +105,20 @@
 }
 
 @media print {
-    @page {
-        size: A4 portrait;
-        margin: 0.5in;
+    body > *:not(.print-container) {
+      display: none !important;
     }
 
-    body, html {
-        background-color: white !important;
-        color: black !important;
-        overflow: visible !important;
-    }
-
-    /* Sembunyikan semua elemen kecuali yang akan dicetak */
-    body > *:not(.print-container),
-    .no-print, .no-print * {
-        display: none !important;
+    .print-container {
+      display: block !important;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
     }
     
-    .print-container > [role="dialog"] {
+    .print-container [role="dialog"] {
       display: block !important;
       position: static !important;
       transform: none !important;
@@ -135,7 +131,6 @@
       margin: 0 !important;
     }
 
-    /* Targetkan konten spesifik di dalam dialog */
     #printable-test-report,
     #printable-penalty,
     #printable-reward {
@@ -147,9 +142,11 @@
         padding: 0 !important;
     }
     
-    #printable-test-report *,
-    #printable-penalty *,
-    #printable-reward * {
+    .no-print, .no-print * {
+        display: none !important;
+    }
+
+    .printable-area, .printable-area * {
         color: black !important;
         background-color: white !important;
         -webkit-print-color-adjust: exact !important;
