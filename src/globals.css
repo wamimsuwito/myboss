@@ -105,52 +105,40 @@
 }
 
 @media print {
-  /* Hide all elements by default */
-  body > * {
-    display: none !important;
-  }
-  
-  /* Only display the dialog and its content */
-  [role="dialog"] {
-    display: block !important;
-    position: static !important; /* Override fixed positioning */
-    width: 100% !important;
-    max-width: none !important;
-    height: auto !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    animation: none !important;
-    border: none !important;
-  }
+    @page {
+        size: A4 portrait;
+        margin: 0.5in;
+    }
 
-  /* Make sure the direct content inside the dialog is also visible */
-  [role="dialog"] > * {
-    display: block !important;
-  }
-  
-  /* Hide scrollbars on all elements */
-  * {
-    overflow: visible !important;
-  }
+    body.print-active > * {
+        display: none !important;
+    }
+    
+    body.print-active [role="dialog"] {
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        max-width: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        animation: none !important;
+        border: none !important;
+        transform: none !important;
+    }
 
-  /* Hide elements that should not be printed */
-  .no-print, .no-print * {
-    display: none !important;
-  }
+    .no-print, .no-print * {
+        display: none !important;
+    }
+    
+    html, body {
+      overflow: visible !important;
+      background: white !important;
+      color: black !important;
+    }
 
-  /* Reset body and html for printing */
-  html, body {
-    background: white !important;
-    color: black !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-
-  /* Page settings */
-  @page {
-    size: A4 portrait;
-    margin: 0.5in;
-  }
+    #printable-test-report {
+      max-height: none !important;
+      overflow: visible !important;
+    }
 }

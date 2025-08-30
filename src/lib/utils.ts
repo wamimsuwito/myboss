@@ -12,7 +12,7 @@ export function cn(...inputs: ClassValue[]) {
  * Elements that should not be printed should have the 'no-print' class.
  * The element to be printed should be visible.
  */
-export function printElement(elementId?: string) {
+export function printElement() {
   // A brief timeout can help ensure the browser has processed any recent DOM changes
   // before opening the print dialog.
   setTimeout(() => {
