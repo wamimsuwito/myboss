@@ -130,14 +130,14 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
             <div className="text-left w-1/2 pr-8">
               <p>Prepared By,</p>
               <p className="font-bold">PT FARIKA RIAU PERKASA</p>
-              <div className="mt-20"> {/* Sesuaikan margin atas */}
-                <div className="flex justify-between">
-                  <span className="w-1/2 border-b border-black"></span>
-                  <span className="w-1/2 border-b border-black"></span>
+              <div className="mt-20 flex justify-between">
+                <div className="w-2/5 text-center">
+                    <div className="border-b border-black mb-1"></div>
+                    <p className="text-xs">Admin QC</p>
                 </div>
-                <div className="flex justify-between text-xs mt-1">
-                  <p className="w-1/2">Admin QC</p>
-                  <p className="w-1/2">Quality Control</p>
+                <div className="w-2/5 text-center">
+                    <div className="border-b border-black mb-1"></div>
+                    <p className="text-xs">Quality Control</p>
                 </div>
               </div>
             </div>
@@ -146,14 +146,14 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
             <div className="text-left w-1/2 pl-8">
               <p>Witnessed By,</p>
               <p className="font-bold">PT OKI PULP AND PAPER MILLS</p>
-              <div className="mt-20">
-                <div className="flex justify-between">
-                  <span className="w-1/2 border-b border-black"></span>
-                  <span className="w-1/2 border-b border-black"></span>
+              <div className="mt-20 flex justify-between">
+                 <div className="w-2/5 text-center">
+                    <div className="border-b border-black mb-1"></div>
+                    <p className="text-xs">PIC OKI</p>
                 </div>
-                <div className="flex justify-between text-xs mt-1">
-                  <p className="w-1/2">PIC OKI</p>
-                  <p className="w-1/2">QC OKI</p>
+                <div className="w-2/5 text-center">
+                    <div className="border-b border-black mb-1"></div>
+                    <p className="text-xs">QC OKI</p>
                 </div>
               </div>
             </div>
