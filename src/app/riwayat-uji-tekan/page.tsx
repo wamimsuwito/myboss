@@ -63,15 +63,15 @@ export default function RiwayatUjiTekanPage() {
   return (
     <>
       <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
-        <DialogContent className="max-w-4xl p-0 no-print">
-          <DialogHeader className="p-4 border-b">
+        <DialogContent className="max-w-4xl p-0">
+          <DialogHeader className="p-4 border-b no-print">
             <DialogTitle>Pratinjau Laporan Uji Tekan</DialogTitle>
             <DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose>
           </DialogHeader>
           <div id="printable-test-report" className="overflow-y-auto max-h-[80vh] p-6">
              <TestReportPrintLayout sessionData={selectedSession} />
           </div>
-          <DialogFooter className="p-4 border-t bg-muted">
+          <DialogFooter className="p-4 border-t bg-muted no-print">
             <Button variant="outline" onClick={() => setIsPreviewing(false)}>Tutup</Button>
             <Button onClick={handlePrint}><Printer className="mr-2"/>Cetak Laporan</Button>
           </DialogFooter>
