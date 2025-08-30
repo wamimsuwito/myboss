@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -56,7 +55,7 @@ export default function RiwayatUjiTekanPage() {
   }, [toast]);
 
   const handlePrint = () => {
-    printElement('printable-test-report');
+    window.print();
   };
 
   const handleViewDetails = (session: any) => {
@@ -68,12 +67,8 @@ export default function RiwayatUjiTekanPage() {
     <>
       <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
         <DialogContent className="max-w-4xl p-0">
-          <DialogHeader className="p-4 border-b no-print">
-            <DialogTitle>Laporan Hasil Uji Tekan</DialogTitle>
-            <DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X /></Button></DialogClose>
-          </DialogHeader>
-          <div className="p-6 max-h-[80vh] overflow-y-auto" id="printable-test-report">
-            {selectedSession && <TestReportPrintLayout sessionData={selectedSession} />}
+          <div id="printable-test-report" className="p-6 max-h-[80vh]">
+            <TestReportPrintLayout sessionData={selectedSession} />
           </div>
           <DialogFooter className="p-4 border-t bg-muted/50 no-print">
             <Button variant="outline" onClick={() => setIsPreviewing(false)}>Tutup</Button>

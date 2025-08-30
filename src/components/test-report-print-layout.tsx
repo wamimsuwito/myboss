@@ -10,7 +10,7 @@ interface TestReportPrintLayoutProps {
 
 export default function TestReportPrintLayout({ sessionData }: TestReportPrintLayoutProps) {
   if (!sessionData || !sessionData.results || sessionData.results.length === 0) {
-    return <p className="p-4">Data tidak lengkap untuk dicetak.</p>;
+    return <div className="p-4">Data tidak lengkap untuk dicetak.</div>;
   }
   
   const { testerName, testDate, results } = sessionData;
@@ -36,8 +36,7 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
   const resultUnit = results[0]?.unit || (specimenType === 'kubus' ? 'kg/cm²' : 'MPa');
 
   return (
-    <>
-      <div className="print-report-container">
+    <div className="print-report-container">
         <header className="print-header">
             <img src="https://i.imgur.com/CxaNLPj.png" alt="Logo" className="print-logo" data-ai-hint="logo company"/>
             <div className="company-info">
@@ -137,6 +136,5 @@ export default function TestReportPrintLayout({ sessionData }: TestReportPrintLa
             </div>
         </footer>
       </div>
-    </>
   );
 }
