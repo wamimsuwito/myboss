@@ -12,8 +12,7 @@ import { id as localeID } from 'date-fns/locale';
 import { db, collection, getDocs, query, orderBy } from '@/lib/firebase';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import TestReportPrintLayout from '@/components/test-report-print-layout';
-import { printElement } from '@/lib/utils';
-
+import styles from '@/components/test-report-print.module.css'; // Import styles
 
 export default function RiwayatUjiTekanPage() {
   const router = useRouter();
@@ -22,18 +21,6 @@ export default function RiwayatUjiTekanPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [selectedSession, setSelectedSession] = useState<any | null>(null);
-
-  useEffect(() => {
-    if (isPreviewing) {
-      document.body.classList.add('print-active');
-    } else {
-      document.body.classList.remove('print-active');
-    }
-    return () => {
-      document.body.classList.remove('print-active');
-    };
-  }, [isPreviewing]);
-
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -54,7 +41,8 @@ export default function RiwayatUjiTekanPage() {
   }, [toast]);
 
   const handlePrint = () => {
-    printElement();
+    // This now relies on the @media print styles
+    window.print();
   };
 
   const handleViewDetails = (session: any) => {
@@ -70,8 +58,9 @@ export default function RiwayatUjiTekanPage() {
             <DialogTitle>Pratinjau Laporan Uji Tekan</DialogTitle>
             <DialogClose asChild><Button variant="ghost" size="icon" className="absolute right-4 top-3"><X className="h-4 w-4"/></Button></DialogClose>
           </DialogHeader>
-          <div id="printable-test-report">
-            <TestReportPrintLayout sessionData={selectedSession} />
+          {/* This div will be targeted by the print styles */}
+          <div className="overflow-y-auto max-h-[80vh]">
+             <TestReportPrintLayout sessionData={selectedSession} />
           </div>
           <DialogFooter className="p-4 border-t bg-muted no-print">
             <Button variant="outline" onClick={() => setIsPreviewing(false)}>Tutup</Button>
