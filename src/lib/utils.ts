@@ -1,4 +1,3 @@
-
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -7,16 +6,26 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Triggers the browser's print dialog.
- * This function relies on CSS @media print rules to style the printed output.
- * Elements that should not be printed should have the 'no-print' class.
- * The element to be printed should be visible.
+ * Triggers a print dialog for a specific HTML element.
+ * Hides all other elements and prints only the content of the element with the given ID.
+ * @param elementId The ID of the element to print.
  */
-export function printElement() {
+export function printElement(elementId: string) {
+  const printableElement = document.getElementById(elementId);
+  if (!printableElement) {
+    console.error(`Element with ID #${elementId} not found.`);
+    return;
+  }
+  
+  // Temporarily add a class to the body to hide non-printable elements
+  document.body.classList.add('printing-active');
+
   // A brief timeout can help ensure the browser has processed any recent DOM changes
   // before opening the print dialog.
   setTimeout(() => {
     window.print();
+    // Clean up the class after printing is done or cancelled
+    document.body.classList.remove('printing-active');
   }, 100);
 }
 

@@ -473,39 +473,40 @@ export default function AdminLogistikPage() {
         ? `Laporan Harian Pemasukan Material (${format(new Date(), 'dd MMM yyyy')})`
         : `Laporan Pemasukan Material (${dateRange?.from ? format(dateRange.from, 'dd MMM') : ''} - ${dateRange?.to ? format(dateRange.to, 'dd MMM yyyy') : ''})`;
 
-    const printContent = document.createElement('div');
+    const printContainer = document.createElement('div');
+    printContainer.id = "print-area";
+    printContainer.className = "hidden";
+    
     const table = `
-        <div id="print-area">
-            <h1>${printTitle}</h1>
-            <p>Lokasi: ${userInfo?.lokasi}</p>
-            <table>
-                <thead>
+        <h1>${printTitle}</h1>
+        <p>Lokasi: ${userInfo?.lokasi}</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Waktu</th>
+                    <th>Material</th>
+                    <th>No. SPB</th>
+                    <th>Kapal/Truk</th>
+                    <th>Jumlah</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${dataToPrint.map(entry => `
                     <tr>
-                        <th>Waktu</th>
-                        <th>Material</th>
-                        <th>No. SPB</th>
-                        <th>Kapal/Truk</th>
-                        <th>Jumlah</th>
+                        <td>${safeFormatDate(entry.timestamp, 'dd/MM/yy HH:mm')}</td>
+                        <td>${entry.material}</td>
+                        <td>${entry.noSpb}</td>
+                        <td>${entry.namaKapal}</td>
+                        <td>${entry.jumlah.toLocaleString('id-ID')} ${entry.unit}</td>
                     </tr>
-                </thead>
-                <tbody>
-                    ${dataToPrint.map(entry => `
-                        <tr>
-                            <td>${safeFormatDate(entry.timestamp, 'dd/MM/yy HH:mm')}</td>
-                            <td>${entry.material}</td>
-                            <td>${entry.noSpb}</td>
-                            <td>${entry.namaKapal}</td>
-                            <td>${entry.jumlah.toLocaleString('id-ID')} ${entry.unit}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
+                `).join('')}
+            </tbody>
+        </table>
     `;
-    printContent.innerHTML = table;
-    document.body.appendChild(printContent);
+    printContainer.innerHTML = table;
+    document.body.appendChild(printContainer);
     printElement('print-area');
-    document.body.removeChild(printContent);
+    document.body.removeChild(printContainer);
   }
 
   const clearHistoryFilter = () => {

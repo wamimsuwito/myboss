@@ -156,7 +156,7 @@ export default function DatabaseProduksiPage() {
   };
 
   const handlePrintTicket = () => {
-    window.print();
+    printElement('printable-detail-ticket-content');
   };
 
   const groupedHistory = useMemo(() => {
@@ -172,25 +172,34 @@ export default function DatabaseProduksiPage() {
 
   return (
     <>
+    <div className='hidden'>
+      <div id="production-history-print-area">
+        <ProductionHistoryPrintLayout data={filteredHistory} dateRange={date} />
+      </div>
+    </div>
+
     <Dialog open={isPreviewing} onOpenChange={setIsPreviewing}>
-        <DialogContent className="max-w-3xl p-0" id="printable-detail-ticket">
-          <DialogHeader className="p-4 border-b no-print">
-            <DialogTitle>Detail Produksi</DialogTitle>
-             <DialogClose asChild>
-                <Button variant="ghost" size="icon" className="absolute right-4 top-3">
-                  <X className="h-4 w-4" />
-                </Button>
-            </DialogClose>
-          </DialogHeader>
-          <div className="p-6 max-h-[70vh] overflow-y-auto print:max-h-none print:overflow-visible">
-            {selectedProduction && <PrintTicketLayout data={selectedProduction} />}
-          </div>
-          <div className="flex justify-end gap-2 p-4 border-t bg-muted/50 no-print">
-             <Button variant="outline" onClick={() => setIsPreviewing(false)}>Tutup</Button>
-             <Button onClick={handlePrintTicket}>Cetak</Button>
+        <DialogContent className="max-w-3xl p-0 printable-area" id="printable-detail-ticket">
+          <div id="printable-detail-ticket-content">
+            <DialogHeader className="p-4 border-b no-print">
+              <DialogTitle>Detail Produksi</DialogTitle>
+              <DialogClose asChild>
+                  <Button variant="ghost" size="icon" className="absolute right-4 top-3">
+                    <X className="h-4 w-4" />
+                  </Button>
+              </DialogClose>
+            </DialogHeader>
+            <div className="p-6 max-h-[70vh] overflow-y-auto print:max-h-none print:overflow-visible">
+              {selectedProduction && <PrintTicketLayout data={selectedProduction} />}
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t bg-muted/50 no-print">
+              <Button variant="outline" onClick={() => setIsPreviewing(false)}>Tutup</Button>
+              <Button onClick={handlePrintTicket}>Cetak</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
+
     <div className="min-h-screen p-4 sm:p-6 md:p-8">
       <header className="flex items-center gap-4 mb-8 no-print">
         <Button variant="outline" size="icon" onClick={() => router.back()}>
@@ -307,9 +316,6 @@ export default function DatabaseProduksiPage() {
         )}
 
       </main>
-    </div>
-    <div className="print-only" id="production-history-print-area">
-        <ProductionHistoryPrintLayout data={filteredHistory} dateRange={date} />
     </div>
     </>
   );
