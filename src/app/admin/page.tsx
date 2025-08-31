@@ -37,7 +37,7 @@ type ActiveMenu = 'pengguna' | 'alat' | 'lokasi' | 'sinkronisasi' | 'koordinat';
 
 const jabatanOptions = [
     'OPRATOR BP', 'OPRATOR CP', 'OPRATOR LOADER', 'PEKERJA BONGKAR SEMEN', 'SOPIR', 'SOPIR DT', 'ADMIN BP', 'ADMIN LOGISTIK SPARE PART',
-    'ADMIN LOGISTIK MATERIAL', 'SUPER ADMIN', 'QC', 'MARKETING', 'KEPALA MEKANIK', 'KEPALA WORKSHOP', 'OWNER', 'HRD PUSAT'
+    'ADMIN LOGISTIK MATERIAL', 'SUPER ADMIN', 'QC', 'MARKETING', 'KEPALA MEKANIK', 'KEPALA WORKSHOP', 'OWNER', 'HRD PUSAT', 'HSE K3'
 ];
 
 export default function AdminPage() {
