@@ -43,7 +43,6 @@ const DailyAttendanceComponent = ({ location }: { location: string }) => {
     const { toast } = useToast();
     const [combinedData, setCombinedData] = useState<CombinedRecord[]>([]);
     const [isDataLoading, setIsDataLoading] = useState(true);
-    const [editableNotes, setEditableNotes] = useState<Record<string, string>>({});
 
     useEffect(() => {
         if (!location) return;
@@ -107,29 +106,6 @@ const DailyAttendanceComponent = ({ location }: { location: string }) => {
         return () => unsubUsers();
         
     }, [location]);
-
-    const handleNoteChange = (userId: string, value: string) => {
-        setEditableNotes(prev => ({ ...prev, [userId]: value }));
-    };
-
-    const handleSaveNote = async (userId: string) => {
-        const attendanceRecord = combinedData.find(u => u.id === userId)?.attendance;
-        if (!attendanceRecord || !attendanceRecord.id) {
-            toast({ title: "Gagal", description: "Tidak ada data absensi untuk menyimpan keterangan.", variant: "destructive" });
-            return;
-        }
-
-        const note = editableNotes[userId];
-        const docRef = doc(db, 'absensi', attendanceRecord.id);
-        
-        try {
-            await updateDoc(docRef, { keterangan: note || "" });
-            toast({ title: "Sukses", description: "Keterangan berhasil disimpan." });
-        } catch (error) {
-            console.error("Failed to save note:", error);
-            toast({ title: "Gagal Menyimpan", variant: "destructive" });
-        }
-    };
     
     const calculateLateMinutes = (checkInTime: any): number => {
         if (!checkInTime) return 0;
@@ -180,7 +156,7 @@ const DailyAttendanceComponent = ({ location }: { location: string }) => {
                                 <TableHead className='text-center'>Masuk Lembur</TableHead>
                                 <TableHead className='text-center'>Pulang Lembur</TableHead>
                                 <TableHead className='text-center'>Total Lembur</TableHead>
-                                <TableHead className='w-56'>Keterangan</TableHead>
+                                <TableHead className='w-56'>Deskripsi Lembur</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -206,16 +182,8 @@ const DailyAttendanceComponent = ({ location }: { location: string }) => {
                                 <TableCell className='text-center'>{safeFormatTimestamp(user.overtime?.checkInTime, 'HH:mm')}</TableCell>
                                 <TableCell className='text-center'>{safeFormatTimestamp(user.overtime?.checkOutTime, 'HH:mm')}</TableCell>
                                 <TableCell className='text-center'>{calculateTotalOvertime(user.overtime)}</TableCell>
-                                <TableCell>
-                                    <div className="flex gap-2">
-                                         <Textarea 
-                                            value={editableNotes[user.id] || user.attendance?.keterangan || ''} 
-                                            onChange={(e) => handleNoteChange(user.id, e.target.value)}
-                                            rows={1}
-                                            className="text-xs"
-                                        />
-                                        <Button size="sm" onClick={() => handleSaveNote(user.id)}>Simpan</Button>
-                                    </div>
+                                <TableCell className="text-xs whitespace-pre-wrap">
+                                    {user.overtime?.description || '-'}
                                 </TableCell>
                             </TableRow>
                         )) : (
@@ -347,11 +315,3 @@ export default function HseK3Page() {
     </SidebarProvider>
   );
 }
-
-// Add a Keterangan field to AttendanceRecord in types.ts
-// Add a Keterangan field to the DailyAttendanceComponent table
-// Add a Textarea and Save button to the Keterangan column
-// Implement handleSaveNote function
-// Populate activities in the combined data
-// Display activities in the table
-// Calculate late minutes and total overtime
