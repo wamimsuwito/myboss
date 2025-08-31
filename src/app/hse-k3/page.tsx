@@ -2,17 +2,25 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList } from 'lucide-react';
-import type { UserData, AttendanceRecord, ActivityLog } from '@/lib/types';
-import { db, collection, query, where, getDocs } from '@/lib/firebase';
+import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle } from 'lucide-react';
+import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord } from '@/lib/types';
+import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
+import { format, isSameDay, startOfToday } from 'date-fns';
+import { id as localeID } from 'date-fns/locale';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { differenceInMinutes } from 'date-fns';
 
 type ActiveMenu = 'Absensi Harian' | 'Database Absensi' | 'Kegiatan Harian' | 'Database Kegiatan';
+type CombinedRecord = UserData & { attendance?: AttendanceRecord; overtime?: OvertimeRecord; activities?: ActivityLog[] };
+
 
 const menuItems: { name: ActiveMenu; icon: React.ElementType }[] = [
     { name: 'Absensi Harian', icon: Users },
@@ -21,17 +29,214 @@ const menuItems: { name: ActiveMenu; icon: React.ElementType }[] = [
     { name: 'Database Kegiatan', icon: History },
 ];
 
+const CHECK_IN_DEADLINE = { hours: 7, minutes: 30 };
+
+const safeFormatTimestamp = (timestamp: any, formatString: string) => {
+    if (!timestamp) return '-';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    if (isNaN(date.getTime())) return '-';
+    return format(date, formatString, { locale: localeID });
+};
+
+
+const DailyAttendanceComponent = ({ location }: { location: string }) => {
+    const { toast } = useToast();
+    const [combinedData, setCombinedData] = useState<CombinedRecord[]>([]);
+    const [isDataLoading, setIsDataLoading] = useState(true);
+    const [editableNotes, setEditableNotes] = useState<Record<string, string>>({});
+
+    useEffect(() => {
+        if (!location) return;
+
+        setIsDataLoading(true);
+        const todayStart = startOfToday();
+
+        const usersQuery = query(collection(db, 'users'), where('lokasi', '==', location));
+
+        const unsubUsers = onSnapshot(usersQuery, (usersSnapshot) => {
+            const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as UserData);
+            const userIds = usersData.map(u => u.id);
+
+            if (userIds.length === 0) {
+                setCombinedData([]);
+                setIsDataLoading(false);
+                return;
+            }
+            
+            const unsubscribers: (() => void)[] = [];
+            
+            const fetchData = () => {
+                const attendanceQuery = query(collection(db, 'absensi'), where('userId', 'in', userIds));
+                unsubscribers.push(onSnapshot(attendanceQuery, (attSnapshot) => {
+                    const attendanceData = attSnapshot.docs
+                        .map(d => d.data() as AttendanceRecord)
+                        .filter(r => r.checkInTime && isSameDay(r.checkInTime.toDate(), todayStart));
+
+                    const overtimeQuery = query(collection(db, 'overtime_absensi'), where('userId', 'in', userIds));
+                    unsubscribers.push(onSnapshot(overtimeQuery, (ovtSnapshot) => {
+                        const overtimeData = ovtSnapshot.docs
+                            .map(d => d.data() as OvertimeRecord)
+                            .filter(r => r.checkInTime && isSameDay(r.checkInTime.toDate(), todayStart));
+                        
+                        const activitiesQuery = query(collection(db, 'kegiatan_harian'), where('userId', 'in', userIds));
+                        unsubscribers.push(onSnapshot(activitiesQuery, (actSnapshot) => {
+                             const activitiesData = actSnapshot.docs
+                                .map(d => d.data() as ActivityLog)
+                                .filter(r => r.createdAt && isSameDay(r.createdAt.toDate(), todayStart));
+                            
+                            const finalData = usersData.map(user => {
+                                const attendance = attendanceData.find(a => a.userId === user.id);
+                                const overtime = overtimeData.find(o => o.userId === user.id);
+                                const activities = activitiesData.filter(a => a.userId === user.id).sort((a,b) => a.createdAt.toDate().getTime() - b.createdAt.toDate().getTime());
+                                return { ...user, attendance, overtime, activities };
+                            });
+                            
+                            setCombinedData(finalData);
+                            setIsDataLoading(false);
+                        }));
+                    }));
+                }));
+            };
+
+            fetchData();
+            
+            return () => unsubscribers.forEach(unsub => unsub());
+
+        });
+        
+        return () => unsubUsers();
+        
+    }, [location]);
+
+    const handleNoteChange = (userId: string, value: string) => {
+        setEditableNotes(prev => ({ ...prev, [userId]: value }));
+    };
+
+    const handleSaveNote = async (userId: string) => {
+        const attendanceRecord = combinedData.find(u => u.id === userId)?.attendance;
+        if (!attendanceRecord || !attendanceRecord.id) {
+            toast({ title: "Gagal", description: "Tidak ada data absensi untuk menyimpan keterangan.", variant: "destructive" });
+            return;
+        }
+
+        const note = editableNotes[userId];
+        const docRef = doc(db, 'absensi', attendanceRecord.id);
+        
+        try {
+            await updateDoc(docRef, { keterangan: note || "" });
+            toast({ title: "Sukses", description: "Keterangan berhasil disimpan." });
+        } catch (error) {
+            console.error("Failed to save note:", error);
+            toast({ title: "Gagal Menyimpan", variant: "destructive" });
+        }
+    };
+    
+    const calculateLateMinutes = (checkInTime: any): number => {
+        if (!checkInTime) return 0;
+        const date = checkInTime.toDate();
+        const deadline = new Date(date).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
+        const late = differenceInMinutes(date, deadline);
+        return late > 0 ? late : 0;
+    };
+    
+    const calculateTotalOvertime = (overtime: OvertimeRecord | undefined): string => {
+        if (!overtime || !overtime.checkInTime || !overtime.checkOutTime) return '-';
+        const start = overtime.checkInTime.toDate();
+        const end = overtime.checkOutTime.toDate();
+        const diff = differenceInMinutes(end, start);
+        if (diff <= 0) return '-';
+        const hours = Math.floor(diff / 60);
+        const minutes = diff % 60;
+        return `${hours}j ${minutes}m`;
+    };
+
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className='flex justify-between items-center'>
+                    <span>Daftar Absensi & Kegiatan Harian</span>
+                    <Badge variant="outline">{format(new Date(), "EEEE, dd MMMM yyyy", { locale: localeID })}</Badge>
+                </CardTitle>
+                <CardDescription>Memantau kehadiran dan aktivitas karyawan di lokasi {location} hari ini.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                {isDataLoading ? (
+                    <div className="flex justify-center items-center h-64">
+                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    </div>
+                ) : (
+                <div className="overflow-x-auto border rounded-lg">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className='w-8'>No</TableHead>
+                                <TableHead className='w-48'>Nama/NIK</TableHead>
+                                <TableHead>Jabatan</TableHead>
+                                <TableHead className='text-center'>Absen Masuk</TableHead>
+                                <TableHead className='text-center'>Absen Pulang</TableHead>
+                                <TableHead className='text-center'>Terlambat</TableHead>
+                                <TableHead className='w-64'>Deskripsi Kegiatan</TableHead>
+                                <TableHead className='text-center'>Masuk Lembur</TableHead>
+                                <TableHead className='text-center'>Pulang Lembur</TableHead>
+                                <TableHead className='text-center'>Total Lembur</TableHead>
+                                <TableHead className='w-56'>Keterangan</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {combinedData.length > 0 ? combinedData.map((user, index) => (
+                            <TableRow key={user.id}>
+                                <TableCell>{index + 1}</TableCell>
+                                <TableCell>
+                                    <p className='font-semibold'>{user.username}</p>
+                                    <p className='text-xs text-muted-foreground'>{user.nik}</p>
+                                </TableCell>
+                                <TableCell>{user.jabatan}</TableCell>
+                                <TableCell className='text-center'>{safeFormatTimestamp(user.attendance?.checkInTime, 'HH:mm')}</TableCell>
+                                <TableCell className='text-center'>{safeFormatTimestamp(user.attendance?.checkOutTime, 'HH:mm')}</TableCell>
+                                <TableCell className={`text-center font-bold ${calculateLateMinutes(user.attendance?.checkInTime) > 0 ? 'text-destructive' : ''}`}>{calculateLateMinutes(user.attendance?.checkInTime)} mnt</TableCell>
+                                <TableCell className='text-xs whitespace-pre-wrap'>
+                                    {(user.activities || []).map((act, i) => (
+                                        <React.Fragment key={act.id}>
+                                            <p>{act.description}</p>
+                                            {i < (user.activities || []).length - 1 && <hr className="my-1"/>}
+                                        </React.Fragment>
+                                    ))}
+                                </TableCell>
+                                <TableCell className='text-center'>{safeFormatTimestamp(user.overtime?.checkInTime, 'HH:mm')}</TableCell>
+                                <TableCell className='text-center'>{safeFormatTimestamp(user.overtime?.checkOutTime, 'HH:mm')}</TableCell>
+                                <TableCell className='text-center'>{calculateTotalOvertime(user.overtime)}</TableCell>
+                                <TableCell>
+                                    <div className="flex gap-2">
+                                         <Textarea 
+                                            value={editableNotes[user.id] || user.attendance?.keterangan || ''} 
+                                            onChange={(e) => handleNoteChange(user.id, e.target.value)}
+                                            rows={1}
+                                            className="text-xs"
+                                        />
+                                        <Button size="sm" onClick={() => handleSaveNote(user.id)}>Simpan</Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        )) : (
+                            <TableRow><TableCell colSpan={11} className="h-48 text-center text-muted-foreground">Tidak ada data karyawan di lokasi ini.</TableCell></TableRow>
+                        )}
+                        </TableBody>
+                    </Table>
+                </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+};
+
+
 export default function HseK3Page() {
   const router = useRouter();
   const { toast } = useToast();
   const [userInfo, setUserInfo] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Absensi Harian');
-
-  // Data state
-  const [usersInLocation, setUsersInLocation] = useState<UserData[]>([]);
-  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
 
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -50,53 +255,9 @@ export default function HseK3Page() {
     } else {
       router.push('/login');
     }
+    setIsLoading(false);
   }, [router, toast]);
-  
-  useEffect(() => {
-    if (!userInfo || !userInfo.lokasi) {
-        setIsLoading(false);
-        return;
-    };
 
-    setIsLoading(true);
-
-    const fetchDataForLocation = async () => {
-        try {
-            // Fetch users in the same location
-            const usersQuery = query(collection(db, 'users'), where('lokasi', '==', userInfo.lokasi));
-            const usersSnapshot = await getDocs(usersQuery);
-            const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as UserData);
-            setUsersInLocation(usersData);
-
-            // Fetch attendance for those users
-            const attendanceQuery = query(collection(db, 'absensi'), where('checkInLocationName', '==', userInfo.lokasi));
-            const attendanceSnapshot = await getDocs(attendanceQuery);
-            setAttendanceRecords(attendanceSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as AttendanceRecord));
-
-            // Fetch activities for those users
-            // Note: This requires a composite index in Firestore (userId, createdAt)
-            // For now, we fetch all and filter client-side, which is not optimal for large datasets
-            const activityQuery = query(collection(db, 'kegiatan_harian'));
-            const activitySnapshot = await getDocs(activityQuery);
-            const allActivities = activitySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ActivityLog);
-            const userIdsInLocation = new Set(usersData.map(u => u.id));
-            setActivityLogs(allActivities.filter(log => userIdsInLocation.has(log.userId)));
-
-        } catch (error) {
-            console.error("Error fetching data for HSE K3:", error);
-            toast({
-                title: "Gagal Memuat Data",
-                description: "Terjadi kesalahan saat mengambil data untuk lokasi Anda.",
-                variant: "destructive"
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    fetchDataForLocation();
-
-  }, [userInfo, toast]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -114,7 +275,7 @@ export default function HseK3Page() {
   const renderContent = () => {
     switch (activeMenu) {
         case 'Absensi Harian':
-            return <Card><CardHeader><CardTitle>Daftar Karyawan & Absensi Harian</CardTitle><CardDescription>Memantau kehadiran karyawan di lokasi {userInfo.lokasi} hari ini.</CardDescription></CardHeader><CardContent><p>Konten untuk {activeMenu} sedang dalam pengembangan.</p></CardContent></Card>;
+            return <DailyAttendanceComponent location={userInfo.lokasi} />;
         case 'Database Absensi':
              return <Card><CardHeader><CardTitle>Database Absensi</CardTitle><CardDescription>Melihat riwayat kehadiran seluruh karyawan di lokasi {userInfo.lokasi}.</CardDescription></CardHeader><CardContent><p>Konten untuk {activeMenu} sedang dalam pengembangan.</p></CardContent></Card>;
         case 'Kegiatan Harian':
@@ -186,3 +347,11 @@ export default function HseK3Page() {
     </SidebarProvider>
   );
 }
+
+// Add a Keterangan field to AttendanceRecord in types.ts
+// Add a Keterangan field to the DailyAttendanceComponent table
+// Add a Textarea and Save button to the Keterangan column
+// Implement handleSaveNote function
+// Populate activities in the combined data
+// Display activities in the table
+// Calculate late minutes and total overtime

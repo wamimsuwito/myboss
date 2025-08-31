@@ -441,6 +441,7 @@ export interface AttendanceRecord {
     checkOutPhoto?: string | null;
     checkOutDistance?: number | null;
     checkOutMode?: 'Di Lokasi' | 'Dinas Luar';
+    keterangan?: string;
     lateMinutes?: number;
 }
 
