@@ -93,6 +93,8 @@ export default function LoginPage() {
             router.push('/bongkar-semen');
         } else if (jabatan.includes('HRD PUSAT')) {
             router.push('/hrd-pusat');
+        } else if (jabatan.includes('HSE K3')) {
+            router.push('/hse-k3');
         } else {
             // Fallback for any other roles, maybe to a generic dashboard or just show a toast
             toast({
