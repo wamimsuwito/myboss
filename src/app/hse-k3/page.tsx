@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle } from 'lucide-react';
+import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer } from 'lucide-react';
 import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord } from '@/lib/types';
 import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
@@ -17,6 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { differenceInMinutes } from 'date-fns';
+import { printElement } from '@/lib/utils';
+import HseAttendancePrintLayout from '@/components/hse-attendance-print-layout';
+
 
 type ActiveMenu = 'Absensi Harian' | 'Database Absensi' | 'Kegiatan Harian' | 'Database Kegiatan';
 type CombinedRecord = UserData & { attendance?: AttendanceRecord; overtime?: OvertimeRecord; activities?: ActivityLog[] };
@@ -128,73 +131,86 @@ const DailyAttendanceComponent = ({ location }: { location: string }) => {
 
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className='flex justify-between items-center'>
-                    <span>Daftar Absensi & Kegiatan Harian</span>
-                    <Badge variant="outline">{format(new Date(), "EEEE, dd MMMM yyyy", { locale: localeID })}</Badge>
-                </CardTitle>
-                <CardDescription>Memantau kehadiran dan aktivitas karyawan di lokasi {location} hari ini.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                {isDataLoading ? (
-                    <div className="flex justify-center items-center h-64">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        <>
+            <div className="hidden">
+              <div id="hse-print-area">
+                <HseAttendancePrintLayout data={combinedData} location={location} />
+              </div>
+            </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle className='flex justify-between items-center'>
+                        <span>Daftar Absensi & Kegiatan Harian</span>
+                        <div className="flex items-center gap-4">
+                            <Badge variant="outline">{format(new Date(), "EEEE, dd MMMM yyyy", { locale: localeID })}</Badge>
+                            <Button variant="outline" onClick={() => printElement('hse-print-area')}>
+                                <Printer className="mr-2 h-4 w-4" />
+                                Cetak
+                            </Button>
+                        </div>
+                    </CardTitle>
+                    <CardDescription>Memantau kehadiran dan aktivitas karyawan di lokasi {location} hari ini.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isDataLoading ? (
+                        <div className="flex justify-center items-center h-64">
+                            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                        </div>
+                    ) : (
+                    <div className="overflow-x-auto border rounded-lg">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className='w-8'>No</TableHead>
+                                    <TableHead className='w-48'>Nama/NIK</TableHead>
+                                    <TableHead>Jabatan</TableHead>
+                                    <TableHead className='text-center'>Absen Masuk</TableHead>
+                                    <TableHead className='text-center'>Absen Pulang</TableHead>
+                                    <TableHead className='text-center'>Terlambat</TableHead>
+                                    <TableHead className='w-64'>Deskripsi Kegiatan</TableHead>
+                                    <TableHead className='text-center'>Masuk Lembur</TableHead>
+                                    <TableHead className='text-center'>Pulang Lembur</TableHead>
+                                    <TableHead className='text-center'>Total Lembur</TableHead>
+                                    <TableHead className='w-56'>Deskripsi Lembur</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                            {combinedData.length > 0 ? combinedData.map((user, index) => (
+                                <TableRow key={user.id}>
+                                    <TableCell>{index + 1}</TableCell>
+                                    <TableCell>
+                                        <p className='font-semibold'>{user.username}</p>
+                                        <p className='text-xs text-muted-foreground'>{user.nik}</p>
+                                    </TableCell>
+                                    <TableCell>{user.jabatan}</TableCell>
+                                    <TableCell className='text-center'>{safeFormatTimestamp(user.attendance?.checkInTime, 'HH:mm')}</TableCell>
+                                    <TableCell className='text-center'>{safeFormatTimestamp(user.attendance?.checkOutTime, 'HH:mm')}</TableCell>
+                                    <TableCell className={`text-center font-bold ${calculateLateMinutes(user.attendance?.checkInTime) > 0 ? 'text-destructive' : ''}`}>{calculateLateMinutes(user.attendance?.checkInTime)} mnt</TableCell>
+                                    <TableCell className='text-xs whitespace-pre-wrap'>
+                                        {(user.activities || []).map((act, i) => (
+                                            <React.Fragment key={act.id}>
+                                                <p>{act.description}</p>
+                                                {i < (user.activities || []).length - 1 && <hr className="my-1"/>}
+                                            </React.Fragment>
+                                        ))}
+                                    </TableCell>
+                                    <TableCell className='text-center'>{safeFormatTimestamp(user.overtime?.checkInTime, 'HH:mm')}</TableCell>
+                                    <TableCell className='text-center'>{safeFormatTimestamp(user.overtime?.checkOutTime, 'HH:mm')}</TableCell>
+                                    <TableCell className='text-center'>{calculateTotalOvertime(user.overtime)}</TableCell>
+                                    <TableCell className="text-xs whitespace-pre-wrap">
+                                        {user.overtime?.description || '-'}
+                                    </TableCell>
+                                </TableRow>
+                            )) : (
+                                <TableRow><TableCell colSpan={11} className="h-48 text-center text-muted-foreground">Tidak ada data karyawan di lokasi ini.</TableCell></TableRow>
+                            )}
+                            </TableBody>
+                        </Table>
                     </div>
-                ) : (
-                <div className="overflow-x-auto border rounded-lg">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className='w-8'>No</TableHead>
-                                <TableHead className='w-48'>Nama/NIK</TableHead>
-                                <TableHead>Jabatan</TableHead>
-                                <TableHead className='text-center'>Absen Masuk</TableHead>
-                                <TableHead className='text-center'>Absen Pulang</TableHead>
-                                <TableHead className='text-center'>Terlambat</TableHead>
-                                <TableHead className='w-64'>Deskripsi Kegiatan</TableHead>
-                                <TableHead className='text-center'>Masuk Lembur</TableHead>
-                                <TableHead className='text-center'>Pulang Lembur</TableHead>
-                                <TableHead className='text-center'>Total Lembur</TableHead>
-                                <TableHead className='w-56'>Deskripsi Lembur</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        {combinedData.length > 0 ? combinedData.map((user, index) => (
-                            <TableRow key={user.id}>
-                                <TableCell>{index + 1}</TableCell>
-                                <TableCell>
-                                    <p className='font-semibold'>{user.username}</p>
-                                    <p className='text-xs text-muted-foreground'>{user.nik}</p>
-                                </TableCell>
-                                <TableCell>{user.jabatan}</TableCell>
-                                <TableCell className='text-center'>{safeFormatTimestamp(user.attendance?.checkInTime, 'HH:mm')}</TableCell>
-                                <TableCell className='text-center'>{safeFormatTimestamp(user.attendance?.checkOutTime, 'HH:mm')}</TableCell>
-                                <TableCell className={`text-center font-bold ${calculateLateMinutes(user.attendance?.checkInTime) > 0 ? 'text-destructive' : ''}`}>{calculateLateMinutes(user.attendance?.checkInTime)} mnt</TableCell>
-                                <TableCell className='text-xs whitespace-pre-wrap'>
-                                    {(user.activities || []).map((act, i) => (
-                                        <React.Fragment key={act.id}>
-                                            <p>{act.description}</p>
-                                            {i < (user.activities || []).length - 1 && <hr className="my-1"/>}
-                                        </React.Fragment>
-                                    ))}
-                                </TableCell>
-                                <TableCell className='text-center'>{safeFormatTimestamp(user.overtime?.checkInTime, 'HH:mm')}</TableCell>
-                                <TableCell className='text-center'>{safeFormatTimestamp(user.overtime?.checkOutTime, 'HH:mm')}</TableCell>
-                                <TableCell className='text-center'>{calculateTotalOvertime(user.overtime)}</TableCell>
-                                <TableCell className="text-xs whitespace-pre-wrap">
-                                    {user.overtime?.description || '-'}
-                                </TableCell>
-                            </TableRow>
-                        )) : (
-                            <TableRow><TableCell colSpan={11} className="h-48 text-center text-muted-foreground">Tidak ada data karyawan di lokasi ini.</TableCell></TableRow>
-                        )}
-                        </TableBody>
-                    </Table>
-                </div>
-                )}
-            </CardContent>
-        </Card>
+                    )}
+                </CardContent>
+            </Card>
+        </>
     );
 };
 
