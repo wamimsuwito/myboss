@@ -66,32 +66,32 @@ export default function ProductionHistoryPrintLayout({ data, dateRange }: Produc
           <thead>
             <tr className="material-table">
               <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Tanggal</th>
-              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Jam Kirim</th>
               <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Pelanggan</th>
               <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Lokasi Proyek</th>
               <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Mutu</th>
               <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Volume (M³)</th>
               <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Sopir</th>
               <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">No. Mobil</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Jam Kirim</th>
             </tr>
           </thead>
           <tbody>
             {data.map((entry, index) => (
               <tr key={entry.id || index} className="material-table">
                 <td className="border border-black p-1 text-center text-xs">{format(new Date(entry.tanggal), 'dd/MM/yy')}</td>
-                <td className="border border-black p-1 text-center text-xs">{format(new Date(entry.jamSelesai), 'HH:mm')}</td>
                 <td className="border border-black p-1 text-left text-xs">{entry.namaPelanggan}</td>
                 <td className="border border-black p-1 text-left text-xs">{entry.lokasiProyek}</td>
                 <td className="border border-black p-1 text-center text-xs">{entry.mutuBeton}</td>
                 <td className="border border-black p-1 text-right text-xs">{entry.targetVolume.toFixed(2)}</td>
                 <td className="border border-black p-1 text-center text-xs">{entry.namaSopir}</td>
                 <td className="border border-black p-1 text-center text-xs">{entry.nomorMobil}</td>
+                <td className="border border-black p-1 text-center text-xs">{format(new Date(entry.jamSelesai), 'HH:mm')}</td>
               </tr>
             ))}
              <tr className="font-bold material-table">
-                <td colSpan={5} className="border border-black p-1 text-center text-xs">TOTAL VOLUME</td>
+                <td colSpan={4} className="border border-black p-1 text-center text-xs">TOTAL VOLUME</td>
                 <td className="border border-black p-1 text-right text-xs">{totalVolume.toFixed(2)}</td>
-                <td colSpan={2} className="border border-black p-1 text-center text-xs"></td>
+                <td colSpan={3} className="border border-black p-1 text-center text-xs"></td>
             </tr>
           </tbody>
         </table>
