@@ -105,6 +105,14 @@
 }
 
 @media print {
+    @page {
+        margin: 0;
+        size: A4;
+    }
+    body {
+        margin: 0;
+    }
+    
     body > *:not(.print-container) {
       display: none !important;
     }

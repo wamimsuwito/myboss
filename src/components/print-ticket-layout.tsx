@@ -64,7 +64,7 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
 
 
   return (
-    <div className="bg-white text-black p-4 font-mono printable-area" style={{ pageBreakAfter: 'always' }}>
+    <div className="bg-white text-black font-mono printable-area" style={{ pageBreakAfter: 'always' }}>
         <div className="watermark">PT FARIKA RIAU PERKASA</div>
         <header className="print-header flex items-start justify-start gap-2 mb-1">
             <img src="https://i.imgur.com/CxaNLPj.png" alt="Logo" className="print-logo h-16 w-auto" data-ai-hint="logo company"/>
