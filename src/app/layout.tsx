@@ -28,7 +28,7 @@ export default function RootLayout({
         <meta name="msapplication-tap-highlight" content="no" />
         <meta name="theme-color" content="#1c1917" />
 
-        <link rel="icon" href="https://i.imgur.com/CxaNLPj.png" type="image/png" />
+        <link rel="icon" href="https://i.imgur.com/zXV014b.png" type="image/png" />
         
       </head>
       <body>
