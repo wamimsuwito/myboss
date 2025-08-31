@@ -20,7 +20,7 @@ import { differenceInMinutes } from 'date-fns';
 import { printElement } from '@/lib/utils';
 import HseAttendancePrintLayout from '@/components/hse-attendance-print-layout';
 import HseActivityPrintLayout from '@/components/hse-activity-print-layout';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { X } from 'lucide-react';
 
 
