@@ -1,3 +1,4 @@
+
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
@@ -27,7 +28,7 @@ export default function RootLayout({
         <meta name="msapplication-tap-highlight" content="no" />
         <meta name="theme-color" content="#1c1917" />
 
-        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="https://i.imgur.com/CxaNLPj.png" type="image/png" />
         
       </head>
       <body>
