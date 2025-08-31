@@ -27,7 +27,6 @@ const calculateDuration = (start: any, end: any): string => {
     return formatDistanceStrict(endDate, startDate, { locale: localeID });
 };
 
-
 export default function HseActivityPrintLayout({ data, location }: HseActivityPrintLayoutProps) {
   const reportDate = format(new Date(), 'EEEE, dd MMMM yyyy', { locale: localeID });
 
@@ -54,6 +53,7 @@ export default function HseActivityPrintLayout({ data, location }: HseActivityPr
         <table className="material-table w-full">
           <thead>
             <tr className="material-table">
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs w-[5%]">No</th>
               <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs w-[15%]">Nama/NIK</th>
               <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs w-[10%]">Jabatan</th>
               <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs w-[30%]">Deskripsi Kegiatan</th>
@@ -64,16 +64,19 @@ export default function HseActivityPrintLayout({ data, location }: HseActivityPr
             </tr>
           </thead>
           <tbody>
-            {data.map((user) => (
-                (user.activities && user.activities.length > 0) ? user.activities.map((activity, index) => (
+            {data.length > 0 ? data.flatMap((user, userIndex) => 
+                (user.activities && user.activities.length > 0) ? user.activities.map((activity, activityIndex) => (
                     <tr key={`${user.id}-${activity.id}`}>
-                        {index === 0 && (
+                        {activityIndex === 0 && (
+                             <td rowSpan={user.activities?.length} className="border border-black p-1 text-center text-xs align-top">{userIndex + 1}</td>
+                        )}
+                        {activityIndex === 0 && (
                              <td rowSpan={user.activities?.length} className="border border-black p-1 text-left text-xs align-top">
                                 <p className="font-semibold">{user.username}</p>
                                 <p>{user.nik}</p>
                             </td>
                         )}
-                         {index === 0 && (
+                         {activityIndex === 0 && (
                             <td rowSpan={user.activities?.length} className="border border-black p-1 text-center text-xs align-top">{user.jabatan}</td>
                          )}
                         <td className="border border-black p-1 text-left text-xs">{activity.description}</td>
@@ -82,16 +85,9 @@ export default function HseActivityPrintLayout({ data, location }: HseActivityPr
                         <td className="border border-black p-1 text-center text-xs">{safeFormatTimestamp(activity.timestampCompleted, 'HH:mm')}</td>
                         <td className="border border-black p-1 text-center text-xs">{calculateDuration(activity.createdAt, activity.timestampCompleted)}</td>
                     </tr>
-                )) : (
-                    <tr key={user.id}>
-                        <td className="border border-black p-1 text-left text-xs"><p className="font-semibold">{user.username}</p><p>{user.nik}</p></td>
-                        <td className="border border-black p-1 text-center text-xs">{user.jabatan}</td>
-                        <td colSpan={5} className="border border-black p-1 text-center text-xs text-gray-500">Tidak ada laporan kegiatan</td>
-                    </tr>
-                )
-            ))}
-            {data.length === 0 && (
-                <tr><td colSpan={7} className="h-24 text-center">Tidak ada data untuk dicetak.</td></tr>
+                )) : null
+            ) : (
+                <tr><td colSpan={8} className="h-24 text-center">Tidak ada data untuk dicetak.</td></tr>
             )}
           </tbody>
         </table>
@@ -112,4 +108,3 @@ export default function HseActivityPrintLayout({ data, location }: HseActivityPr
     </div>
   );
 }
-
