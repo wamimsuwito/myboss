@@ -106,9 +106,10 @@
 
 @media print {
     @page {
-        margin: 0;
-        size: A4;
+        margin: 1cm;
+        size: A4 landscape;
     }
+    
     body {
         margin: 0;
     }
@@ -123,7 +124,7 @@
       top: 0;
       left: 0;
       width: 100%;
-      height: 100%;
+      height: auto;
     }
     
     .print-container [role="dialog"] {
@@ -138,17 +139,6 @@
       padding: 0 !important;
       margin: 0 !important;
     }
-
-    #printable-test-report,
-    #printable-penalty,
-    #printable-reward {
-        display: block !important;
-        max-height: none !important;
-        overflow: visible !important;
-        color: black !important;
-        background-color: white !important;
-        padding: 0 !important;
-    }
     
     .no-print, .no-print * {
         display: none !important;
@@ -162,7 +152,40 @@
     }
 
     .watermark {
-      color: #000000 !important;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-45deg);
+      font-size: 6rem;
+      color: black !important;
       opacity: 0.05 !important;
+      z-index: -1;
+      font-weight: bold;
+      pointer-events: none;
+      text-align: center;
+      width: 150%;
+    }
+
+    .material-table, .material-table th, .material-table td {
+        border: 1px solid black;
+        border-collapse: collapse;
+    }
+
+    .signature-section {
+        display: flex;
+        justify-content: space-around;
+        width: 100%;
+        page-break-inside: avoid;
+    }
+
+    .signature-section > div {
+        text-align: center;
+    }
+
+    .signature-box {
+        height: 80px;
+        border-bottom: 1px solid black;
+        width: 180px;
+        margin-top: 5px;
     }
 }
