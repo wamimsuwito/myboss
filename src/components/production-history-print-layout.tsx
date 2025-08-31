@@ -56,7 +56,7 @@ export default function ProductionHistoryPrintLayout({ data, dateRange }: Produc
             <div style={{ clear: 'both' }}></div>
         </header>
         <hr className="border-t-2 border-black my-2" />
-        <h2 className="text-center font-bold text-lg uppercase my-4">Laporan Riwayat Produksi</h2>
+        <h2 className="text-center font-bold text-lg uppercase my-4">BUKU HARIAN PRODUKSI</h2>
         <p className="report-date text-center text-sm mb-4">
           Periode: {dateTitle}
         </p>
@@ -126,18 +126,6 @@ export default function ProductionHistoryPrintLayout({ data, dateRange }: Produc
         </div>
 
       </main>
-      <footer className="signature-section">
-          <div>
-              <p>Disiapkan oleh,</p>
-              <div className="signature-box"></div>
-              <p>(Operator BP)</p>
-          </div>
-           <div>
-              <p>Diketahui oleh,</p>
-              <div className="signature-box"></div>
-              <p>(Kepala Produksi)</p>
-          </div>
-      </footer>
     </div>
   );
 }
