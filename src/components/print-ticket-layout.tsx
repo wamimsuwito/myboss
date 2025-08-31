@@ -64,11 +64,11 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
 
 
   return (
-    <div className="bg-white text-black p-4 font-mono printable-area max-h-[50vh]" style={{ pageBreakAfter: 'always' }}>
+    <div className="bg-white text-black p-4 font-mono printable-area" style={{ pageBreakAfter: 'always' }}>
         <div className="watermark">PT FARIKA RIAU PERKASA</div>
-        <header className="print-header flex items-start justify-start gap-2 mb-2">
+        <header className="print-header flex items-start justify-start gap-2 mb-1">
             <img src="https://i.imgur.com/CxaNLPj.png" alt="Logo" className="print-logo h-16 w-auto" data-ai-hint="logo company"/>
-            <div className="text-left text-[8px] leading-tight mt-1">
+            <div className="text-left text-[8px] leading-tight mt-0">
                 <h1 className="text-lg font-bold text-red-600">PT. FARIKA RIAU PERKASA</h1>
                 <p className="font-semibold text-blue-600 italic">one stop concrete solution</p>
                 <p className="font-semibold text-blue-600">READYMIX & PRECAST CONCRETE</p>
@@ -77,12 +77,12 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
         </header>
         <hr className='border-t-2 border-black my-1' />
 
-      <main className="my-2">
+      <main className="my-1">
          <div className="flex justify-center items-baseline mb-1">
             <h2 className="text-base font-bold uppercase">BUKTI TIMBANG</h2>
             {unitBp && <span className="text-sm font-semibold ml-2">({unitBp})</span>}
          </div>
-         <div className="grid grid-cols-2 text-left text-[9px] mb-2">
+         <div className="grid grid-cols-2 text-left text-[9px] mb-1">
             <div>
               <p><span className="font-bold inline-block w-20">Job Order</span>: {schedule.NO}</p>
               <p><span className="font-bold inline-block w-20">Nomor PO</span>: {schedule['NO P.O'] || '-'}</p>
@@ -94,7 +94,7 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
             </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-4 gap-y-0 text-[10px] mb-2">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-0 text-[10px] mb-1">
             <div>
                 <div><span className="font-semibold inline-block w-28">Nama Pelanggan</span>: {schedule.NAMA}</div>
                 <div><span className="font-semibold inline-block w-28">Lokasi Proyek</span>: {schedule.LOKASI}</div>
@@ -111,8 +111,8 @@ export default function PrintTicketLayout({ data }: { data: PrintData }) {
             </div>
         </div>
 
-        <div className="mt-2">
-            <h3 className="text-[10px] font-bold text-center py-0.5 mb-1">Aktual penimbangan (Kg)</h3>
+        <div className="mt-1">
+            <h3 className="text-[10px] font-bold text-center py-0.5 mb-0.5">Aktual penimbangan (Kg)</h3>
             <div className="border-y border-black/50">
               <table className="w-full text-[10px] border-collapse">
                 <thead>
