@@ -269,6 +269,14 @@ export interface QCInspectionData {
     sandZonePhoto?: string;
 }
 
+export interface DailyQCInspection {
+    id: string;
+    createdAt: any; // Firestore Timestamp
+    inspectedBy: string;
+    location: string;
+    items: Record<string, { value: string; photo?: string | null }>;
+}
+
 
 export interface ResetHistoryEntry {
     id?: string;

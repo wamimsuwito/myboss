@@ -377,6 +377,171 @@ const PembuatanBendaUjiComponent = () => {
     );
 };
 
+interface DailyInspectionReport {
+    id: string;
+    createdAt: any;
+    inspectedBy: string;
+    items: Record<string, { value: string; photo?: string | null }>;
+}
+
+const inspectionItems = [
+    { id: 'phAir', label: 'PH Air' },
+    { id: 'suhuAir', label: 'Suhu Air' },
+    { id: 'tdsAir', label: 'TDS Air' },
+    { id: 'kadarLumpurPasir', label: 'Kadar Lumpur Pasir' },
+    { id: 'kadarLumpurBatu', label: 'Kadar Lumpur Batu' },
+    { id: 'zonaPasir', label: 'Zona Pasir' },
+];
+
+const InspeksiHarianComponent = () => {
+    const { toast } = useToast();
+    const [history, setHistory] = useState<DailyInspectionReport[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formState, setFormState] = useState<Record<string, { value: string; photo?: string | null }>>({});
+
+    const userInfo: UserData | null = useMemo(() => JSON.parse(localStorage.getItem('user') || 'null'), []);
+
+    useEffect(() => {
+        if (!userInfo?.lokasi) return;
+
+        const todayStart = startOfDay(new Date());
+        const q = query(
+            collection(db, "daily_qc_inspections"),
+            where('location', '==', userInfo.lokasi),
+            where('createdAt', '>=', todayStart),
+            orderBy('createdAt', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as DailyInspectionReport);
+            setHistory(reports);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching daily inspections:", error);
+            toast({ title: "Gagal memuat riwayat inspeksi", variant: "destructive" });
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [userInfo?.lokasi, toast]);
+
+    const handleValueChange = (id: string, value: string) => {
+        setFormState(prev => ({
+            ...prev,
+            [id]: { ...prev[id], value }
+        }));
+    };
+
+    const handlePhotoChange = (id: string, photo: string | null) => {
+        setFormState(prev => ({
+            ...prev,
+            [id]: { ...prev[id], photo }
+        }));
+    };
+
+    const handleSubmit = async () => {
+        if (Object.keys(formState).length === 0) {
+            toast({ title: "Form Kosong", description: "Harap isi setidaknya satu field inspeksi.", variant: "destructive" });
+            return;
+        }
+
+        setIsSubmitting(true);
+        const reportData = {
+            createdAt: Timestamp.now(),
+            inspectedBy: userInfo?.username,
+            location: userInfo?.lokasi,
+            items: formState
+        };
+
+        try {
+            await addDoc(collection(db, "daily_qc_inspections"), reportData);
+            toast({ title: "Laporan Tersimpan" });
+            setFormState({}); // Clear form after submit
+        } catch (error) {
+            console.error("Error saving daily inspection:", error);
+            toast({ title: "Gagal Menyimpan Laporan", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Form Inspeksi Harian QC</CardTitle>
+                    <CardDescription>Lakukan pengecekan rutin dan laporkan hasilnya di sini. Setiap laporan akan disimpan sebagai riwayat baru.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {inspectionItems.map(item => (
+                        <div key={item.id} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center p-3 border rounded-lg">
+                            <Label htmlFor={item.id} className="font-semibold">{item.label}</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                    id={item.id}
+                                    placeholder="Hasil..."
+                                    value={formState[item.id]?.value || ''}
+                                    onChange={(e) => handleValueChange(item.id, e.target.value)}
+                                />
+                                <PhotoInput
+                                    label="Foto"
+                                    photoPreview={formState[item.id]?.photo || null}
+                                    onFileChange={(file) => handlePhotoChange(item.id, file)}
+                                />
+                            </div>
+                        </div>
+                    ))}
+                    <div className="flex justify-end pt-4">
+                        <Button onClick={handleSubmit} disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4"/>}
+                            Simpan Laporan Harian
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Riwayat Inspeksi Hari Ini</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <Loader2 className="mx-auto my-8 h-8 w-8 animate-spin" /> : history.length > 0 ? (
+                        <Accordion type="single" collapsible className="w-full">
+                            {history.map(report => (
+                                <AccordionItem value={report.id} key={report.id}>
+                                    <AccordionTrigger>
+                                        <div className="flex justify-between w-full pr-4">
+                                            <span>Laporan oleh {report.inspectedBy}</span>
+                                            <span className="text-muted-foreground">{format(report.createdAt.toDate(), 'HH:mm:ss')}</span>
+                                        </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="space-y-2">
+                                        {Object.entries(report.items).map(([key, data]) => (
+                                            <div key={key} className="flex justify-between items-center p-2 bg-muted/50 rounded">
+                                                <span className="font-medium">{inspectionItems.find(i => i.id === key)?.label}</span>
+                                                <div className="flex items-center gap-4">
+                                                    <span>{data.value}</span>
+                                                    {data.photo && (
+                                                        <Dialog>
+                                                            <DialogTrigger asChild><Button size="icon" variant="ghost"><Camera /></Button></DialogTrigger>
+                                                            <DialogContent><img src={data.photo} alt={`Foto ${key}`} className="w-full rounded-md" data-ai-hint="material inspection" /></DialogContent>
+                                                        </Dialog>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
+                    ) : <p className="text-center text-muted-foreground py-8">Belum ada inspeksi harian yang tercatat hari ini.</p>}
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
+
 
 // --- Uji Tekan Component (Desktop View) ---
 const UjiTekanComponent = () => {
@@ -798,7 +963,7 @@ const UjiTekanComponent = () => {
 export default function QCPage() {
   const router = useRouter();
   const [userInfo, setUserInfo] = useState<UserData | null>(null);
-  const [activeMenu, setActiveMenu] = useState('Jadwal Uji Tekan Hari Ini');
+  const [activeMenu, setActiveMenu] = useState('Inspeksi Harian');
 
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -825,6 +990,7 @@ export default function QCPage() {
   
   const menuItems = [
     { name: 'Inspeksi Material Masuk', icon: FileSearch },
+    { name: 'Inspeksi Harian', icon: ClipboardCheck },
     { name: 'Jadwal Uji Tekan Hari Ini', icon: TestTube },
     { name: 'Pembuatan Benda Uji', icon: Beaker },
     { name: 'Riwayat Uji Tekan', icon: History, href: '/riwayat-uji-tekan' }
@@ -835,6 +1001,8 @@ export default function QCPage() {
       switch(activeMenu) {
           case 'Inspeksi Material Masuk':
               return <RFIComponent />;
+          case 'Inspeksi Harian':
+              return <InspeksiHarianComponent />;
           case 'Jadwal Uji Tekan Hari Ini':
               return <UjiTekanComponent />;
           case 'Pembuatan Benda Uji':
