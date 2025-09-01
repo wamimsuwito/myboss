@@ -166,19 +166,9 @@ export default function DashboardPage() {
   }, [router, toast]);
   
   useEffect(() => {
-    const statusInterval = setInterval(() => {
-        updateBpStatus();
-    }, 300000); // 5 menit
-
-    return () => {
-        clearInterval(statusInterval);
-    };
-  }, []);
-
-  useEffect(() => {
-     if (isProcessing) {
-        updateBpStatus();
-     }
+      if (isProcessing) {
+          updateBpStatus();
+      }
   }, [isProcessing]);
 
 
@@ -340,6 +330,7 @@ export default function DashboardPage() {
         return;
     }
     
+    processAbortedRef.current = false;
     setIsProcessing(true);
     const processStartTime = new Date();
     setStartTime(processStartTime);
@@ -528,7 +519,6 @@ export default function DashboardPage() {
 
     const handleManualWeigh = (material: MaterialName, action: 'start' | 'stop') => {
         if (action === 'start') {
-            updateBpStatus();
             stopSimulation(material); 
 
             const intervalId = setInterval(() => {
@@ -554,7 +544,6 @@ export default function DashboardPage() {
     
     const handleManualPour = (material: MaterialName, action: 'start' | 'stop') => {
           if (action === 'start') {
-            updateBpStatus();
             stopSimulation(material); 
             if (action === 'start') {
                 setPouringMaterials(prev => [...prev, material]);
