@@ -101,46 +101,20 @@ export default function DashboardPage() {
     setActivityLog(prevLog => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prevLog].slice(0, 10));
   }, []);
 
-  // START - Perbaikan: updateBpStatus tidak lagi di dalam useCallback
-  const updateBpStatus = async () => {
-    const userString = localStorage.getItem('user');
-    if (!userString) return;
-    const currentUserInfo: UserData = JSON.parse(userString);
-    
-    if (!currentUserInfo?.lokasi || !currentUserInfo?.unitBp) return;
-    
-    const statusDocId = `${currentUserInfo.lokasi}_${currentUserInfo.unitBp}`;
+  const updateBpStatus = useCallback(async () => {
+    if (!userInfo?.lokasi || !userInfo?.unitBp) return;
+    const statusDocId = `${userInfo.lokasi}_${userInfo.unitBp}`;
     const statusDocRef = doc(db, 'bp_unit_status', statusDocId);
     try {
         await setDoc(statusDocRef, {
             lastActivity: Timestamp.now(),
-            unit: currentUserInfo.unitBp,
-            location: currentUserInfo.lokasi,
+            unit: userInfo.unitBp,
+            location: userInfo.lokasi,
         }, { merge: true });
     } catch (error) {
         console.error("Failed to update BP status:", error);
     }
-  };
-  // END - Perbaikan
-
-  useEffect(() => {
-    // Cleanup intervals on unmount
-    return () => {
-        intervalsRef.current.forEach(intervalId => clearInterval(intervalId));
-    };
-  }, []);
-  
-    useEffect(() => {
-    if (isPreviewing) {
-      document.body.classList.add('print-active');
-    } else {
-      document.body.classList.remove('print-active');
-    }
-    // Cleanup on component unmount
-    return () => {
-      document.body.classList.remove('print-active');
-    };
-  }, [isPreviewing]);
+  }, [userInfo]);
 
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -169,22 +143,16 @@ export default function DashboardPage() {
   
   // START - Perbaikan: useEffect baru untuk pembaruan status berkala
   useEffect(() => {
-    // Update status if userInfo is available
-    if (userInfo?.lokasi && userInfo?.unitBp) {
-        // Panggil updateBpStatus() sekali saat komponen dimuat
+    if (!userInfo) return;
+    const statusInterval = setInterval(() => {
         updateBpStatus();
-        
-        // Atur interval untuk memanggil updateBpStatus() setiap 5 menit
-        const statusInterval = setInterval(() => {
-            updateBpStatus();
-        }, 300000); // 5 menit
-        
-        // Fungsi cleanup untuk menghentikan interval saat komponen di-unmount
-        return () => clearInterval(statusInterval);
-    }
-  }, [userInfo]);
-  // END - Perbaikan
+    }, 300000); // 5 minutes
 
+    return () => {
+        clearInterval(statusInterval);
+    };
+  }, [updateBpStatus, userInfo]);
+  // END - Perbaikan
 
   useEffect(() => {
     if (isMixing) {
