@@ -8,9 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X, Beaker, Plus } from 'lucide-react';
-import type { UserData, RencanaPemasukan, QCInspectionData, ProductionData, BendaUji, ScheduleRow } from '@/lib/types';
-import { format, isSameDay, addDays, differenceInDays, startOfDay, isAfter } from 'date-fns';
+import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X, Beaker, Plus, Calendar as CalendarIcon, FilterX } from 'lucide-react';
+import type { UserData, RencanaPemasukan, QCInspectionData, ProductionData, BendaUji, ScheduleRow, DailyQCInspection } from '@/lib/types';
+import { format, isSameDay, addDays, differenceInDays, startOfDay, isAfter, subDays } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -23,8 +23,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import TestReportPrintLayout from '@/components/test-report-print-layout';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { printElement } from '@/lib/utils';
+import { printElement, cn } from '@/lib/utils';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import DailyInspectionPrintLayout from '@/components/daily-inspection-print-layout';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { DateRange } from 'react-day-picker';
 
 
 const PhotoInput = ({ label, onFileChange, photoPreview }: { label: string; onFileChange: (file: string | null) => void; photoPreview: string | null; }) => {
@@ -377,12 +381,6 @@ const PembuatanBendaUjiComponent = () => {
     );
 };
 
-interface DailyInspectionReport {
-    id: string;
-    createdAt: any;
-    inspectedBy: string;
-    items: Record<string, { value: string; photo?: string | null }>;
-}
 
 const inspectionItems = [
     { id: 'phAir', label: 'PH Air' },
@@ -395,7 +393,7 @@ const inspectionItems = [
 
 const InspeksiHarianComponent = () => {
     const { toast } = useToast();
-    const [history, setHistory] = useState<DailyInspectionReport[]>([]);
+    const [history, setHistory] = useState<DailyQCInspection[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formState, setFormState] = useState<Record<string, { value: string; photo?: string | null }>>({});
@@ -414,7 +412,7 @@ const InspeksiHarianComponent = () => {
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as DailyInspectionReport);
+            const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as DailyQCInspection);
             setHistory(reports);
             setIsLoading(false);
         }, (error) => {
@@ -468,10 +466,18 @@ const InspeksiHarianComponent = () => {
 
     return (
         <div className="space-y-6">
+            <div className="hidden">
+              <div id="daily-inspection-print-area">
+                <DailyInspectionPrintLayout data={history} location={userInfo?.lokasi || ''} title="Laporan Inspeksi Harian"/>
+              </div>
+            </div>
             <Card>
-                <CardHeader>
-                    <CardTitle>Form Inspeksi Harian QC</CardTitle>
-                    <CardDescription>Lakukan pengecekan rutin dan laporkan hasilnya di sini. Setiap laporan akan disimpan sebagai riwayat baru.</CardDescription>
+                <CardHeader className="flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Form Inspeksi Harian QC</CardTitle>
+                        <CardDescription>Lakukan pengecekan rutin dan laporkan hasilnya di sini. Setiap laporan akan disimpan sebagai riwayat baru.</CardDescription>
+                    </div>
+                    <Button variant="outline" onClick={() => printElement('daily-inspection-print-area')} disabled={history.length === 0}><Printer className="mr-2"/>Cetak</Button>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {inspectionItems.map(item => (
@@ -536,6 +542,104 @@ const InspeksiHarianComponent = () => {
                             ))}
                         </Accordion>
                     ) : <p className="text-center text-muted-foreground py-8">Belum ada inspeksi harian yang tercatat hari ini.</p>}
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
+
+const RiwayatInspeksiHarianComponent = () => {
+    const { toast } = useToast();
+    const [history, setHistory] = useState<DailyQCInspection[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: subDays(new Date(), 7), to: new Date() });
+    const userInfo: UserData | null = useMemo(() => JSON.parse(localStorage.getItem('user') || 'null'), []);
+
+    const filteredHistory = useMemo(() => {
+        if (!dateRange?.from) return history;
+        const fromDate = startOfDay(dateRange.from);
+        const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+        return history.filter(item => {
+            const itemDate = item.createdAt.toDate();
+            return isAfter(itemDate, fromDate) && isAfter(toDate, itemDate);
+        });
+    }, [history, dateRange]);
+    
+     useEffect(() => {
+        if (!userInfo?.lokasi) return;
+        setIsLoading(true);
+        const q = query(
+            collection(db, "daily_qc_inspections"),
+            where('location', '==', userInfo.lokasi),
+            orderBy('createdAt', 'desc')
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const reports = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as DailyQCInspection);
+            setHistory(reports);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching daily inspections:", error);
+            toast({ title: "Gagal memuat riwayat inspeksi", variant: "destructive" });
+            setIsLoading(false);
+        });
+        return () => unsubscribe();
+    }, [userInfo?.lokasi, toast]);
+
+    return (
+         <div className="space-y-6">
+            <div className="hidden">
+              <div id="history-inspection-print-area">
+                <DailyInspectionPrintLayout data={filteredHistory} location={userInfo?.lokasi || ''} title="Riwayat Laporan Inspeksi Harian"/>
+              </div>
+            </div>
+            <Card>
+                <CardHeader className="flex-row items-center justify-between">
+                    <div>
+                        <CardTitle>Riwayat Inspeksi Harian</CardTitle>
+                        <CardDescription>Semua laporan inspeksi yang telah disimpan.</CardDescription>
+                    </div>
+                     <div className="flex items-center gap-2">
+                         <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}</Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0"><Calendar mode="range" selected={dateRange} onSelect={setDateRange} numberOfMonths={2}/></PopoverContent>
+                        </Popover>
+                        <Button variant="ghost" size="icon" onClick={() => setDateRange(undefined)} disabled={!dateRange}><FilterX /></Button>
+                        <Button variant="outline" onClick={() => printElement('history-inspection-print-area')} disabled={filteredHistory.length === 0}><Printer className="mr-2"/>Cetak Filter</Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? <Loader2 className="mx-auto my-8 h-8 w-8 animate-spin" /> : filteredHistory.length > 0 ? (
+                        <Accordion type="single" collapsible className="w-full">
+                            {filteredHistory.map(report => (
+                                <AccordionItem value={report.id} key={report.id}>
+                                    <AccordionTrigger>
+                                        <div className="flex justify-between w-full pr-4">
+                                            <span>Laporan oleh {report.inspectedBy}</span>
+                                            <span className="text-muted-foreground">{format(report.createdAt.toDate(), 'dd MMM yyyy, HH:mm:ss')}</span>
+                                        </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="space-y-2">
+                                        {Object.entries(report.items).map(([key, data]) => (
+                                            <div key={key} className="flex justify-between items-center p-2 bg-muted/50 rounded">
+                                                <span className="font-medium">{inspectionItems.find(i => i.id === key)?.label}</span>
+                                                <div className="flex items-center gap-4">
+                                                    <span>{data.value}</span>
+                                                    {data.photo && (
+                                                        <Dialog>
+                                                            <DialogTrigger asChild><Button size="icon" variant="ghost"><Camera /></Button></DialogTrigger>
+                                                            <DialogContent><img src={data.photo} alt={`Foto ${key}`} className="w-full rounded-md" data-ai-hint="material inspection" /></DialogContent>
+                                                        </Dialog>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))}
+                        </Accordion>
+                    ) : <p className="text-center text-muted-foreground py-8">Tidak ada riwayat untuk rentang tanggal yang dipilih.</p>}
                 </CardContent>
             </Card>
         </div>
@@ -991,6 +1095,7 @@ export default function QCPage() {
   const menuItems = [
     { name: 'Inspeksi Material Masuk', icon: FileSearch },
     { name: 'Inspeksi Harian', icon: ClipboardCheck },
+    { name: 'Riwayat Inspeksi Harian', icon: History },
     { name: 'Jadwal Uji Tekan Hari Ini', icon: TestTube },
     { name: 'Pembuatan Benda Uji', icon: Beaker },
     { name: 'Riwayat Uji Tekan', icon: History, href: '/riwayat-uji-tekan' }
@@ -1003,6 +1108,8 @@ export default function QCPage() {
               return <RFIComponent />;
           case 'Inspeksi Harian':
               return <InspeksiHarianComponent />;
+          case 'Riwayat Inspeksi Harian':
+              return <RiwayatInspeksiHarianComponent />;
           case 'Jadwal Uji Tekan Hari Ini':
               return <UjiTekanComponent />;
           case 'Pembuatan Benda Uji':
@@ -1064,5 +1171,3 @@ export default function QCPage() {
     </SidebarProvider>
   );
 }
-
-    
