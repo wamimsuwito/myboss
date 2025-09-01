@@ -703,20 +703,17 @@ const UjiTekanComponent = () => {
                 let prodDate = (prod.tanggal as any).toDate();
                 if (isNaN(prodDate.getTime())) return [];
                 prodDate = startOfDay(prodDate);
+                const ageInDays = differenceInDays(today, prodDate);
+
+                if (!testAges.includes(ageInDays)) return [];
                 
-                return testAges.map(age => {
-                    const testDate = addDays(prodDate, age);
-                    if (isAfter(today, testDate) || isSameDay(today, testDate)) {
-                        const isTestCompletedForThisAge = completedTests.some(ct => 
-                            ct.productionId === prod.id && ct.mutuBeton === prod.mutuBeton && ct.age === age
-                        );
+                const isTestCompletedForThisAge = completedTests.some(ct => 
+                    ct.productionId === prod.id && ct.mutuBeton === prod.mutuBeton && ct.age === ageInDays
+                );
 
-                        if(isTestCompletedForThisAge) return null;
+                if (isTestCompletedForThisAge) return [];
 
-                        return { ...prod, tanggal: prodDate, targetAge: age };
-                    }
-                    return null;
-                }).filter(Boolean);
+                return { ...prod, tanggal: prodDate, targetAge: ageInDays };
             });
 
             const grouped = potentialTests.reduce((acc, test) => {
@@ -744,13 +741,13 @@ const UjiTekanComponent = () => {
                  const remainingSpecimens = group.totalSpecimens - testsDoneForGroup;
                  const ageInDays = differenceInDays(today, group.tanggal);
 
-                 if (remainingSpecimens > 0) {
+                 if (remainingSpecimens > 0 && testAges.includes(ageInDays)) {
                      return { ...group, productionIds: Array.from(group.productionIds), jumlahBendaUji: remainingSpecimens, umurUji: ageInDays };
                  }
                  return null;
             }).filter(Boolean);
 
-            setTestSchedule(finalSchedule);
+            setTestSchedule(finalSchedule as any[]);
 
         } catch (error) {
             console.error("Error fetching initial data:", error);
@@ -1172,4 +1169,5 @@ export default function QCPage() {
     </SidebarProvider>
   );
 }
+
 
