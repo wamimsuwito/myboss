@@ -1267,4 +1267,3 @@ export default function QCPage() {
     </SidebarProvider>
   );
 }
-
