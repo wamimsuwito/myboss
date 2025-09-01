@@ -88,7 +88,7 @@ export default function DashboardPage() {
   const [reqNo, setReqNo] = useState('');
   const [targetVolume, setTargetVolume] = useState('');
   const [jumlahMixing, setJumlahMixing] = useState(1);
-  const [selectedSilo, setSelectedSilo] = useState('1');
+  const [selectedSilo, setSelectedSilo] = useState('');
 
   const intervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const processAbortedRef = useRef(false);
@@ -158,6 +158,11 @@ export default function DashboardPage() {
     }
     setUserInfo(userData);
 
+    const savedSilo = localStorage.getItem('selectedSilo');
+    if (savedSilo) {
+        setSelectedSilo(savedSilo);
+    }
+
     if (!userData.lokasi) {
         setIsBpModalOpen(true);
     } else if (userData.jabatan === 'OPRATOR BP' && !userData.unitBp) {
@@ -166,10 +171,16 @@ export default function DashboardPage() {
   }, [router, toast]);
   
   useEffect(() => {
-      if (isProcessing) {
-          updateBpStatus();
-      }
+    if (isProcessing) {
+      updateBpStatus();
+    }
   }, [isProcessing]);
+  
+  useEffect(() => {
+    if (selectedSilo) {
+        localStorage.setItem('selectedSilo', selectedSilo);
+    }
+  }, [selectedSilo]);
 
 
   useEffect(() => {
@@ -582,8 +593,8 @@ export default function DashboardPage() {
     setNomorMobil('');
     setNomorLambung('');
     setSelectedSilo('');
-    setActiveSchedule(null);
-    setActiveJobMix(null);
+    onSetActiveSchedule(null);
+    onSetActiveJobMix(null);
   }
 
   const handleStop = async (data?: PrintData & { selectedSilo?: string }, options: { isAborted?: boolean, mode: OperationMode } = { isAborted: true, mode: 'auto' }) => {
