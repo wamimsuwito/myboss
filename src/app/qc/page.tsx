@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -11,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X, Beaker, Plus, Calendar as CalendarIcon, FilterX } from 'lucide-react';
 import type { UserData, RencanaPemasukan, QCInspectionData, ProductionData, BendaUji, ScheduleRow, DailyQCInspection } from '@/lib/types';
-import { format, isSameDay, addDays, differenceInDays, startOfDay, isAfter, subDays, endOfDay } from 'date-fns';
+import { format, isSameDay, addDays, differenceInDays, startOfDay, isAfter, subDays, endOfDay, isWithinInterval } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -221,6 +220,96 @@ const RFIComponent = () => {
         </div>
     );
 };
+
+const RiwayatInspeksiMaterialMasukComponent = () => {
+    const [history, setHistory] = useState<RencanaPemasukan[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
+    const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: subDays(new Date(), 30), to: new Date() });
+
+    useEffect(() => {
+        const q = query(
+            collection(db, "rencana_pemasukan"),
+            where('status', 'in', ['Memenuhi Syarat', 'Ditolak']),
+            orderBy('arrivalConfirmedAt', 'desc')
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const data = snapshot.docs.map(d => ({ ...d.data(), id: d.id }) as RencanaPemasukan);
+            setHistory(data);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching inspection history:", error);
+            toast({ variant: 'destructive', title: 'Gagal Memuat Riwayat Inspeksi' });
+            setIsLoading(false);
+        });
+        return () => unsubscribe();
+    }, [toast]);
+    
+    const filteredHistory = useMemo(() => {
+        if (!dateRange?.from) return history;
+        const fromDate = startOfDay(dateRange.from);
+        const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+
+        return history.filter(item => {
+            const itemDate = item.arrivalConfirmedAt ? new Date(item.arrivalConfirmedAt) : null;
+            return itemDate && isWithinInterval(itemDate, { start: fromDate, end: toDate });
+        });
+    }, [history, dateRange]);
+
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Riwayat Inspeksi Material</CardTitle>
+                <CardDescription>Melihat semua riwayat inspeksi material yang telah selesai.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                 <div className="flex items-center gap-2 mb-4">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0"><Calendar mode="range" selected={dateRange} onSelect={setDateRange} numberOfMonths={2}/></PopoverContent>
+                    </Popover>
+                    <Button variant="ghost" size="icon" onClick={() => setDateRange(undefined)} disabled={!dateRange}><FilterX /></Button>
+                </div>
+                <div className="border rounded-md overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Tgl Inspeksi</TableHead>
+                            <TableHead>Kapal/Truk</TableHead>
+                            <TableHead>Material</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Diinspeksi Oleh</TableHead>
+                            <TableHead>Keterangan</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoading ? (<TableRow><TableCell colSpan={6} className="h-40 text-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></TableCell></TableRow>) 
+                        : filteredHistory.length > 0 ? (
+                            filteredHistory.map(item => (
+                                <TableRow key={item.id}>
+                                    <TableCell>{item.inspection?.inspectionDate ? format(new Date(item.inspection.inspectionDate), 'dd MMM, HH:mm') : '-'}</TableCell>
+                                    <TableCell>{item.namaKapal}</TableCell>
+                                    <TableCell>{item.jenisMaterial}</TableCell>
+                                    <TableCell><Badge variant={item.status === 'Ditolak' ? 'destructive' : 'default'} className={item.status === 'Memenuhi Syarat' ? 'bg-green-600' : ''}>{item.status}</Badge></TableCell>
+                                    <TableCell>{item.inspection?.inspectedBy}</TableCell>
+                                    <TableCell className="max-w-xs truncate">{item.inspection?.description}</TableCell>
+                                </TableRow>
+                            ))
+                        ) : (<TableRow><TableCell colSpan={6} className="text-center h-24">Tidak ada riwayat untuk periode yang dipilih.</TableCell></TableRow>)}
+                    </TableBody>
+                </Table>
+                </div>
+            </CardContent>
+        </Card>
+    )
+};
+
 
 const PembuatanBendaUjiComponent = () => {
     const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
@@ -1095,6 +1184,7 @@ export default function QCPage() {
   
   const menuItems = [
     { name: 'Inspeksi Material Masuk', icon: FileSearch },
+    { name: 'Riwayat Inspeksi Material Masuk', icon: History },
     { name: 'Inspeksi Harian', icon: ClipboardCheck },
     { name: 'Riwayat Inspeksi Harian', icon: History },
     { name: 'Jadwal Uji Tekan Hari Ini', icon: TestTube },
@@ -1107,6 +1197,8 @@ export default function QCPage() {
       switch(activeMenu) {
           case 'Inspeksi Material Masuk':
               return <RFIComponent />;
+          case 'Riwayat Inspeksi Material Masuk':
+              return <RiwayatInspeksiMaterialMasukComponent />;
           case 'Inspeksi Harian':
               return <InspeksiHarianComponent />;
           case 'Riwayat Inspeksi Harian':
@@ -1173,6 +1265,3 @@ export default function QCPage() {
   );
 }
 
-
-
-    
