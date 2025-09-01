@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -104,9 +103,9 @@ export default function OwnerPage() {
                 const locsSnap = await getDocs(collection(db, 'locations'));
                 const locsData = locsSnap.docs.map(d => ({ id: d.id, ...d.data() }) as LocationData);
                 setLocations(locsData);
-                if (locsData.length > 0) {
+                if (locsData.length > 0 && !selectedLocation) {
                     setSelectedLocation(locsData[0].name);
-                } else {
+                } else if (locsData.length === 0) {
                     setIsLoading(false);
                 }
             } catch (error) {
@@ -115,7 +114,7 @@ export default function OwnerPage() {
             }
         };
         fetchLocations();
-    }, [toast]);
+    }, [toast, selectedLocation]);
     
     const resetSummary = useCallback(() => {
          setSummary({
