@@ -594,11 +594,12 @@ export default function DashboardPage() {
     setIsProcessing(false);
     setStartTime(null);
 
+    await updateBpStatus();
+
     if (options.isAborted) {
         if(options.mode === 'auto') {
             toast({ title: "Proses dihentikan.", variant: "destructive" });
         }
-        await updateBpStatus();
         return;
     }
     
@@ -913,3 +914,4 @@ export default function DashboardPage() {
     </>
   );
 }
+
