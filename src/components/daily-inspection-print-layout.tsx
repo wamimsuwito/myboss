@@ -24,6 +24,16 @@ const inspectionItems = [
 export default function DailyInspectionPrintLayout({ data, location, title }: DailyInspectionPrintLayoutProps) {
   const reportDate = format(new Date(), 'EEEE, dd MMMM yyyy', { locale: localeID });
 
+  const allPhotos = data.flatMap(report => 
+    Object.entries(report.items)
+      .filter(([_, itemData]) => itemData.photo)
+      .map(([key, itemData]) => ({
+        src: itemData.photo,
+        label: inspectionItems.find(i => i.id === key)?.label || key,
+        timestamp: report.createdAt.toDate(),
+      }))
+  );
+
   return (
     <div className="bg-white text-black p-4 font-sans printable-area">
         <div className="watermark">PT FARIKA RIAU PERKASA</div>
@@ -76,20 +86,25 @@ export default function DailyInspectionPrintLayout({ data, location, title }: Da
             )}
           </tbody>
         </table>
-      </main>
 
-       <footer className="signature-section mt-16">
-          <div>
-              <p>Mengetahui,</p>
-              <div className="signature-box"></div>
-              <p>(Pimpinan)</p>
+        {allPhotos.length > 0 && (
+          <div className="mt-8" style={{ pageBreakInside: 'avoid' }}>
+            <h3 className="font-bold text-center border-t-2 border-black pt-2 mb-4">LAMPIRAN FOTO</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+              {allPhotos.map((photo, index) => (
+                <div key={index} className="text-center" style={{ breakInside: 'avoid' }}>
+                  <img src={photo.src || ''} alt={photo.label} className="border border-black w-full" data-ai-hint="material inspection" />
+                  <p className="text-xs mt-1">
+                    <strong>{photo.label}</strong>
+                    <br />
+                    <span>{format(photo.timestamp, 'dd MMM, HH:mm')}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div>
-              <p>Disiapkan oleh,</p>
-              <div className="signature-box"></div>
-              <p>(QC)</p>
-          </div>
-      </footer>
+        )}
+      </main>
     </div>
   );
 }
