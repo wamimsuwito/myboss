@@ -171,6 +171,18 @@ export default function DashboardPage() {
   }, [router, toast]);
   
   useEffect(() => {
+    const statusInterval = setInterval(() => {
+        if (!isProcessing) {
+            updateBpStatus();
+        }
+    }, 300000); // 5 menit
+
+    return () => {
+        clearInterval(statusInterval);
+    };
+  }, [isProcessing]);
+  
+  useEffect(() => {
     if (isProcessing) {
       updateBpStatus();
     }
@@ -341,8 +353,8 @@ export default function DashboardPage() {
         return;
     }
     
-    processAbortedRef.current = false;
     setIsProcessing(true);
+    processAbortedRef.current = false;
     const processStartTime = new Date();
     setStartTime(processStartTime);
     
@@ -530,6 +542,7 @@ export default function DashboardPage() {
 
     const handleManualWeigh = (material: MaterialName, action: 'start' | 'stop') => {
         if (action === 'start') {
+            setIsProcessing(true); // Memulai proses
             stopSimulation(material); 
 
             const intervalId = setInterval(() => {
@@ -555,6 +568,7 @@ export default function DashboardPage() {
     
     const handleManualPour = (material: MaterialName, action: 'start' | 'stop') => {
           if (action === 'start') {
+            setIsProcessing(true); // Memulai proses
             stopSimulation(material); 
             if (action === 'start') {
                 setPouringMaterials(prev => [...prev, material]);
@@ -593,8 +607,8 @@ export default function DashboardPage() {
     setNomorMobil('');
     setNomorLambung('');
     setSelectedSilo('');
-    onSetActiveSchedule(null);
-    onSetActiveJobMix(null);
+    setActiveSchedule(null);
+    setActiveJobMix(null);
   }
 
   const handleStop = async (data?: PrintData & { selectedSilo?: string }, options: { isAborted?: boolean, mode: OperationMode } = { isAborted: true, mode: 'auto' }) => {
