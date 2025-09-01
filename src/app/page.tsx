@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -123,7 +122,7 @@ export default function DashboardPage() {
     };
   }, [isPreviewing]);
 
-  const updateBpStatus = useCallback(async () => {
+  const updateBpStatus = async () => {
     if (!userInfo?.lokasi || !userInfo?.unitBp) return;
     
     const statusDocId = `${userInfo.lokasi}_${userInfo.unitBp}`;
@@ -137,7 +136,7 @@ export default function DashboardPage() {
     } catch (error) {
         console.error("Failed to update BP status:", error);
     }
-  }, [userInfo]);
+  };
 
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -164,7 +163,7 @@ export default function DashboardPage() {
     }
   }, [router, toast]);
 
-  useEffect(() => {
+   useEffect(() => {
     if (!userInfo) return;
     const statusInterval = setInterval(() => {
       updateBpStatus();
@@ -173,7 +172,7 @@ export default function DashboardPage() {
     return () => {
       clearInterval(statusInterval);
     };
-  }, [updateBpStatus, userInfo]);
+  }, [userInfo]);
 
   useEffect(() => {
     if (isMixing) {
@@ -927,8 +926,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-
-
-
-
