@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
@@ -357,7 +358,7 @@ const PembuatanBendaUjiComponent = () => {
                                                     {job.samples.map(s => (
                                                         <li key={s.id} className="flex justify-between">
                                                             <span>{s.qcName}: <span className="font-bold">{s.jumlahSample} pcs</span></span>
-                                                            <span className="text-muted-foreground">{format(s.createdAt.toDate(), 'HH:mm')}</span>
+                                                            <span className="text-muted-foreground">{format(s.createdAt.toDate(), 'dd/MM HH:mm')}</span>
                                                         </li>
                                                     ))}
                                                 </ul>
