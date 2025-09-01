@@ -123,21 +123,25 @@ export default function DashboardPage() {
   }, [isPreviewing]);
 
   const updateBpStatus = async () => {
-    if (!userInfo?.lokasi || !userInfo?.unitBp) return;
+    const userString = localStorage.getItem('user');
+    if (!userString) return;
+    const currentUserInfo: UserData = JSON.parse(userString);
     
-    const statusDocId = `${userInfo.lokasi}_${userInfo.unitBp}`;
+    if (!currentUserInfo?.lokasi || !currentUserInfo?.unitBp) return;
+    
+    const statusDocId = `${currentUserInfo.lokasi}_${currentUserInfo.unitBp}`;
     const statusDocRef = doc(db, 'bp_unit_status', statusDocId);
     try {
         await setDoc(statusDocRef, {
             lastActivity: Timestamp.now(),
-            unit: userInfo.unitBp,
-            location: userInfo.lokasi,
+            unit: currentUserInfo.unitBp,
+            location: currentUserInfo.lokasi,
         }, { merge: true });
     } catch (error) {
         console.error("Failed to update BP status:", error);
     }
   };
-
+  
   useEffect(() => {
     const userString = localStorage.getItem('user');
     if (!userString) {
@@ -162,7 +166,7 @@ export default function DashboardPage() {
         setIsUnitModalOpen(true);
     }
   }, [router, toast]);
-
+  
    useEffect(() => {
     if (!userInfo) return;
     const statusInterval = setInterval(() => {
