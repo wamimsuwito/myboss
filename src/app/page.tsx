@@ -138,7 +138,6 @@ export default function DashboardPage() {
     }
   }, [userInfo]);
 
-
   useEffect(() => {
     const userString = localStorage.getItem('user');
     if (!userString) {
@@ -165,7 +164,7 @@ export default function DashboardPage() {
   }, [router, toast]);
 
   useEffect(() => {
-    // Periodically update status to keep it "active"
+    if (!userInfo) return;
     const statusInterval = setInterval(() => {
       updateBpStatus();
     }, 300000); // 5 minutes
@@ -173,7 +172,7 @@ export default function DashboardPage() {
     return () => {
       clearInterval(statusInterval);
     };
-  }, [updateBpStatus]);
+  }, [updateBpStatus, userInfo]);
 
   useEffect(() => {
     if (isMixing) {
@@ -927,6 +926,7 @@ export default function DashboardPage() {
     </>
   );
 }
+
 
 
 
