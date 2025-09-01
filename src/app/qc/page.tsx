@@ -15,7 +15,7 @@ import { id as localeID } from 'date-fns/locale';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { db, collection, getDocs, doc, setDoc, query, where, onSnapshot, updateDoc, Timestamp, addDoc } from '@/lib/firebase';
+import { db, collection, getDocs, doc, setDoc, query, where, onSnapshot, updateDoc, Timestamp, addDoc, orderBy } from '@/lib/firebase';
 import { resizeImage } from '@/lib/utils';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger, SidebarFooter } from '@/components/ui/sidebar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -842,7 +842,7 @@ const UjiTekanComponent = () => {
                 </div>
                 <DialogFooter className="p-4 border-t bg-muted no-print">
                     <Button variant="outline" onClick={() => setIsPrintPreviewOpen(false)}>Tutup</Button>
-                    <Button onClick={() => printElement('printable-test-report')}>Cetak</Button>
+                    <Button onClick={() => printElement('printable-test-report')}>Cetak Laporan</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -1064,3 +1064,5 @@ export default function QCPage() {
     </SidebarProvider>
   );
 }
+
+    
