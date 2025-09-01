@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio } from 'lucide-react';
 import { db, collection, getDocs, onSnapshot, query, where, Timestamp } from '@/lib/firebase';
 import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData } from '@/lib/types';
-import { format, isAfter, subMinutes, formatDistanceToNowStrict, differenceInMinutes } from 'date-fns';
+import { format, isAfter, subMinutes, differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 
 const StatCard = ({ title, value, unit, icon: Icon, description }: { title: string, value: string | number, unit?: string, icon: React.ElementType, description?: string }) => (
@@ -302,9 +302,17 @@ export default function OwnerPage() {
                                    indicatorColor = 'bg-green-500';
                                    isPulsing = true;
                                } else if (lastActivityDate) {
-                                   const minutesAgo = Math.round(differenceInMinutes(currentTime, lastActivityDate));
-                                   const roundedMinutes = Math.floor(minutesAgo / 10) * 10;
-                                   statusText = `Terakhir aktif ${roundedMinutes > 0 ? `${roundedMinutes} menit` : 'beberapa saat'} lalu`;
+                                   const totalMinutesAgo = differenceInMinutes(currentTime, lastActivityDate);
+                                   const days = Math.floor(totalMinutesAgo / 1440);
+                                   const hours = Math.floor((totalMinutesAgo % 1440) / 60);
+                                   const minutes = totalMinutesAgo % 60;
+                                   
+                                   let timeAgoString = '';
+                                   if(days > 0) timeAgoString += `${days} hari `;
+                                   if(hours > 0) timeAgoString += `${hours} jam `;
+                                   if(minutes > 0 && days === 0) timeAgoString += `${minutes} mnt `;
+
+                                   statusText = `Terakhir aktif ${timeAgoString.trim()} lalu`;
                                    indicatorColor = 'bg-red-500';
                                } else {
                                     statusText = 'Belum ada aktivitas';
