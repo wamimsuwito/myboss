@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -124,23 +123,20 @@ export default function DashboardPage() {
   }, [isPreviewing]);
 
   const updateBpStatus = useCallback(async () => {
-    const userString = localStorage.getItem('user');
-    if (!userString) return;
-    const userData = JSON.parse(userString);
-    if (!userData.lokasi || !userData.unitBp) return;
+    if (!userInfo?.lokasi || !userInfo?.unitBp) return;
     
-    const statusDocId = `${userData.lokasi}_${userData.unitBp}`;
+    const statusDocId = `${userInfo.lokasi}_${userInfo.unitBp}`;
     const statusDocRef = doc(db, 'bp_unit_status', statusDocId);
     try {
         await setDoc(statusDocRef, {
             lastActivity: Timestamp.now(),
-            unit: userData.unitBp,
-            location: userData.lokasi,
+            unit: userInfo.unitBp,
+            location: userInfo.lokasi,
         }, { merge: true });
     } catch (error) {
         console.error("Failed to update BP status:", error);
     }
-  }, []);
+  }, [userInfo]);
 
 
   useEffect(() => {
@@ -166,7 +162,9 @@ export default function DashboardPage() {
     } else if (userData.jabatan === 'OPRATOR BP' && !userData.unitBp) {
         setIsUnitModalOpen(true);
     }
+  }, [router, toast]);
 
+  useEffect(() => {
     // Periodically update status to keep it "active"
     const statusInterval = setInterval(() => {
       updateBpStatus();
@@ -175,8 +173,7 @@ export default function DashboardPage() {
     return () => {
       clearInterval(statusInterval);
     };
-
-  }, [router, toast, updateBpStatus]);
+  }, [updateBpStatus]);
 
   useEffect(() => {
     if (isMixing) {
@@ -930,5 +927,6 @@ export default function DashboardPage() {
     </>
   );
 }
+
 
 
