@@ -1150,15 +1150,15 @@ export default function QCPage() {
         </Sidebar>
         <SidebarInset>
             <main className={isMobileLayout ? 'no-print' : 'p-4 sm:p-6 lg:p-10 no-print'}>
-               <div className={isMobileLayout ? 'hidden' : 'flex items-center gap-4 mb-8'}>
-                    <SidebarTrigger className="md:hidden" />
-                    {!isMobileLayout && (<div>
+               <div className={cn('flex items-center gap-4 mb-8', isMobileLayout ? 'hidden' : 'flex')}>
+                    <SidebarTrigger/>
+                    <div>
                         <h1 className="text-2xl font-bold text-foreground">{activeMenu}</h1>
                         <div className="text-xs text-muted-foreground flex items-center gap-3">
                           <span className='flex items-center gap-1.5'><Fingerprint size={12}/>{userInfo.nik}</span>
                           <span className='flex items-center gap-1.5'><Briefcase size={12}/>{userInfo.jabatan}</span>
                         </div>
-                    </div>)}
+                    </div>
                 </div>
                 
                 {renderContent()}
@@ -1169,5 +1169,4 @@ export default function QCPage() {
     </SidebarProvider>
   );
 }
-
 
