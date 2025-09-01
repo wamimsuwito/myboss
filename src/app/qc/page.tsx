@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X, Beaker, Plus, Calendar as CalendarIcon, FilterX } from 'lucide-react';
+import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X, Beaker, Plus, Calendar as CalendarIcon, FilterX, Eye } from 'lucide-react';
 import type { UserData, RencanaPemasukan, QCInspectionData, ProductionData, BendaUji, ScheduleRow, DailyQCInspection } from '@/lib/types';
 import { format, isSameDay, addDays, differenceInDays, startOfDay, isAfter, subDays, endOfDay, isWithinInterval } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
@@ -251,7 +251,7 @@ const RiwayatInspeksiMaterialMasukComponent = () => {
         const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
 
         return history.filter(item => {
-            const itemDate = item.arrivalConfirmedAt ? new Date(item.arrivalConfirmedAt) : null;
+            const itemDate = item.inspection?.inspectionDate ? new Date(item.inspection.inspectionDate) : null;
             return itemDate && isWithinInterval(itemDate, { start: fromDate, end: toDate });
         });
     }, [history, dateRange]);
@@ -260,50 +260,53 @@ const RiwayatInspeksiMaterialMasukComponent = () => {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Riwayat Inspeksi Material</CardTitle>
+                <CardTitle>Riwayat Inspeksi Material Masuk</CardTitle>
                 <CardDescription>Melihat semua riwayat inspeksi material yang telah selesai.</CardDescription>
             </CardHeader>
             <CardContent>
                  <div className="flex items-center gap-2 mb-4">
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0"><Calendar mode="range" selected={dateRange} onSelect={setDateRange} numberOfMonths={2}/></PopoverContent>
-                    </Popover>
+                    <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="range" selected={dateRange} onSelect={setDateRange} numberOfMonths={2}/></PopoverContent></Popover>
                     <Button variant="ghost" size="icon" onClick={() => setDateRange(undefined)} disabled={!dateRange}><FilterX /></Button>
                 </div>
                 <div className="border rounded-md overflow-x-auto">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Tgl Inspeksi</TableHead>
-                            <TableHead>Kapal/Truk</TableHead>
-                            <TableHead>Material</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Diinspeksi Oleh</TableHead>
-                            <TableHead>Keterangan</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoading ? (<TableRow><TableCell colSpan={6} className="h-40 text-center"><Loader2 className="animate-spin h-8 w-8 text-primary"/></TableCell></TableRow>) 
-                        : filteredHistory.length > 0 ? (
+                    <Accordion type="single" collapsible className="w-full">
+                        {isLoading ? (
+                            <div className="h-40 flex items-center justify-center"><Loader2 className="animate-spin"/></div>
+                        ) : filteredHistory.length > 0 ? (
                             filteredHistory.map(item => (
-                                <TableRow key={item.id}>
-                                    <TableCell>{item.inspection?.inspectionDate ? format(new Date(item.inspection.inspectionDate), 'dd MMM, HH:mm') : '-'}</TableCell>
-                                    <TableCell>{item.namaKapal}</TableCell>
-                                    <TableCell>{item.jenisMaterial}</TableCell>
-                                    <TableCell><Badge variant={item.status === 'Ditolak' ? 'destructive' : 'default'} className={item.status === 'Memenuhi Syarat' ? 'bg-green-600' : ''}>{item.status}</Badge></TableCell>
-                                    <TableCell>{item.inspection?.inspectedBy}</TableCell>
-                                    <TableCell className="max-w-xs truncate">{item.inspection?.description}</TableCell>
-                                </TableRow>
+                                <AccordionItem value={item.id} key={item.id}>
+                                    <AccordionTrigger className='hover:no-underline'>
+                                        <div className='grid grid-cols-5 items-center w-full text-sm text-left px-4'>
+                                            <span>{item.inspection?.inspectionDate ? format(new Date(item.inspection.inspectionDate), 'dd MMM yyyy') : '-'}</span>
+                                            <span className='font-semibold'>{item.namaKapal}</span>
+                                            <span>{item.jenisMaterial}</span>
+                                            <Badge variant={item.status === 'Ditolak' ? 'destructive' : 'default'} className={cn('w-fit', item.status === 'Memenuhi Syarat' && 'bg-green-600')}>{item.status}</Badge>
+                                            <span>{item.inspection?.inspectedBy}</span>
+                                        </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent>
+                                        <div className="p-4 bg-muted/50 space-y-4">
+                                            <p className='text-sm italic border-l-2 pl-2'>"{item.inspection?.description}"</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label className='text-xs'>Foto Material</Label>
+                                                    {item.inspection?.materialPhoto ? <img src={item.inspection.materialPhoto} alt="Foto Material" className="rounded-md border"/> : <p className='text-xs text-muted-foreground'>-</p>}
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className='text-xs'>Foto Kadar Lumpur (Hasil: {item.inspection?.mudContent || 0}%)</Label>
+                                                    {item.inspection?.mudContentPhoto ? <img src={item.inspection.mudContentPhoto} alt="Foto Kadar Lumpur" className="rounded-md border"/> : <p className='text-xs text-muted-foreground'>-</p>}
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className='text-xs'>Foto Zona Pasir (Hasil: {item.inspection?.sandZone || 0})</Label>
+                                                    {item.inspection?.sandZonePhoto ? <img src={item.inspection.sandZonePhoto} alt="Foto Zona Pasir" className="rounded-md border"/> : <p className='text-xs text-muted-foreground'>-</p>}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
                             ))
-                        ) : (<TableRow><TableCell colSpan={6} className="text-center h-24">Tidak ada riwayat untuk periode yang dipilih.</TableCell></TableRow>)}
-                    </TableBody>
-                </Table>
+                        ) : (<p className='text-center text-muted-foreground py-10'>Tidak ada riwayat untuk periode yang dipilih.</p>)}
+                    </Accordion>
                 </div>
             </CardContent>
         </Card>
@@ -497,7 +500,7 @@ const InspeksiHarianComponent = () => {
         const q = query(
             collection(db, "daily_qc_inspections"),
             where('location', '==', userInfo.lokasi),
-            where('createdAt', '>=', todayStart),
+            where('createdAt', '>=', Timestamp.fromDate(todayStart)),
             orderBy('createdAt', 'desc')
         );
 
@@ -651,7 +654,7 @@ const RiwayatInspeksiHarianComponent = () => {
         const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
         return history.filter(item => {
             const itemDate = item.createdAt.toDate();
-            return isAfter(itemDate, fromDate) && isAfter(toDate, itemDate);
+            return isWithinInterval(itemDate, { start: fromDate, end: toDate });
         });
     }, [history, dateRange]);
     
