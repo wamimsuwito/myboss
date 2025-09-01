@@ -92,19 +92,6 @@ export default function HseActivityPrintLayout({ data, location }: HseActivityPr
           </tbody>
         </table>
       </main>
-
-      <footer className="signature-section mt-16">
-          <div>
-              <p>Mengetahui,</p>
-              <div className="signature-box"></div>
-              <p>(Pimpinan)</p>
-          </div>
-          <div>
-              <p>Disiapkan oleh,</p>
-              <div className="signature-box"></div>
-              <p>(HSE K3)</p>
-          </div>
-      </footer>
     </div>
   );
 }
