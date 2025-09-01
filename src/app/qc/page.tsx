@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { LogOut, User, FlaskConical, ClipboardCheck, FileSearch, Loader2, Camera, Check, Ban, AlertTriangle, Wind, CircleDot, TestTube, Fingerprint, Briefcase, MinusCircle, History, Save, MoreVertical, Printer, X, Beaker, Plus, Calendar as CalendarIcon, FilterX } from 'lucide-react';
 import type { UserData, RencanaPemasukan, QCInspectionData, ProductionData, BendaUji, ScheduleRow, DailyQCInspection } from '@/lib/types';
-import { format, isSameDay, addDays, differenceInDays, startOfDay, isAfter, subDays } from 'date-fns';
+import { format, isSameDay, addDays, differenceInDays, startOfDay, isAfter, subDays, endOfDay } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -525,7 +525,7 @@ const InspeksiHarianComponent = () => {
                                     <AccordionContent className="space-y-2">
                                         {Object.entries(report.items).map(([key, data]) => (
                                             <div key={key} className="flex justify-between items-center p-2 bg-muted/50 rounded">
-                                                <span className="font-medium">{inspectionItems.find(i => i.id === key)?.label}</span>
+                                                <span className="font-medium">{inspectionItems.find(i => i.id === key)?.label || key}</span>
                                                 <div className="flex items-center gap-4">
                                                     <span>{data.value}</span>
                                                     {data.photo && (
@@ -623,7 +623,7 @@ const RiwayatInspeksiHarianComponent = () => {
                                     <AccordionContent className="space-y-2">
                                         {Object.entries(report.items).map(([key, data]) => (
                                             <div key={key} className="flex justify-between items-center p-2 bg-muted/50 rounded">
-                                                <span className="font-medium">{inspectionItems.find(i => i.id === key)?.label}</span>
+                                                <span className="font-medium">{inspectionItems.find(i => i.id === key)?.label || key}</span>
                                                 <div className="flex items-center gap-4">
                                                     <span>{data.value}</span>
                                                     {data.photo && (
