@@ -349,10 +349,7 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
 }
 
 const EmployeeSummaryComponent = ({ location }: { location: string }) => {
-    const [summary, setSummary] = useState({
-        total: 0,
-        hadir: 0,
-    });
+    const [summary, setSummary] = useState({ total: 0, hadir: 0 });
     const [counts, setCounts] = useState({ ijin: '', alpha: '', sakit: '', cuti: '' });
     const [isLoading, setIsLoading] = useState(true);
 
@@ -535,8 +532,8 @@ export default function HseK3Page() {
                        ))}
                     </SidebarMenu>
                     <SidebarFooter>
-                        <Button variant="ghost" className="w-full justify-start gap-2" onClick={handleLogout}>
-                            <LogOut />
+                        <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-muted-foreground">
+                            <LogOut className="mr-2 h-4 w-4" />
                             Keluar
                         </Button>
                     </SidebarFooter>
