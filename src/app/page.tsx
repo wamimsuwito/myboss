@@ -115,6 +115,12 @@ export default function DashboardPage() {
         console.error("Failed to update BP status:", error);
     }
   }, [userInfo]);
+  
+  useEffect(() => {
+    if (isProcessing) {
+      updateBpStatus();
+    }
+  }, [isProcessing, updateBpStatus]);
 
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -141,18 +147,17 @@ export default function DashboardPage() {
     }
   }, [router, toast]);
   
-  // START - Perbaikan: useEffect baru untuk pembaruan status berkala
   useEffect(() => {
-    if (!userInfo) return;
     const statusInterval = setInterval(() => {
-        updateBpStatus();
+        if(userInfo?.lokasi && userInfo?.unitBp) {
+            updateBpStatus();
+        }
     }, 300000); // 5 minutes
 
     return () => {
         clearInterval(statusInterval);
     };
-  }, [updateBpStatus, userInfo]);
-  // END - Perbaikan
+  }, [userInfo, updateBpStatus]);
 
   useEffect(() => {
     if (isMixing) {
@@ -312,7 +317,6 @@ export default function DashboardPage() {
         return;
     }
     
-    await updateBpStatus();
     processAbortedRef.current = false;
     setIsProcessing(true);
     const processStartTime = new Date();
@@ -502,7 +506,6 @@ export default function DashboardPage() {
 
     const handleManualWeigh = (material: MaterialName, action: 'start' | 'stop') => {
         if (action === 'start') {
-            updateBpStatus();
             stopSimulation(material); 
 
             const intervalId = setInterval(() => {
@@ -528,7 +531,6 @@ export default function DashboardPage() {
     
     const handleManualPour = (material: MaterialName, action: 'start' | 'stop') => {
           if (action === 'start') {
-            updateBpStatus();
             stopSimulation(material); 
             if (action === 'start') {
                 setPouringMaterials(prev => [...prev, material]);
