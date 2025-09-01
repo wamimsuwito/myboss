@@ -292,7 +292,7 @@ export default function OwnerPage() {
                            {ALL_BP_UNITS.map(unit => {
                                const status = bpStatuses.find((s) => s.unit === unit);
                                const lastActivityDate = status?.lastActivity?.toDate();
-                               const isActive = lastActivityDate ? isAfter(lastActivityDate, subMinutes(currentTime, 10)) : false;
+                               const isActive = lastActivityDate ? isAfter(lastActivityDate, subMinutes(currentTime, 60)) : false;
 
                                let statusText, indicatorColor, isPulsing = false;
 
@@ -301,16 +301,13 @@ export default function OwnerPage() {
                                    indicatorColor = 'bg-green-500';
                                    isPulsing = true;
                                } else if (lastActivityDate) {
-                                   const diffInMinutes = differenceInMinutes(currentTime, lastActivityDate);
-                                   const diffInHours = differenceInHours(currentTime, lastActivityDate);
                                    const diffInDays = differenceInDays(currentTime, lastActivityDate);
-
-                                   if (diffInMinutes < 60) {
-                                       statusText = `Terakhir aktif ${diffInMinutes} menit lalu`;
-                                   } else if (diffInHours < 24) {
-                                       statusText = `Terakhir aktif ${diffInHours} jam lalu`;
+                                   const diffInHours = differenceInHours(currentTime, lastActivityDate);
+                                   
+                                   if (diffInHours < 24) {
+                                       statusText = `Tidak Aktif (terakhir aktif ${diffInHours} jam lalu)`;
                                    } else {
-                                       statusText = `Terakhir aktif ${diffInDays} hari lalu`;
+                                       statusText = `Tidak Aktif (terakhir aktif ${diffInDays} hari lalu)`;
                                    }
                                    indicatorColor = 'bg-red-500';
                                } else {
