@@ -157,7 +157,7 @@ export default function OwnerPage() {
             
             const activeSchedules = schedules.filter(s => s.STATUS === 'proses' || s.STATUS === 'selesai');
             
-            const cpLocations = new Set(schedules.filter(s => s['CP/M'] === 'CP').map(s => s.LOKASI)).size;
+            const cpLocations = new Set(schedules.filter(s => s['CP/M']?.toUpperCase() === 'CP').map(s => s.LOKASI)).size;
 
             const lokasiTerkirimCount = new Set(activeSchedules.map(s => s.LOKASI)).size;
             
