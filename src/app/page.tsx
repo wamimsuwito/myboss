@@ -101,7 +101,6 @@ export default function DashboardPage() {
     setActivityLog(prevLog => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prevLog].slice(0, 10));
   }, []);
 
-  // START - Perbaikan: updateBpStatus tidak lagi di dalam useCallback
   const updateBpStatus = async () => {
     const userString = localStorage.getItem('user');
     if (!userString) return;
@@ -121,7 +120,6 @@ export default function DashboardPage() {
         console.error("Failed to update BP status:", error);
     }
   };
-  // END - Perbaikan
 
   useEffect(() => {
     // Cleanup intervals on unmount
@@ -167,19 +165,22 @@ export default function DashboardPage() {
     }
   }, [router, toast]);
   
-  // START - Perbaikan: useEffect baru untuk pembaruan status berkala
   useEffect(() => {
-    if (userInfo) {
-        const statusInterval = setInterval(() => {
-            updateBpStatus();
-        }, 300000); // 5 menit
-        
-        return () => {
-            clearInterval(statusInterval);
-        };
-    }
-  }, [userInfo]);
-  // END - Perbaikan
+    const statusInterval = setInterval(() => {
+        updateBpStatus();
+    }, 300000); // 5 menit
+
+    return () => {
+        clearInterval(statusInterval);
+    };
+  }, []);
+
+  useEffect(() => {
+     if (isProcessing) {
+        updateBpStatus();
+     }
+  }, [isProcessing]);
+
 
   useEffect(() => {
     if (isMixing) {
@@ -339,8 +340,6 @@ export default function DashboardPage() {
         return;
     }
     
-    await updateBpStatus();
-    processAbortedRef.current = false;
     setIsProcessing(true);
     const processStartTime = new Date();
     setStartTime(processStartTime);
