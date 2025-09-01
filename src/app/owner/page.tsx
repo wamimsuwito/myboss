@@ -301,16 +301,17 @@ export default function OwnerPage() {
                                    indicatorColor = 'bg-green-500';
                                    isPulsing = true;
                                } else if (lastActivityDate) {
-                                   const days = differenceInDays(currentTime, lastActivityDate);
-                                   const hours = differenceInHours(currentTime, lastActivityDate) % 24;
-                                   const minutes = differenceInMinutes(currentTime, lastActivityDate) % 60;
-                                   
-                                   let timeAgoString = '';
-                                   if(days > 0) timeAgoString += `${days} hari `;
-                                   if(hours > 0) timeAgoString += `${hours} jam `;
-                                   if(minutes > 0 && days === 0) timeAgoString += `${minutes} mnt `;
+                                   const diffInMinutes = differenceInMinutes(currentTime, lastActivityDate);
+                                   const diffInHours = differenceInHours(currentTime, lastActivityDate);
+                                   const diffInDays = differenceInDays(currentTime, lastActivityDate);
 
-                                   statusText = `Terakhir aktif ${timeAgoString.trim()} lalu`;
+                                   if (diffInMinutes < 60) {
+                                       statusText = `Terakhir aktif ${diffInMinutes} menit lalu`;
+                                   } else if (diffInHours < 24) {
+                                       statusText = `Terakhir aktif ${diffInHours} jam lalu`;
+                                   } else {
+                                       statusText = `Terakhir aktif ${diffInDays} hari lalu`;
+                                   }
                                    indicatorColor = 'bg-red-500';
                                } else {
                                     statusText = 'Belum ada aktivitas';
