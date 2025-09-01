@@ -101,26 +101,25 @@ export default function DashboardPage() {
     setActivityLog(prevLog => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prevLog].slice(0, 10));
   }, []);
 
-  const updateBpStatus = useCallback(async () => {
-    if (!userInfo?.lokasi || !userInfo?.unitBp) return;
-    const statusDocId = `${userInfo.lokasi}_${userInfo.unitBp}`;
+  const updateBpStatus = async () => {
+    const userString = localStorage.getItem('user');
+    if (!userString) return;
+    const currentUserInfo: UserData = JSON.parse(userString);
+    
+    if (!currentUserInfo?.lokasi || !currentUserInfo?.unitBp) return;
+    
+    const statusDocId = `${currentUserInfo.lokasi}_${currentUserInfo.unitBp}`;
     const statusDocRef = doc(db, 'bp_unit_status', statusDocId);
     try {
         await setDoc(statusDocRef, {
             lastActivity: Timestamp.now(),
-            unit: userInfo.unitBp,
-            location: userInfo.lokasi,
+            unit: currentUserInfo.unitBp,
+            location: currentUserInfo.lokasi,
         }, { merge: true });
     } catch (error) {
         console.error("Failed to update BP status:", error);
     }
-  }, [userInfo]);
-  
-  useEffect(() => {
-    if (isProcessing) {
-      updateBpStatus();
-    }
-  }, [isProcessing, updateBpStatus]);
+  };
 
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -148,16 +147,23 @@ export default function DashboardPage() {
   }, [router, toast]);
   
   useEffect(() => {
-    const statusInterval = setInterval(() => {
-        if(userInfo?.lokasi && userInfo?.unitBp) {
+    if (userInfo) {
+        const statusInterval = setInterval(() => {
             updateBpStatus();
-        }
-    }, 300000); // 5 minutes
+        }, 300000); // 5 minutes
 
-    return () => {
-        clearInterval(statusInterval);
-    };
-  }, [userInfo, updateBpStatus]);
+        return () => {
+            clearInterval(statusInterval);
+        };
+    }
+  }, [userInfo]);
+
+  useEffect(() => {
+    if (isProcessing) {
+      updateBpStatus();
+    }
+  }, [isProcessing]);
+
 
   useEffect(() => {
     if (isMixing) {
@@ -506,6 +512,7 @@ export default function DashboardPage() {
 
     const handleManualWeigh = (material: MaterialName, action: 'start' | 'stop') => {
         if (action === 'start') {
+            updateBpStatus();
             stopSimulation(material); 
 
             const intervalId = setInterval(() => {
@@ -531,6 +538,7 @@ export default function DashboardPage() {
     
     const handleManualPour = (material: MaterialName, action: 'start' | 'stop') => {
           if (action === 'start') {
+            updateBpStatus();
             stopSimulation(material); 
             if (action === 'start') {
                 setPouringMaterials(prev => [...prev, material]);
