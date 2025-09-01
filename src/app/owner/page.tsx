@@ -302,10 +302,9 @@ export default function OwnerPage() {
                                    indicatorColor = 'bg-green-500';
                                    isPulsing = true;
                                } else if (lastActivityDate) {
-                                   const totalMinutesAgo = differenceInMinutes(currentTime, lastActivityDate);
-                                   const days = Math.floor(totalMinutesAgo / 1440);
-                                   const hours = Math.floor((totalMinutesAgo % 1440) / 60);
-                                   const minutes = totalMinutesAgo % 60;
+                                   const days = differenceInDays(currentTime, lastActivityDate);
+                                   const hours = differenceInHours(currentTime, lastActivityDate) % 24;
+                                   const minutes = differenceInMinutes(currentTime, lastActivityDate) % 60;
                                    
                                    let timeAgoString = '';
                                    if(days > 0) timeAgoString += `${days} hari `;
