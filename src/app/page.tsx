@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -102,6 +101,27 @@ export default function DashboardPage() {
     setActivityLog(prevLog => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prevLog].slice(0, 10));
   }, []);
 
+  // START - Perbaikan: updateBpStatus tidak lagi di dalam useCallback
+  const updateBpStatus = async () => {
+    const userString = localStorage.getItem('user');
+    if (!userString) return;
+    const currentUserInfo: UserData = JSON.parse(userString);
+    
+    if (!currentUserInfo?.lokasi || !currentUserInfo?.unitBp) return;
+    
+    const statusDocId = `${currentUserInfo.lokasi}_${currentUserInfo.unitBp}`;
+    const statusDocRef = doc(db, 'bp_unit_status', statusDocId);
+    try {
+        await setDoc(statusDocRef, {
+            lastActivity: Timestamp.now(),
+            unit: currentUserInfo.unitBp,
+            location: currentUserInfo.lokasi,
+        }, { merge: true });
+    } catch (error) {
+        console.error("Failed to update BP status:", error);
+    }
+  };
+  // END - Perbaikan
 
   useEffect(() => {
     // Cleanup intervals on unmount
@@ -122,26 +142,6 @@ export default function DashboardPage() {
     };
   }, [isPreviewing]);
 
-  const updateBpStatus = async () => {
-    const userString = localStorage.getItem('user');
-    if (!userString) return;
-    const currentUserInfo: UserData = JSON.parse(userString);
-    
-    if (!currentUserInfo?.lokasi || !currentUserInfo?.unitBp) return;
-    
-    const statusDocId = `${currentUserInfo.lokasi}_${currentUserInfo.unitBp}`;
-    const statusDocRef = doc(db, 'bp_unit_status', statusDocId);
-    try {
-        await setDoc(statusDocRef, {
-            lastActivity: Timestamp.now(),
-            unit: currentUserInfo.unitBp,
-            location: currentUserInfo.lokasi,
-        }, { merge: true });
-    } catch (error) {
-        console.error("Failed to update BP status:", error);
-    }
-  };
-  
   useEffect(() => {
     const userString = localStorage.getItem('user');
     if (!userString) {
@@ -167,16 +167,24 @@ export default function DashboardPage() {
     }
   }, [router, toast]);
   
-   useEffect(() => {
-    if (!userInfo) return;
-    const statusInterval = setInterval(() => {
-      updateBpStatus();
-    }, 300000); // 5 minutes
-
-    return () => {
-      clearInterval(statusInterval);
-    };
+  // START - Perbaikan: useEffect baru untuk pembaruan status berkala
+  useEffect(() => {
+    // Update status if userInfo is available
+    if (userInfo?.lokasi && userInfo?.unitBp) {
+        // Panggil updateBpStatus() sekali saat komponen dimuat
+        updateBpStatus();
+        
+        // Atur interval untuk memanggil updateBpStatus() setiap 5 menit
+        const statusInterval = setInterval(() => {
+            updateBpStatus();
+        }, 300000); // 5 menit
+        
+        // Fungsi cleanup untuk menghentikan interval saat komponen di-unmount
+        return () => clearInterval(statusInterval);
+    }
   }, [userInfo]);
+  // END - Perbaikan
+
 
   useEffect(() => {
     if (isMixing) {
@@ -210,7 +218,7 @@ export default function DashboardPage() {
             clearInterval(intervalsRef.current.get('door')!);
         }
         const doorInterval = setInterval(() => {
-             if (processAbortedRef.current) {
+            if (processAbortedRef.current) {
                 clearInterval(doorInterval);
                 return;
             }
@@ -257,7 +265,7 @@ export default function DashboardPage() {
 
   }, [userInfo, toast]);
   
-   useEffect(() => {
+    useEffect(() => {
     if (activeSchedule) {
       setActiveSchedule(prev => {
         if (!prev) return null;
@@ -551,7 +559,7 @@ export default function DashboardPage() {
     };
     
     const handleManualPour = (material: MaterialName, action: 'start' | 'stop') => {
-         if (action === 'start') {
+          if (action === 'start') {
             updateBpStatus();
             stopSimulation(material); 
             if (action === 'start') {
@@ -677,7 +685,7 @@ export default function DashboardPage() {
 
             if (cementStockDoc.exists() && data.selectedSilo) {
                 const siloKey = `silos.silo-${data.selectedSilo}.stock`;
-                 transaction.update(cementStockRef, {
+                transaction.update(cementStockRef, {
                     [siloKey]: increment(-usage.semen)
                 });
             }
@@ -763,7 +771,7 @@ export default function DashboardPage() {
     localStorage.setItem('user', JSON.stringify(newUserInfo));
     setUserInfo(newUserInfo);
     setIsBpModalOpen(false);
-     if (userInfo.jabatan === 'OPRATOR BP') {
+      if (userInfo.jabatan === 'OPRATOR BP') {
         setIsUnitModalOpen(true);
     }
   }
@@ -835,7 +843,7 @@ export default function DashboardPage() {
                           </SidebarMenuButton>
                       </SidebarMenuItem>
                     ))}
-                 </SidebarMenu>
+                </SidebarMenu>
             </SidebarContent>
         </Sidebar>
         <SidebarInset>
