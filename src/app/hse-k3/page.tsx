@@ -6,12 +6,12 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera } from 'lucide-react';
+import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus } from 'lucide-react';
 import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord } from '@/lib/types';
-import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp } from '@/lib/firebase';
+import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, endOfDay } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
-import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours } from 'date-fns';
+import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,9 +22,11 @@ import HseAttendancePrintLayout from '@/components/hse-attendance-print-layout';
 import HseActivityPrintLayout from '@/components/hse-activity-print-layout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { X } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 
-type ActiveMenu = 'Absensi Harian' | 'Database Absensi' | 'Kegiatan Harian' | 'Database Kegiatan';
+type ActiveMenu = 'Absensi Harian' | 'Database Absensi' | 'Kegiatan Harian' | 'Database Kegiatan' | 'Jumlah Karyawan Hari Ini';
 type CombinedRecord = UserData & { attendance?: AttendanceRecord; overtime?: OvertimeRecord; activities?: ActivityLog[] };
 
 
@@ -33,6 +35,7 @@ const menuItems: { name: ActiveMenu; icon: React.ElementType }[] = [
     { name: 'Database Absensi', icon: Database },
     { name: 'Kegiatan Harian', icon: ClipboardList },
     { name: 'Database Kegiatan', icon: History },
+    { name: 'Jumlah Karyawan Hari Ini', icon: UserPlus },
 ];
 
 const CHECK_IN_DEADLINE = { hours: 7, minutes: 30 };
@@ -345,6 +348,100 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
     )
 }
 
+const EmployeeSummaryComponent = ({ location }: { location: string }) => {
+    const [summary, setSummary] = useState({
+        total: 0,
+        hadir: 0,
+    });
+    const [counts, setCounts] = useState({ ijin: '', alpha: '', sakit: '', cuti: '' });
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (!location) return;
+
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const usersQuery = query(collection(db, 'users'), where('lokasi', '==', location));
+                const usersSnap = await getDocs(usersQuery);
+                const totalKaryawan = usersSnap.docs.length;
+
+                const todayStart = startOfDay(new Date());
+                const attendanceQuery = query(
+                    collection(db, 'absensi'), 
+                    where('checkInLocationName', '==', location),
+                    where('checkInTime', '>=', Timestamp.fromDate(todayStart))
+                );
+                const attendanceSnap = await getDocs(attendanceQuery);
+                
+                const overtimeQuery = query(
+                    collection(db, 'overtime_absensi'), 
+                    where('checkInLocationName', '==', location),
+                    where('checkInTime', '>=', Timestamp.fromDate(todayStart))
+                );
+                const overtimeSnap = await getDocs(overtimeQuery);
+
+                const presentUserIds = new Set([
+                    ...attendanceSnap.docs.map(d => d.data().userId),
+                    ...overtimeSnap.docs.map(d => d.data().userId)
+                ]);
+
+                setSummary({ total: totalKaryawan, hadir: presentUserIds.size });
+            } catch (error) {
+                console.error("Failed to fetch employee summary:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [location]);
+
+    const handleCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setCounts(prev => ({ ...prev, [name]: value }));
+    };
+
+    if (isLoading) {
+        return <div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
+    }
+    
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Jumlah Karyawan Hari Ini</CardTitle>
+                <CardDescription>Ringkasan status kehadiran karyawan di lokasi {location} pada tanggal {format(new Date(), 'dd MMMM yyyy', { locale: localeID })}.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                    <Label>Total Karyawan</Label>
+                    <Input value={`${summary.total} Orang`} disabled className="font-bold text-lg h-12" />
+                </div>
+                <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                    <Label>Karyawan Masuk Hari Ini</Label>
+                    <Input value={`${summary.hadir} Orang`} disabled className="font-bold text-lg h-12" />
+                </div>
+                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                    <Label htmlFor="ijin">Ijin</Label>
+                    <Input id="ijin" name="ijin" type="number" placeholder="0" value={counts.ijin} onChange={handleCountChange} className="text-lg h-12"/>
+                </div>
+                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                    <Label htmlFor="alpha">Alpha</Label>
+                    <Input id="alpha" name="alpha" type="number" placeholder="0" value={counts.alpha} onChange={handleCountChange} className="text-lg h-12"/>
+                </div>
+                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                    <Label htmlFor="sakit">Sakit</Label>
+                    <Input id="sakit" name="sakit" type="number" placeholder="0" value={counts.sakit} onChange={handleCountChange} className="text-lg h-12"/>
+                </div>
+                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                    <Label htmlFor="cuti">Cuti</Label>
+                    <Input id="cuti" name="cuti" type="number" placeholder="0" value={counts.cuti} onChange={handleCountChange} className="text-lg h-12"/>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
 
 export default function HseK3Page() {
   const router = useRouter();
@@ -393,6 +490,8 @@ export default function HseK3Page() {
             return <DailyAttendanceComponent location={userInfo.lokasi} />;
         case 'Kegiatan Harian':
             return <DailyActivitiesComponent location={userInfo.lokasi} />;
+        case 'Jumlah Karyawan Hari Ini':
+            return <EmployeeSummaryComponent location={userInfo.lokasi} />;
         case 'Database Absensi':
              return <Card><CardHeader><CardTitle>Database Absensi</CardTitle><CardDescription>Melihat riwayat kehadiran seluruh karyawan di lokasi {userInfo.lokasi}.</CardDescription></CardHeader><CardContent><p>Konten untuk {activeMenu} sedang dalam pengembangan.</p></CardContent></Card>;
         case 'Database Kegiatan':
