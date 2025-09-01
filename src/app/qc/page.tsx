@@ -695,7 +695,7 @@ const UjiTekanComponent = () => {
             setAllTestResults(resultsFromSessions);
             
             const today = startOfDay(new Date());
-            const testAges = [7, 14, 28];
+            const testAges = [3, 7, 14, 21, 28];
 
             const potentialTests = productions.flatMap(prod => {
                 if (!prod.tanggal || typeof (prod.tanggal as any).toDate !== 'function') return [];
@@ -1172,3 +1172,4 @@ export default function QCPage() {
     </SidebarProvider>
   );
 }
+
