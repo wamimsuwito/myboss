@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio } from 'lucide-react';
 import { db, collection, getDocs, onSnapshot, query, where, Timestamp } from '@/lib/firebase';
 import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData } from '@/lib/types';
-import { format, isAfter, subMinutes } from 'date-fns';
+import { format, isAfter, subMinutes, formatDistanceToNowStrict } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 
 const StatCard = ({ title, value, unit, icon: Icon, description }: { title: string, value: string | number, unit?: string, icon: React.ElementType, description?: string }) => (
@@ -293,19 +293,19 @@ export default function OwnerPage() {
                            {ALL_BP_UNITS.map(unit => {
                                const status = bpStatuses.find((s) => s.unit === unit);
                                const lastActivityDate = status?.lastActivity?.toDate();
-                               const isActive = lastActivityDate ? isAfter(lastActivityDate, subMinutes(currentTime, 30)) : false;
+                               const isActive = lastActivityDate ? isAfter(lastActivityDate, subMinutes(currentTime, 10)) : false;
 
                                let statusText, indicatorColor, isPulsing = false;
 
-                               if (lastActivityDate) {
-                                   if (isActive) {
-                                       statusText = `Aktif pada ${format(lastActivityDate, 'HH:mm:ss')}`;
-                                       indicatorColor = 'bg-green-500';
-                                       isPulsing = true;
-                                   } else {
-                                       statusText = `Terakhir aktif >30 menit lalu`;
-                                       indicatorColor = 'bg-red-500';
-                                   }
+                               if (isActive) {
+                                   statusText = `Aktif pada ${format(lastActivityDate!, 'HH:mm:ss')}`;
+                                   indicatorColor = 'bg-green-500';
+                                   isPulsing = true;
+                               } else if (lastActivityDate) {
+                                   const minutesAgo = Math.round(differenceInMinutes(currentTime, lastActivityDate));
+                                   const roundedMinutes = Math.floor(minutesAgo / 10) * 10;
+                                   statusText = `Terakhir aktif ${roundedMinutes > 0 ? `${roundedMinutes} menit` : 'beberapa saat'} lalu`;
+                                   indicatorColor = 'bg-red-500';
                                } else {
                                     statusText = 'Belum ada aktivitas';
                                     indicatorColor = 'bg-gray-500';
