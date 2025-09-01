@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -370,9 +371,9 @@ export default function OwnerPage() {
                         <StatCard title="Semen Telah Bongkar" value={summary.materialSudahBongkar.semen} unit="KG" icon={Package} />
                         <StatCard title="Pasir Telah Bongkar" value={summary.materialSudahBongkar.pasir} unit="M³" icon={Package} />
                         <StatCard title="Batu Telah Bongkar" value={summary.materialSudahBongkar.batu} unit="M³" icon={Package} />
-                        <StatCard title="Semen Menunggu Bongkar" value={summary.materialMenungguBongkar.semen} unit="Kapal" icon={Ship} />
-                        <StatCard title="Pasir Menunggu Bongkar" value={summary.materialMenungguBongkar.pasir} unit="Kapal" icon={Ship} />
-                        <StatCard title="Batu Menunggu Bongkar" value={summary.materialMenungguBongkar.batu} unit="Kapal" icon={Ship} />
+                        <StatCard title="Semen Sedang Bongkar" value={summary.materialMenungguBongkar.semen} unit="Kapal" icon={Ship} />
+                        <StatCard title="Pasir Sedang Bongkar" value={summary.materialMenungguBongkar.pasir} unit="Kapal" icon={Ship} />
+                        <StatCard title="Batu Sedang Bongkar" value={summary.materialMenungguBongkar.batu} unit="Kapal" icon={Ship} />
                     </div>
                 </div>
                 
