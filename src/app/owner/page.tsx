@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio } from 'lucide-react';
 import { db, collection, getDocs, onSnapshot, query, where, Timestamp } from '@/lib/firebase';
 import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData } from '@/lib/types';
-import { format, isAfter, subMinutes, formatDistanceToNowStrict } from 'date-fns';
+import { format, isAfter, subMinutes, formatDistanceToNowStrict, differenceInMinutes } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 
 const StatCard = ({ title, value, unit, icon: Icon, description }: { title: string, value: string | number, unit?: string, icon: React.ElementType, description?: string }) => (
