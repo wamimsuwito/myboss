@@ -362,25 +362,37 @@ const EmployeeSummaryComponent = ({ location }: { location: string }) => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
+                // Fetch total employees in the location
                 const usersQuery = query(collection(db, 'users'), where('lokasi', '==', location));
                 const usersSnap = await getDocs(usersQuery);
                 const totalKaryawan = usersSnap.docs.length;
+                const userIdsInLocation = usersSnap.docs.map(doc => doc.id);
+
+                if (userIdsInLocation.length === 0) {
+                    setSummary({ total: 0, hadir: 0 });
+                    setIsLoading(false);
+                    return;
+                }
 
                 const todayStart = startOfDay(new Date());
+
+                // Fetch regular attendance for today
                 const attendanceQuery = query(
                     collection(db, 'absensi'), 
-                    where('checkInLocationName', '==', location),
+                    where('userId', 'in', userIdsInLocation),
                     where('checkInTime', '>=', Timestamp.fromDate(todayStart))
                 );
                 const attendanceSnap = await getDocs(attendanceQuery);
                 
+                // Fetch overtime attendance for today
                 const overtimeQuery = query(
                     collection(db, 'overtime_absensi'), 
-                    where('checkInLocationName', '==', location),
+                    where('userId', 'in', userIdsInLocation),
                     where('checkInTime', '>=', Timestamp.fromDate(todayStart))
                 );
                 const overtimeSnap = await getDocs(overtimeQuery);
 
+                // Combine unique user IDs from both attendance types
                 const presentUserIds = new Set([
                     ...attendanceSnap.docs.map(d => d.data().userId),
                     ...overtimeSnap.docs.map(d => d.data().userId)
