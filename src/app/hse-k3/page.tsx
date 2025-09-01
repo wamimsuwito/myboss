@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus } from 'lucide-react';
+import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus, MapPin } from 'lucide-react';
 import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord } from '@/lib/types';
 import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, endOfDay } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
@@ -554,6 +554,7 @@ export default function HseK3Page() {
                                   <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
                                       <span className="flex items-center gap-1.5"><Fingerprint size={14}/>{userInfo.nik}</span>
                                       <span className="flex items-center gap-1.5"><Briefcase size={14}/>{userInfo.jabatan}</span>
+                                      <span className="flex items-center gap-1.5"><MapPin size={14}/>{userInfo.lokasi}</span>
                                   </div>
                               </div>
                             </div>
