@@ -1065,4 +1065,3 @@ export default function QCPage() {
   );
 }
 
-    
