@@ -512,6 +512,7 @@ export default function DashboardPage() {
 
     const handleManualWeigh = (material: MaterialName, action: 'start' | 'stop') => {
         if (action === 'start') {
+            updateBpStatus();
             stopSimulation(material); 
 
             const intervalId = setInterval(() => {
@@ -537,6 +538,7 @@ export default function DashboardPage() {
     
     const handleManualPour = (material: MaterialName, action: 'start' | 'stop') => {
          if (action === 'start') {
+            updateBpStatus();
             stopSimulation(material); 
             if (action === 'start') {
                 setPouringMaterials(prev => [...prev, material]);
