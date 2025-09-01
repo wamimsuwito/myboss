@@ -388,7 +388,8 @@ const PembuatanBendaUjiComponent = () => {
     
     const jobsWithSamples = useMemo(() => {
         return schedules.map(sched => {
-            const relatedSamples = sampleRecords.filter(s => s.scheduleId === sched.id);
+            const productionId = `${sched.NO}-${sched.LOKASI}-${sched.GRADE}`;
+            const relatedSamples = sampleRecords.filter(s => s.productionId === productionId);
             const totalSamples = relatedSamples.reduce((sum, s) => sum + s.jumlahSample, 0);
             return {
                 ...sched,
@@ -476,15 +477,6 @@ const PembuatanBendaUjiComponent = () => {
 };
 
 
-const inspectionItems = [
-    { id: 'phAir', label: 'PH Air' },
-    { id: 'suhuAir', label: 'Suhu Air' },
-    { id: 'tdsAir', label: 'TDS Air' },
-    { id: 'kadarLumpurPasir', label: 'Kadar Lumpur Pasir' },
-    { id: 'kadarLumpurBatu', label: 'Kadar Lumpur Batu' },
-    { id: 'zonaPasir', label: 'Zona Pasir' },
-];
-
 const InspeksiHarianComponent = () => {
     const { toast } = useToast();
     const [history, setHistory] = useState<DailyQCInspection[]>([]);
@@ -557,6 +549,15 @@ const InspeksiHarianComponent = () => {
             setIsSubmitting(false);
         }
     };
+    
+    const inspectionItems = [
+        { id: 'phAir', label: 'PH Air' },
+        { id: 'suhuAir', label: 'Suhu Air' },
+        { id: 'tdsAir', label: 'TDS Air' },
+        { id: 'kadarLumpurPasir', label: 'Kadar Lumpur Pasir' },
+        { id: 'kadarLumpurBatu', label: 'Kadar Lumpur Batu' },
+        { id: 'zonaPasir', label: 'Zona Pasir' },
+    ];
 
     return (
         <div className="space-y-6">
@@ -678,6 +679,15 @@ const RiwayatInspeksiHarianComponent = () => {
         });
         return () => unsubscribe();
     }, [userInfo?.lokasi, toast]);
+
+    const inspectionItems = [
+        { id: 'phAir', label: 'PH Air' },
+        { id: 'suhuAir', label: 'Suhu Air' },
+        { id: 'tdsAir', label: 'TDS Air' },
+        { id: 'kadarLumpurPasir', label: 'Kadar Lumpur Pasir' },
+        { id: 'kadarLumpurBatu', label: 'Kadar Lumpur Batu' },
+        { id: 'zonaPasir', label: 'Zona Pasir' },
+    ];
 
     return (
          <div className="space-y-6">
@@ -818,7 +828,6 @@ const UjiTekanComponent = () => {
                     acc[key] = {
                         ...test,
                         productionIds: new Set([test.id]),
-                        scheduleId: test.jobId,
                     };
                 } else {
                     if (!acc[key].productionIds.has(test.id)) {
@@ -830,7 +839,7 @@ const UjiTekanComponent = () => {
 
             const finalSchedule = Object.values(grouped).map(group => {
                  const totalSpecimensForJob = sampleRecords
-                    .filter(s => s.scheduleId === group.scheduleId)
+                    .filter(s => s.productionId === group.id)
                     .reduce((sum, s) => sum + s.jumlahSample, 0);
 
                  const testsDoneForGroup = resultsFromSessions.filter(r => group.productionIds.has(r.productionId)).length;
