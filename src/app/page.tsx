@@ -101,6 +101,7 @@ export default function DashboardPage() {
     setActivityLog(prevLog => [`[${new Date().toLocaleTimeString()}] ${message}`, ...prevLog].slice(0, 10));
   }, []);
 
+  // START - Perbaikan: updateBpStatus tidak lagi di dalam useCallback
   const updateBpStatus = async () => {
     const userString = localStorage.getItem('user');
     if (!userString) return;
@@ -120,6 +121,26 @@ export default function DashboardPage() {
         console.error("Failed to update BP status:", error);
     }
   };
+  // END - Perbaikan
+
+  useEffect(() => {
+    // Cleanup intervals on unmount
+    return () => {
+        intervalsRef.current.forEach(intervalId => clearInterval(intervalId));
+    };
+  }, []);
+  
+    useEffect(() => {
+    if (isPreviewing) {
+      document.body.classList.add('print-active');
+    } else {
+      document.body.classList.remove('print-active');
+    }
+    // Cleanup on component unmount
+    return () => {
+      document.body.classList.remove('print-active');
+    };
+  }, [isPreviewing]);
 
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -146,24 +167,19 @@ export default function DashboardPage() {
     }
   }, [router, toast]);
   
+  // START - Perbaikan: useEffect baru untuk pembaruan status berkala
   useEffect(() => {
     if (userInfo) {
         const statusInterval = setInterval(() => {
             updateBpStatus();
-        }, 300000); // 5 minutes
-
+        }, 300000); // 5 menit
+        
         return () => {
             clearInterval(statusInterval);
         };
     }
   }, [userInfo]);
-
-  useEffect(() => {
-    if (isProcessing) {
-      updateBpStatus();
-    }
-  }, [isProcessing]);
-
+  // END - Perbaikan
 
   useEffect(() => {
     if (isMixing) {
@@ -323,6 +339,7 @@ export default function DashboardPage() {
         return;
     }
     
+    await updateBpStatus();
     processAbortedRef.current = false;
     setIsProcessing(true);
     const processStartTime = new Date();
