@@ -123,6 +123,25 @@ export default function DashboardPage() {
     };
   }, [isPreviewing]);
 
+  const updateBpStatus = useCallback(async () => {
+    const userString = localStorage.getItem('user');
+    if (!userString) return;
+    const userData = JSON.parse(userString);
+    if (!userData.lokasi || !userData.unitBp) return;
+    
+    const statusDocId = `${userData.lokasi}_${userData.unitBp}`;
+    const statusDocRef = doc(db, 'bp_unit_status', statusDocId);
+    try {
+        await setDoc(statusDocRef, {
+            lastActivity: Timestamp.now(),
+            unit: userData.unitBp,
+            location: userData.lokasi,
+        }, { merge: true });
+    } catch (error) {
+        console.error("Failed to update BP status:", error);
+    }
+  }, []);
+
 
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -147,22 +166,17 @@ export default function DashboardPage() {
     } else if (userData.jabatan === 'OPRATOR BP' && !userData.unitBp) {
         setIsUnitModalOpen(true);
     }
-  }, [router, toast]);
 
-  const updateBpStatus = async () => {
-    if (!userInfo?.lokasi || !userInfo?.unitBp) return;
-    const statusDocId = `${userInfo.lokasi}_${userInfo.unitBp}`;
-    const statusDocRef = doc(db, 'bp_unit_status', statusDocId);
-    try {
-        await setDoc(statusDocRef, {
-            lastActivity: Timestamp.now(),
-            unit: userInfo.unitBp,
-            location: userInfo.lokasi,
-        }, { merge: true });
-    } catch (error) {
-        console.error("Failed to update BP status:", error);
-    }
-  };
+    // Periodically update status to keep it "active"
+    const statusInterval = setInterval(() => {
+      updateBpStatus();
+    }, 300000); // 5 minutes
+
+    return () => {
+      clearInterval(statusInterval);
+    };
+
+  }, [router, toast, updateBpStatus]);
 
   useEffect(() => {
     if (isMixing) {
@@ -916,4 +930,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
 
