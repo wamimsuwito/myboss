@@ -666,8 +666,6 @@ const UjiTekanComponent = () => {
     const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
     const [sessionForPrint, setSessionForPrint] = useState<any>(null);
 
-    const TOTAL_INITIAL_SPECIMENS = 9;
-
     const getDate = (timestamp: any): Date => {
         if (timestamp && typeof timestamp.toDate === 'function') {
           return timestamp.toDate();
@@ -681,15 +679,17 @@ const UjiTekanComponent = () => {
             const productionsRef = collection(db, "productions");
             const testsRef = collection(db, "test_sessions");
             const completedTestsRef = collection(db, "completed_qc_tests");
+            const samplesRef = collection(db, "benda_uji");
 
-            const [productionsSnapshot, testsSnapshot, completedTestsSnapshot] = await Promise.all([
+            const [productionsSnapshot, testsSnapshot, completedTestsSnapshot, samplesSnapshot] = await Promise.all([
                 getDocs(productionsRef),
                 getDocs(testsRef),
-                getDocs(completedTestsRef)
+                getDocs(completedTestsRef),
+                getDocs(samplesRef),
             ]);
             
             const completedTests = completedTestsSnapshot.docs.map(doc => doc.data());
-
+            const sampleRecords = samplesSnapshot.docs.map(doc => doc.data() as BendaUji);
             const productions = productionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ProductionData);
             const resultsFromSessions = testsSnapshot.docs.flatMap(doc => (doc.data().results || []).map((r: any) => ({ ...r, sessionId: doc.id })));
             setAllTestResults(resultsFromSessions);
@@ -725,20 +725,23 @@ const UjiTekanComponent = () => {
                     acc[key] = {
                         ...test,
                         productionIds: new Set([test.id]),
-                        totalSpecimens: TOTAL_INITIAL_SPECIMENS
+                        scheduleId: test.jobId,
                     };
                 } else {
                     if (!acc[key].productionIds.has(test.id)) {
                         acc[key].productionIds.add(test.id);
-                        acc[key].totalSpecimens += TOTAL_INITIAL_SPECIMENS;
                     }
                 }
                 return acc;
             }, {} as Record<string, any>);
 
             const finalSchedule = Object.values(grouped).map(group => {
+                 const totalSpecimensForJob = sampleRecords
+                    .filter(s => s.scheduleId === group.scheduleId)
+                    .reduce((sum, s) => sum + s.jumlahSample, 0);
+
                  const testsDoneForGroup = resultsFromSessions.filter(r => group.productionIds.has(r.productionId)).length;
-                 const remainingSpecimens = group.totalSpecimens - testsDoneForGroup;
+                 const remainingSpecimens = totalSpecimensForJob - testsDoneForGroup;
                  const ageInDays = differenceInDays(today, group.tanggal);
 
                  if (remainingSpecimens > 0 && testAges.includes(ageInDays)) {
@@ -766,7 +769,7 @@ const UjiTekanComponent = () => {
         document.body.classList.add('print-active');
       } else {
         document.body.classList.remove('print-active');
-      }
+      };
       return () => {
         document.body.classList.remove('print-active');
       };
@@ -1170,3 +1173,6 @@ export default function QCPage() {
   );
 }
 
+
+
+    
