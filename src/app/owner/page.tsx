@@ -8,9 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio } from 'lucide-react';
-import { db, collection, getDocs, onSnapshot, query, where, Timestamp } from '@/lib/firebase';
-import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData } from '@/lib/types';
-import { format, isAfter, subMinutes, differenceInMinutes, differenceInHours, differenceInDays } from 'date-fns';
+import { db, collection, getDocs, onSnapshot, query, where, Timestamp, orderBy, limit } from '@/lib/firebase';
+import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji } from '@/lib/types';
+import { format, isAfter, subMinutes, differenceInMinutes, differenceInHours, differenceInDays, startOfToday } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 
 const StatCard = ({ title, value, unit, icon: Icon, description }: { title: string, value: string | number, unit?: string, icon: React.ElementType, description?: string }) => (
@@ -49,7 +49,16 @@ interface SummaryData {
     manPower: { total: number; masuk: number; ijin: number; alpha: number; sakit: number; cuti: number };
     armada: { total: number; rusak: { [key: string]: number }; baik: { [key: string]: number } };
     materialSedangBongkar: any[];
-    qc: { phAir: string; suhuAir: string; kadarLumpur: string; kadarOrganik: string; zona: string; bendaUji: number };
+    qc: {
+        phAir: string;
+        suhuAir: string;
+        kadarLumpurPasir: string;
+        kadarLumpurBatu: string;
+        tdsAir: string;
+        kadarOrganik: string;
+        zona: string;
+        bendaUji: number;
+    };
 }
 
 
@@ -74,7 +83,7 @@ export default function OwnerPage() {
         manPower: { total: 0, masuk: 0, ijin: 0, alpha: 0, sakit: 0, cuti: 0 },
         armada: { total: 0, rusak: {}, baik: {} },
         materialSedangBongkar: [],
-        qc: { phAir: 'N/A', suhuAir: 'N/A', kadarLumpur: 'N/A', kadarOrganik: 'N/A', zona: 'N/A', bendaUji: 0 },
+        qc: { phAir: 'N/A', suhuAir: 'N/A', kadarLumpurPasir: 'N/A', kadarLumpurBatu: 'N/A', tdsAir: 'N/A', kadarOrganik: 'N/A', zona: 'N/A', bendaUji: 0 },
     });
 
     useEffect(() => {
@@ -128,7 +137,7 @@ export default function OwnerPage() {
             manPower: { total: 0, masuk: 0, ijin: 0, alpha: 0, sakit: 0, cuti: 0 },
             armada: { total: 0, rusak: {}, baik: {} },
             materialSedangBongkar: [],
-            qc: { phAir: 'N/A', suhuAir: 'N/A', kadarLumpur: 'N/A', kadarOrganik: 'N/A', zona: 'N/A', bendaUji: 0 },
+            qc: { phAir: 'N/A', suhuAir: 'N/A', kadarLumpurPasir: 'N/A', kadarLumpurBatu: 'N/A', tdsAir: 'N/A', kadarOrganik: 'N/A', zona: 'N/A', bendaUji: 0 },
         });
     }, []);
 
@@ -138,7 +147,7 @@ export default function OwnerPage() {
         resetSummary();
 
         const unsubscribers: (() => void)[] = [];
-        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const todayStart = startOfToday();
 
         // Listener for BP Status (REAL-TIME)
         const statusQuery = query(collection(db, 'bp_unit_status'), where('location', '==', selectedLocation));
@@ -170,7 +179,7 @@ export default function OwnerPage() {
             }));
         }, (error) => console.error("Error fetching schedules:", error)));
         
-        const pemasukanQuery = query(collection(db, 'arsip_pemasukan_material_semua'), where('timestamp', '>=', new Date(todayStr).toISOString()));
+        const pemasukanQuery = query(collection(db, 'arsip_pemasukan_material_semua'), where('timestamp', '>=', todayStart.toISOString()));
         unsubscribers.push(onSnapshot(pemasukanQuery, (snapshot) => {
             const materialSudahBongkar = { semen: 0, pasir: 0, batu: 0 };
             snapshot.docs.forEach(doc => {
@@ -203,7 +212,7 @@ export default function OwnerPage() {
         const alatUnsub = onSnapshot(alatQuery, (alatSnapshot) => {
             const alatData = alatSnapshot.docs.map(doc => doc.data() as AlatData);
             
-            const reportsQuery = query(collection(db, 'checklist_reports'), where('timestamp', '>=', Timestamp.fromDate(new Date(todayStr))));
+            const reportsQuery = query(collection(db, 'checklist_reports'), where('timestamp', '>=', Timestamp.fromDate(todayStart)));
              const reportsUnsub = onSnapshot(reportsQuery, (reportSnapshot) => {
                 const reportsToday = reportSnapshot.docs.map(doc => doc.data() as Report).filter(r => r.location === selectedLocation);
                 const rusak: { [key: string]: number } = {};
@@ -225,6 +234,31 @@ export default function OwnerPage() {
             unsubscribers.push(reportsUnsub);
         }, (error) => console.error("Error fetching alat:", error));
         unsubscribers.push(alatUnsub);
+        
+        const dailyQcQuery = query(collection(db, "daily_qc_inspections"), where('location', '==', selectedLocation), orderBy('createdAt', 'desc'), limit(1));
+        unsubscribers.push(onSnapshot(dailyQcQuery, (snapshot) => {
+             if (!snapshot.empty) {
+                const latestReport = snapshot.docs[0].data() as DailyQCInspection;
+                setSummary(prev => ({
+                    ...prev,
+                    qc: {
+                        ...prev.qc,
+                        phAir: latestReport.items.phAir?.value || 'N/A',
+                        suhuAir: latestReport.items.suhuAir?.value || 'N/A',
+                        kadarLumpurPasir: latestReport.items.kadarLumpurPasir?.value || 'N/A',
+                        kadarLumpurBatu: latestReport.items.kadarLumpurBatu?.value || 'N/A',
+                        tdsAir: latestReport.items.tdsAir?.value || 'N/A',
+                        zona: latestReport.items.zonaPasir?.value || 'N/A',
+                    }
+                }));
+            }
+        }));
+
+        const bendaUjiQuery = query(collection(db, "benda_uji"), where('createdAt', '>=', Timestamp.fromDate(todayStart)));
+        unsubscribers.push(onSnapshot(bendaUjiQuery, (snapshot) => {
+            const totalBendaUji = snapshot.docs.reduce((sum, doc) => sum + (doc.data() as BendaUji).jumlahSample, 0);
+            setSummary(prev => ({ ...prev, qc: { ...prev.qc, bendaUji: totalBendaUji } }));
+        }));
 
 
         setIsLoading(false);
@@ -359,10 +393,11 @@ export default function OwnerPage() {
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                             <StatCard title="pH Air" value={summary.qc.phAir} icon={Droplets}/>
                             <StatCard title="Suhu Air" value={summary.qc.suhuAir} unit="°C" icon={Thermometer}/>
-                            <StatCard title="Kadar Lumpur" value={summary.qc.kadarLumpur} unit="%" icon={TestTube}/>
-                            <StatCard title="Kadar Organik" value={summary.qc.kadarOrganik} unit="%" icon={TestTube}/>
+                            <StatCard title="TDS Air" value={summary.qc.tdsAir} unit="ppm" icon={TestTube}/>
+                            <StatCard title="Kadar Lumpur Pasir" value={summary.qc.kadarLumpurPasir} unit="%" icon={TestTube}/>
+                            <StatCard title="Kadar Lumpur Batu" value={summary.qc.kadarLumpurBatu} unit="%" icon={TestTube}/>
                             <StatCard title="Zona Pasir" value={summary.qc.zona} icon={TestTube}/>
-                            <StatCard title="Benda Uji" value={summary.qc.bendaUji} unit="buah" icon={ClipboardList}/>
+                            <StatCard title="Benda Uji Hari Ini" value={summary.qc.bendaUji} unit="buah" icon={ClipboardList}/>
                         </div>
                     </div>
                  </div>
