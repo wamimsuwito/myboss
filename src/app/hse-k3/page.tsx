@@ -1,4 +1,3 @@
-
 'use client';
 
 import * as React from 'react';
@@ -29,6 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 
 type ActiveMenu = 'Absensi Harian' | 'Database Absensi' | 'Kegiatan Harian' | 'Database Kegiatan' | 'Jumlah Karyawan Hari Ini';
@@ -106,7 +106,7 @@ const DailyAttendanceComponent = ({ users, location }: { users: CombinedRecord[]
             <Card>
                 <CardHeader>
                     <CardTitle className='flex justify-between items-center'>
-                        <span>Daftar Absensi & Kegiatan Harian</span>
+                        <span>Daftar Absensi &amp; Kegiatan Harian</span>
                         <div className="flex items-center gap-4">
                             <Badge variant="outline">{format(new Date(), "EEEE, dd MMMM yyyy", { locale: localeID })}</Badge>
                             <Button variant="outline" onClick={() => printElement('hse-print-area')}>
@@ -164,19 +164,19 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
             const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
             results = results.filter(item => {
                 const itemDate = toValidDate(item.checkInTime);
-                return itemDate && isWithinInterval(itemDate, { start: fromDate, end: toDate });
+                return itemDate &amp;&amp; isWithinInterval(itemDate, { start: fromDate, end: toDate });
             });
         }
         
         if (userFilter) {
              results = results.filter(item => 
-                item.username.toLowerCase().includes(userFilter.toLowerCase())
+                item.username.toLowerCase().includes(userFilter.toLowerCase()) || (users.find(u => u.id === item.userId)?.nik.toLowerCase().includes(userFilter.toLowerCase()))
              );
         }
         
         const combined = results.map(att => {
             const user = users.find(u => u.id === att.userId);
-            const overtime = allOvertime.find(ovt => ovt.userId === att.userId && toValidDate(ovt.checkInTime) && toValidDate(att.checkInTime) && isSameDay(toValidDate(ovt.checkInTime)!, toValidDate(att.checkInTime)!));
+            const overtime = allOvertime.find(ovt => ovt.userId === att.userId &amp;&amp; toValidDate(ovt.checkInTime) &amp;&amp; toValidDate(att.checkInTime) &amp;&amp; isSameDay(toValidDate(ovt.checkInTime)!, toValidDate(att.checkInTime)!));
             return {
                 ...user,
                 ...att,
@@ -194,7 +194,7 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
         <>
         <div className="hidden">
             <div id="history-print-area">
-                <AttendanceHistoryPrintLayout records={filteredRecords as any} period={dateRange} />
+                <AttendanceHistoryPrintLayout records={filteredRecords as any} period={dateRange} summary={{totalHariKerja: 0, totalJamLembur: 0, totalMenitTerlambat: 0, totalHariAbsen: 0}} />
             </div>
         </div>
         <Card>
@@ -205,14 +205,14 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
             <CardContent>
                 <div className="flex flex-wrap gap-2 items-center mb-4">
                     <Input 
-                        placeholder="Cari nama karyawan..."
+                        placeholder="Cari nama karyawan atau NIK..."
                         value={userFilter}
                         onChange={(e) => setUserFilter(e.target.value)}
                         className="w-full sm:w-auto"
                     />
                     <Popover>
                         <PopoverTrigger asChild>
-                            <Button id="date" variant={"outline"} className={cn("w-full sm:w-[280px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
+                            <Button id="date" variant={"outline"} className={cn("w-full sm:w-[280px] justify-start text-left font-normal", !dateRange &amp;&amp; "text-muted-foreground")}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}
                             </Button>
@@ -221,7 +221,7 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
                             <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
                         </PopoverContent>
                     </Popover>
-                    <Button variant="ghost" onClick={() => {setDateRange(undefined); setUserFilter('')}} disabled={!dateRange && !userFilter}><FilterX className="mr-2 h-4 w-4"/>Reset</Button>
+                    <Button variant="ghost" onClick={() => {setDateRange(undefined); setUserFilter('')}} disabled={!dateRange &amp;&amp; !userFilter}><FilterX className="mr-2 h-4 w-4"/>Reset</Button>
                     <Button variant="outline" className="ml-auto" onClick={() => printElement('history-print-area')} disabled={filteredRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak Hasil</Button>
                 </div>
                 <AttendanceTable records={filteredRecords}/>
@@ -260,12 +260,12 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
             const unsubActivities = onSnapshot(activitiesQuery, (actSnapshot) => {
                 const activitiesData = actSnapshot.docs
                     .map(d => d.data() as ActivityLog)
-                    .filter(r => r.createdAt && isAfter(toValidDate(r.createdAt)!, dataStartTime));
+                    .filter(r => r.createdAt &amp;&amp; isAfter(toValidDate(r.createdAt)!, dataStartTime));
 
                 const finalData = usersData.map(user => ({
                     ...user,
                     activities: activitiesData.filter(a => a.userId === user.id).sort((a,b) => toValidDate(a.createdAt)!.getTime() - toValidDate(b.createdAt)!.getTime())
-                })).filter(u => u.activities && u.activities.length > 0);
+                })).filter(u => u.activities &amp;&amp; u.activities.length > 0);
 
                 setCombinedData(finalData);
                 setIsDataLoading(false);
@@ -314,12 +314,12 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
                         <Table>
                             <TableHeader><TableRow><TableHead>No</TableHead><TableHead>Nama/NIK</TableHead><TableHead>Jabatan</TableHead><TableHead className='w-[30%]'>Deskripsi Kegiatan</TableHead><TableHead className='text-center'>Sebelum</TableHead><TableHead className='text-center'>Proses</TableHead><TableHead className='text-center'>Sesudah</TableHead><TableHead className='text-center'>Durasi</TableHead></TableRow></TableHeader>
                             <TableBody>
-                            {combinedData.length > 0 ? combinedData.flatMap((user, userIndex) => 
-                                (user.activities && user.activities.length > 0) ? user.activities.map((activity, activityIndex) => (
+                            {combinedData.length &gt; 0 ? combinedData.flatMap((user, userIndex) => 
+                                (user.activities &amp;&amp; user.activities.length &gt; 0) ? user.activities.map((activity, activityIndex) => (
                                     <TableRow key={`${user.id}-${activity.id}`}>
-                                        {activityIndex === 0 && <TableCell rowSpan={user.activities?.length}>{userIndex + 1}</TableCell>}
-                                        {activityIndex === 0 && <TableCell rowSpan={user.activities?.length} className="align-top"><p className='font-semibold'>{user.username}</p><p className='text-xs text-muted-foreground'>{user.nik}</p></TableCell>}
-                                        {activityIndex === 0 && <TableCell rowSpan={user.activities?.length} className="align-top">{user.jabatan}</TableCell>}
+                                        {activityIndex === 0 &amp;&amp; <TableCell rowSpan={user.activities?.length}>{userIndex + 1}</TableCell>}
+                                        {activityIndex === 0 &amp;&amp; <TableCell rowSpan={user.activities?.length} className="align-top"><p className='font-semibold'>{user.username}</p><p className='text-xs text-muted-foreground'>{user.nik}</p></TableCell>}
+                                        {activityIndex === 0 &amp;&amp; <TableCell rowSpan={user.activities?.length} className="align-top">{user.jabatan}</TableCell>}
                                         <TableCell className="align-top text-xs">{activity.description}</TableCell>
                                         <TableCell className='text-center align-top'><PhotoViewer photoUrl={activity.photoInitial} timestamp={activity.createdAt} /></TableCell>
                                         <TableCell className='text-center align-top'><PhotoViewer photoUrl={activity.photoInProgress} timestamp={activity.timestampInProgress} /></TableCell>
@@ -338,6 +338,66 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
             </Card>
         </>
     )
+}
+
+const ActivityHistoryComponent = ({ allActivities, users, location }: { allActivities: ActivityLog[], users: UserData[], location: string }) => {
+    const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: subDays(new Date(), 7), to: new Date() });
+    
+    const calculateDuration = (start: any, end: any): string => {
+        if (!start || !end) return '-';
+        const startDate = toValidDate(start);
+        const endDate = toValidDate(end);
+        if (!startDate || !endDate) return '-';
+        return formatDistanceStrict(endDate, startDate, { locale: localeID });
+    };
+
+    const getStatusBadge = (status: string) => {
+        switch (status) { case 'completed': return <Badge className="bg-green-100 text-green-800">Selesai</Badge>; case 'in_progress': return <Badge className="bg-blue-100 text-blue-800">Proses</Badge>; case 'pending': return <Badge className="bg-yellow-100 text-yellow-800">Menunggu</Badge>; default: return <Badge>{status}</Badge>; }
+    };
+    
+    const filteredActivities = useMemo(() => {
+        let results = allActivities.filter(act => users.some(u => u.id === act.userId));
+
+        if (dateRange?.from) {
+            const fromDate = startOfDay(dateRange.from);
+            const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+            results = results.filter(item => {
+                const itemDate = toValidDate(item.createdAt);
+                return itemDate &amp;&amp; isWithinInterval(itemDate, { start: fromDate, end: toDate });
+            });
+        }
+        return results;
+    }, [allActivities, users, dateRange]);
+    
+     const groupedActivities = useMemo(() => {
+        return filteredActivities.reduce((acc, activity) => {
+            const key = activity.username;
+            if (!acc[key]) { acc[key] = []; }
+            acc[key].push(activity);
+            return acc;
+        }, {} as Record<string, ActivityLog[]>);
+    }, [filteredActivities]);
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Database Kegiatan</CardTitle>
+                <CardDescription>Cari dan lihat riwayat kegiatan seluruh karyawan di lokasi Anda.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex items-center gap-2 mb-4">
+                    <Popover><PopoverTrigger asChild><Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal", !dateRange &amp;&amp; "text-muted-foreground")}><CalendarIcon className="mr-2 h-4 w-4" />{dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="range" selected={dateRange} onSelect={setDateRange} numberOfMonths={2}/></PopoverContent></Popover>
+                    <Button variant="ghost" size="icon" onClick={() => setDateRange(undefined)} disabled={!dateRange}><FilterX /></Button>
+                    <Button variant="outline" className="ml-auto" onClick={() => {/* TODO: Print logic */}} disabled={filteredActivities.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak Hasil</Button>
+                </div>
+                <Accordion type="single" collapsible className="w-full">{Object.keys(groupedActivities).length &gt; 0 ? Object.entries(groupedActivities).map(([username, activities]) => (
+                    <AccordionItem value={username} key={username}><AccordionTrigger><div className='flex items-center justify-between w-full'><div className="flex items-center gap-3 text-left"><p className="font-semibold text-sm">{username}</p></div></div></AccordionTrigger>
+                        <AccordionContent className="pl-4"><div className="space-y-3 p-2 bg-muted/30 rounded-md">{activities.map(activity => (<div key={activity.id} className="p-3 border rounded-md bg-background"><div className="flex justify-between items-start"><div><p className="text-sm text-muted-foreground">{activity.description}</p><div className="text-xs text-muted-foreground space-y-1 mt-1"><p className="flex items-center gap-2"><Clock size={14}/>Target: {safeFormatTimestamp(activity.targetTimestamp, 'dd MMM, HH:mm')}</p></div></div>{getStatusBadge(activity.status)}</div><div className="grid grid-cols-3 gap-2 pt-3 mt-3 border-t"><PhotoViewer photoUrl={activity.photoInitial} timestamp={activity.createdAt} /><PhotoViewer photoUrl={activity.photoInProgress} timestamp={activity.timestampInProgress} /><PhotoViewer photoUrl={activity.photoCompleted} timestamp={activity.timestampCompleted} /></div></div>))}</div></AccordionContent>
+                    </AccordionItem>
+                )) : <div className="text-center py-10 text-muted-foreground">Tidak ada aktivitas pada periode ini.</div>}</Accordion>
+            </CardContent>
+        </Card>
+    );
 }
 
 const EmployeeSummaryComponent = ({ usersInLocation }: { usersInLocation: UserData[] }) => {
@@ -455,14 +515,15 @@ const EmployeeSummaryComponent = ({ usersInLocation }: { usersInLocation: UserDa
 export default function HseK3Page() {
   const router = useRouter();
   const { toast } = useToast();
-  const [userInfo, setUserInfo] = useState<UserData | null>(null);
+  const [userInfo, setUserInfo] = useState&lt;UserData | null&gt;(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Absensi Harian');
+  const [activeMenu, setActiveMenu] = useState&lt;ActiveMenu&gt;('Absensi Harian');
 
-  const [allUsers, setAllUsers] = useState<UserData[]>([]);
-  const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
-  const [allOvertime, setAllOvertime] = useState<OvertimeRecord[]>([]);
-  const [allProductions, setAllProductions] = useState<ProductionData[]>([]);
+  const [allUsers, setAllUsers] = useState&lt;UserData[]&gt;([]);
+  const [allAttendance, setAllAttendance] = useState&lt;AttendanceRecord[]&gt;([]);
+  const [allOvertime, setAllOvertime] = useState&lt;OvertimeRecord[]&gt;([]);
+  const [allProductions, setAllProductions] = useState&lt;ProductionData[]&gt;([]);
+  const [allActivities, setAllActivities] = useState&lt;ActivityLog[]&gt;([]);
 
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -491,13 +552,11 @@ export default function HseK3Page() {
 
    const combinedDataToday = useMemo(() => {
         if (!userInfo?.lokasi) return [];
-
         const todayStart = startOfToday();
-        
         return usersInLocation.map(user => {
-            const attendance = allAttendance.find(rec => rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, todayStart));
-            const overtime = allOvertime.find(rec => rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, todayStart));
-            const productions = allProductions.filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase() && toValidDate(p.tanggal) && isSameDay(toValidDate(p.tanggal)!, todayStart))
+            const attendance = allAttendance.find(rec => rec.userId === user.id &amp;&amp; toValidDate(rec.checkInTime) &amp;&amp; isSameDay(toValidDate(rec.checkInTime)!, todayStart));
+            const overtime = allOvertime.find(rec => rec.userId === user.id &amp;&amp; toValidDate(rec.checkInTime) &amp;&amp; isSameDay(toValidDate(rec.checkInTime)!, todayStart));
+            const productions = allProductions.filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase() &amp;&amp; toValidDate(p.tanggal) &amp;&amp; isSameDay(toValidDate(p.tanggal)!, todayStart))
                 .sort((a,b) => parseISO(a.jamMulai).getTime() - parseISO(b.jamMulai).getTime());
 
             return {
@@ -507,19 +566,19 @@ export default function HseK3Page() {
                 productions,
             }
         }).filter(u => u.attendance || u.overtime);
-
     }, [usersInLocation, allAttendance, allOvertime, allProductions, userInfo?.lokasi]);
 
 
   useEffect(() => {
     if (!userInfo) return;
 
-    const unsubscribers: (()=>void)[] = [];
+    const unsubscribers: (()=&gt;void)[] = [];
     
     unsubscribers.push(onSnapshot(collection(db, 'users'), (snap) => setAllUsers(snap.docs.map(d => ({id: d.id, ...d.data()}) as UserData))));
     unsubscribers.push(onSnapshot(collection(db, 'absensi'), (snap) => setAllAttendance(snap.docs.map(d => ({id: d.id, ...d.data()}) as AttendanceRecord))));
     unsubscribers.push(onSnapshot(collection(db, 'overtime_absensi'), (snap) => setAllOvertime(snap.docs.map(d => ({id: d.id, ...d.data()}) as OvertimeRecord))));
     unsubscribers.push(onSnapshot(collection(db, 'productions'), (snap) => setAllProductions(snap.docs.map(d => ({id: d.id, ...d.data()}) as ProductionData))));
+    unsubscribers.push(onSnapshot(query(collection(db, 'kegiatan_harian'), orderBy('createdAt', 'desc')), (snap) => setAllActivities(snap.docs.map(d => ({id: d.id, ...d.data()}) as ActivityLog))));
 
     return () => unsubscribers.forEach(unsub => unsub());
   }, [userInfo]);
@@ -541,78 +600,76 @@ export default function HseK3Page() {
   const renderContent = () => {
     switch (activeMenu) {
         case 'Absensi Harian':
-            return <DailyAttendanceComponent users={combinedDataToday} location={userInfo.lokasi} />;
+            return &lt;DailyAttendanceComponent users={combinedDataToday} location={userInfo.lokasi} /&gt;;
         case 'Database Absensi':
-            return <AttendanceHistoryComponent users={usersInLocation} allAttendance={allAttendance} allOvertime={allOvertime} />;
+            return &lt;AttendanceHistoryComponent users={usersInLocation} allAttendance={allAttendance} allOvertime={allOvertime} /&gt;;
         case 'Kegiatan Harian':
-            return <DailyActivitiesComponent location={userInfo.lokasi} />;
+            return &lt;DailyActivitiesComponent location={userInfo.lokasi} /&gt;;
         case 'Database Kegiatan':
-             return <Card><CardHeader><CardTitle>Database Kegiatan Harian</CardTitle><CardDescription>Melihat semua riwayat laporan kegiatan dari karyawan di lokasi {userInfo.lokasi}.</CardDescription></CardHeader><CardContent><p>Konten untuk {activeMenu} sedang dalam pengembangan.</p></CardContent></Card>;
+             return &lt;ActivityHistoryComponent allActivities={allActivities} users={usersInLocation} location={userInfo.lokasi} /&gt;;
         case 'Jumlah Karyawan Hari Ini':
-            return <EmployeeSummaryComponent usersInLocation={usersInLocation} />;
+            return &lt;EmployeeSummaryComponent usersInLocation={usersInLocation} /&gt;;
         default:
-            return <p>Pilih menu untuk memulai.</p>;
+            return &lt;p&gt;Pilih menu untuk memulai.&lt;/p&gt;;
     }
   }
 
   return (
-    <SidebarProvider>
-        <div className="flex min-h-screen w-full bg-background text-foreground">
-            <Sidebar>
-                <SidebarContent>
-                    <SidebarHeader>
-                        <h2 className="text-xl font-semibold text-primary">Dasbor HSE K3</h2>
-                    </SidebarHeader>
-                    <SidebarMenu>
+    &lt;SidebarProvider&gt;
+        &lt;div className="flex min-h-screen w-full bg-background text-foreground"&gt;
+            &lt;Sidebar&gt;
+                &lt;SidebarContent&gt;
+                    &lt;SidebarHeader&gt;
+                        &lt;h2 className="text-xl font-semibold text-primary"&gt;Dasbor HSE K3&lt;/h2&gt;
+                    &lt;/SidebarHeader&gt;
+                    &lt;SidebarMenu&gt;
                        {menuItems.map(item => (
-                         <SidebarMenuItem key={item.name}>
-                            <SidebarMenuButton 
+                         &lt;SidebarMenuItem key={item.name}&gt;
+                            &lt;SidebarMenuButton 
                                 isActive={activeMenu === item.name}
                                 onClick={() => setActiveMenu(item.name)}
-                            >
-                                <item.icon/>
+                            &gt;
+                                &lt;item.icon/&gt;
                                 {item.name}
-                            </SidebarMenuButton>
-                         </SidebarMenuItem>
+                            &lt;/SidebarMenuButton&gt;
+                         &lt;/SidebarMenuItem&gt;
                        ))}
-                    </SidebarMenu>
-                    <SidebarFooter>
-                        <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-muted-foreground">
-                            <LogOut className="mr-2 h-4 w-4" />
+                    &lt;/SidebarMenu&gt;
+                    &lt;SidebarFooter&gt;
+                        &lt;Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-muted-foreground"&gt;
+                            &lt;LogOut className="mr-2 h-4 w-4" /&gt;
                             Keluar
-                        </Button>
-                    </SidebarFooter>
-                </SidebarContent>
-            </Sidebar>
-            <SidebarInset>
-                 <main className="flex-1 p-6 lg:p-10">
-                    <header className="flex items-center justify-between mb-8">
-                        <div className="flex items-center gap-4">
-                            <SidebarTrigger/>
-                             <div className="flex items-center gap-3">
-                              <div>
-                                  <p className="text-xl font-bold">{userInfo.username}</p>
-                                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                                      <span className="flex items-center gap-1.5"><Fingerprint size={14}/>{userInfo.nik}</span>
-                                      <span className="flex items-center gap-1.5"><Briefcase size={14}/>{userInfo.jabatan}</span>
-                                      <span className="flex items-center gap-1.5"><MapPin size={14}/>{userInfo.lokasi}</span>
-                                  </div>
-                              </div>
-                            </div>
-                        </div>
-                    </header>
+                        &lt;/Button&gt;
+                    &lt;/SidebarFooter&gt;
+                &lt;/SidebarContent&gt;
+            &lt;/Sidebar&gt;
+            &lt;SidebarInset&gt;
+                 &lt;main className="flex-1 p-6 lg:p-10"&gt;
+                    &lt;header className="flex items-center justify-between mb-8"&gt;
+                        &lt;div className="flex items-center gap-4"&gt;
+                            &lt;SidebarTrigger/&gt;
+                             &lt;div className="flex items-center gap-3"&gt;
+                              &lt;div&gt;
+                                  &lt;p className="text-xl font-bold"&gt;{userInfo.username}&lt;/p&gt;
+                                  &lt;div className="flex items-center gap-4 text-sm text-muted-foreground mt-1"&gt;
+                                      &lt;span className="flex items-center gap-1.5"&gt;&lt;Fingerprint size={14}/&gt;{userInfo.nik}&lt;/span&gt;
+                                      &lt;span className="flex items-center gap-1.5"&gt;&lt;Briefcase size={14}/&gt;{userInfo.jabatan}&lt;/span&gt;
+                                      &lt;span className="flex items-center gap-1.5"&gt;&lt;MapPin size={14}/&gt;{userInfo.lokasi}&lt;/span&gt;
+                                  &lt;/div&gt;
+                              &lt;/div&gt;
+                            &lt;/div&gt;
+                        &lt;/div&gt;
+                    &lt;/header&gt;
                     {isLoading ? (
-                        <div className="flex justify-center items-center h-64">
-                            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                        </div>
+                        &lt;div className="flex justify-center items-center h-64"&gt;
+                            &lt;Loader2 className="h-12 w-12 animate-spin text-primary" /&gt;
+                        &lt;/div&gt;
                     ) : (
                         renderContent()
                     )}
-                </main>
-            </SidebarInset>
-        </div>
-    </SidebarProvider>
+                &lt;/main&gt;
+            &lt;/SidebarInset&gt;
+        &lt;/div&gt;
+    &lt;/SidebarProvider&gt;
   );
 }
-
-    
