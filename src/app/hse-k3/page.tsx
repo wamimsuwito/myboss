@@ -7,9 +7,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus, MapPin } from 'lucide-react';
+import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus, MapPin, Save } from 'lucide-react';
 import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord } from '@/lib/types';
-import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, endOfDay } from '@/lib/firebase';
+import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, endOfDay, setDoc, getDoc } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
 import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay } from 'date-fns';
@@ -350,11 +350,67 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
 }
 
 const EmployeeSummaryComponent = ({ location }: { location: string }) => {
-    const [counts, setCounts] = useState({ total: '', hadir: '', ijin: '', alpha: '', sakit: '', cuti: '' });
-    
+    const { toast } = useToast();
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isTodaySummarySaved, setIsTodaySummarySaved] = useState(false);
+    const [counts, setCounts] = useState({ total: '', masuk: '', ijin: '', alpha: '', sakit: '', cuti: '' });
+
+    const todayId = useMemo(() => `${location}_${format(new Date(), 'yyyy-MM-dd')}`, [location]);
+
+    useEffect(() => {
+        const checkExistingSummary = async () => {
+            const summaryDocRef = doc(db, 'hse_daily_summaries', todayId);
+            const summaryDoc = await getDoc(summaryDocRef);
+            if (summaryDoc.exists()) {
+                const data = summaryDoc.data();
+                setCounts({
+                    total: String(data.total || ''),
+                    masuk: String(data.masuk || ''),
+                    ijin: String(data.ijin || ''),
+                    alpha: String(data.alpha || ''),
+                    sakit: String(data.sakit || ''),
+                    cuti: String(data.cuti || ''),
+                });
+                setIsTodaySummarySaved(true);
+            } else {
+                 setCounts({ total: '', masuk: '', ijin: '', alpha: '', sakit: '', cuti: '' });
+                 setIsTodaySummarySaved(false);
+            }
+        };
+        checkExistingSummary();
+    }, [todayId]);
+
     const handleCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setCounts(prev => ({ ...prev, [name]: value }));
+    };
+    
+    const handleSaveSummary = async () => {
+        setIsSubmitting(true);
+        const dataToSave = {
+            id: todayId,
+            location,
+            date: format(new Date(), 'yyyy-MM-dd'),
+            createdAt: Timestamp.now(),
+            total: Number(counts.total) || 0,
+            masuk: Number(counts.masuk) || 0,
+            ijin: Number(counts.ijin) || 0,
+            alpha: Number(counts.alpha) || 0,
+            sakit: Number(counts.sakit) || 0,
+            cuti: Number(counts.cuti) || 0,
+        };
+
+        try {
+            const summaryDocRef = doc(db, 'hse_daily_summaries', todayId);
+            await setDoc(summaryDocRef, dataToSave);
+            toast({ title: 'Laporan Disimpan', description: 'Ringkasan jumlah karyawan hari ini telah disimpan.' });
+            setIsTodaySummarySaved(true);
+        } catch (error) {
+            console.error("Error saving summary:", error);
+            toast({ title: 'Gagal Menyimpan', variant: 'destructive' });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
     
     return (
@@ -363,30 +419,38 @@ const EmployeeSummaryComponent = ({ location }: { location: string }) => {
                 <CardTitle>Jumlah Karyawan Hari Ini</CardTitle>
                 <CardDescription>Ringkasan status kehadiran karyawan di lokasi {location} pada tanggal {format(new Date(), 'dd MMMM yyyy', { locale: localeID })}.</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
-                    <Label htmlFor="total">Total Karyawan</Label>
-                    <Input id="total" name="total" type="number" placeholder="0" value={counts.total} onChange={handleCountChange} className="font-bold text-lg h-12" />
+            <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                        <Label htmlFor="total">Total Karyawan</Label>
+                        <Input id="total" name="total" type="number" placeholder="0" value={counts.total} onChange={handleCountChange} disabled={isTodaySummarySaved} className="font-bold text-lg h-12" />
+                    </div>
+                    <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                        <Label htmlFor="masuk">Karyawan Masuk Hari Ini</Label>
+                        <Input id="masuk" name="masuk" type="number" placeholder="0" value={counts.masuk} onChange={handleCountChange} disabled={isTodaySummarySaved} className="font-bold text-lg h-12" />
+                    </div>
+                     <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                        <Label htmlFor="ijin">Ijin</Label>
+                        <Input id="ijin" name="ijin" type="number" placeholder="0" value={counts.ijin} onChange={handleCountChange} disabled={isTodaySummarySaved} className="text-lg h-12"/>
+                    </div>
+                     <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                        <Label htmlFor="alpha">Alpha</Label>
+                        <Input id="alpha" name="alpha" type="number" placeholder="0" value={counts.alpha} onChange={handleCountChange} disabled={isTodaySummarySaved} className="text-lg h-12"/>
+                    </div>
+                     <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                        <Label htmlFor="sakit">Sakit</Label>
+                        <Input id="sakit" name="sakit" type="number" placeholder="0" value={counts.sakit} onChange={handleCountChange} disabled={isTodaySummarySaved} className="text-lg h-12"/>
+                    </div>
+                     <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                        <Label htmlFor="cuti">Cuti</Label>
+                        <Input id="cuti" name="cuti" type="number" placeholder="0" value={counts.cuti} onChange={handleCountChange} disabled={isTodaySummarySaved} className="text-lg h-12"/>
+                    </div>
                 </div>
-                <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
-                    <Label htmlFor="hadir">Karyawan Masuk Hari Ini</Label>
-                    <Input id="hadir" name="hadir" type="number" placeholder="0" value={counts.hadir} onChange={handleCountChange} className="font-bold text-lg h-12" />
-                </div>
-                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
-                    <Label htmlFor="ijin">Ijin</Label>
-                    <Input id="ijin" name="ijin" type="number" placeholder="0" value={counts.ijin} onChange={handleCountChange} className="text-lg h-12"/>
-                </div>
-                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
-                    <Label htmlFor="alpha">Alpha</Label>
-                    <Input id="alpha" name="alpha" type="number" placeholder="0" value={counts.alpha} onChange={handleCountChange} className="text-lg h-12"/>
-                </div>
-                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
-                    <Label htmlFor="sakit">Sakit</Label>
-                    <Input id="sakit" name="sakit" type="number" placeholder="0" value={counts.sakit} onChange={handleCountChange} className="text-lg h-12"/>
-                </div>
-                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
-                    <Label htmlFor="cuti">Cuti</Label>
-                    <Input id="cuti" name="cuti" type="number" placeholder="0" value={counts.cuti} onChange={handleCountChange} className="text-lg h-12"/>
+                 <div className="flex justify-end pt-4 border-t">
+                    <Button onClick={handleSaveSummary} disabled={isSubmitting || isTodaySummarySaved}>
+                        {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
+                        {isTodaySummarySaved ? 'Laporan Sudah Disimpan' : 'Simpan Laporan'}
+                    </Button>
                 </div>
             </CardContent>
         </Card>
