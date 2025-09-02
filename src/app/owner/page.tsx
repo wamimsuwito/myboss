@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio } from 'lucide-react';
+import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio, Watch } from 'lucide-react';
 import { db, collection, getDocs, onSnapshot, query, where, Timestamp, orderBy, limit, doc } from '@/lib/firebase';
 import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji } from '@/lib/types';
 import { format, isAfter, subMinutes, differenceInMinutes, differenceInHours, differenceInDays, startOfToday } from 'date-fns';
@@ -47,7 +47,7 @@ interface SummaryData {
     lokasiTerkirimCount: number;
     materialSudahBongkar: { semen: number; pasir: number; batu: number };
     materialMenungguBongkar: { semen: number; pasir: number; batu: number };
-    manPower: { total: number; masuk: number; ijin: number; alpha: number; sakit: number; cuti: number };
+    manPower: { total: number; masuk: number; ijin: number; alpha: number; sakit: number; cuti: number; jadwalOff: number };
     armada: { total: number; rusak: { [key: string]: number }; baik: { [key: string]: number } };
     materialSedangBongkar: any[];
     qc: {
@@ -81,7 +81,7 @@ export default function OwnerPage() {
         lokasiTerkirimCount: 0,
         materialSudahBongkar: { semen: 0, pasir: 0, batu: 0 },
         materialMenungguBongkar: { semen: 0, pasir: 0, batu: 0 },
-        manPower: { total: 0, masuk: 0, ijin: 0, alpha: 0, sakit: 0, cuti: 0 },
+        manPower: { total: 0, masuk: 0, ijin: 0, alpha: 0, sakit: 0, cuti: 0, jadwalOff: 0 },
         armada: { total: 0, rusak: {}, baik: {} },
         materialSedangBongkar: [],
         qc: { phAir: 'N/A', suhuAir: 'N/A', kadarLumpurPasir: 'N/A', kadarLumpurBatu: 'N/A', tdsAir: 'N/A', kadarOrganik: 'N/A', zona: 'N/A', bendaUji: 0 },
@@ -135,7 +135,7 @@ export default function OwnerPage() {
             lokasiTerkirimCount: 0,
             materialSudahBongkar: { semen: 0, pasir: 0, batu: 0 },
             materialMenungguBongkar: { semen: 0, pasir: 0, batu: 0 },
-            manPower: { total: 0, masuk: 0, ijin: 0, alpha: 0, sakit: 0, cuti: 0 },
+            manPower: { total: 0, masuk: 0, ijin: 0, alpha: 0, sakit: 0, cuti: 0, jadwalOff: 0 },
             armada: { total: 0, rusak: {}, baik: {} },
             materialSedangBongkar: [],
             qc: { phAir: 'N/A', suhuAir: 'N/A', kadarLumpurPasir: 'N/A', kadarLumpurBatu: 'N/A', tdsAir: 'N/A', kadarOrganik: 'N/A', zona: 'N/A', bendaUji: 0 },
@@ -165,10 +165,11 @@ export default function OwnerPage() {
                         alpha: data.alpha || 0,
                         sakit: data.sakit || 0,
                         cuti: data.cuti || 0,
+                        jadwalOff: data.jadwalOff || 0
                     }
                 }));
             } else {
-                 setSummary((prev: SummaryData) => ({ ...prev, manPower: { total: 0, masuk: 0, ijin: 0, alpha: 0, sakit: 0, cuti: 0 } }));
+                 setSummary((prev: SummaryData) => ({ ...prev, manPower: { total: 0, masuk: 0, ijin: 0, alpha: 0, sakit: 0, cuti: 0, jadwalOff: 0 } }));
             }
         }, (error) => console.error("Error fetching HSE summary:", error)));
 
@@ -405,6 +406,7 @@ export default function OwnerPage() {
                             <StatCard title="Alpha" value={summary.manPower.alpha} unit="Orang" icon={UserX}/>
                             <StatCard title="Sakit" value={summary.manPower.sakit} unit="Orang" icon={HardHat}/>
                             <StatCard title="Cuti" value={summary.manPower.cuti} unit="Orang" icon={HardHat}/>
+                            <StatCard title="Jadwal Off" value={summary.manPower.jadwalOff} unit="Orang" icon={Watch}/>
                         </div>
                     </div>
                     <div className="space-y-4">
