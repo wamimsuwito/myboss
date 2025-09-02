@@ -882,7 +882,3 @@ export default function AdminLogistikPage() {
     </>
   );
 }
-
-    
-
-```
