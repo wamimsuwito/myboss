@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio } from 'lucide-react';
-import { db, collection, getDocs, onSnapshot, query, where, Timestamp, orderBy, limit } from '@/lib/firebase';
+import { db, collection, getDocs, onSnapshot, query, where, Timestamp, orderBy, limit, doc } from '@/lib/firebase';
 import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji } from '@/lib/types';
 import { format, isAfter, subMinutes, differenceInMinutes, differenceInHours, differenceInDays, startOfToday } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
@@ -149,6 +149,29 @@ export default function OwnerPage() {
 
         const unsubscribers: (() => void)[] = [];
         const todayStart = startOfToday();
+        const todayId = `${selectedLocation}_${format(new Date(), 'yyyy-MM-dd')}`;
+
+        // Listener for HSE Summary
+        const hseSummaryDocRef = doc(db, 'hse_daily_summaries', todayId);
+        unsubscribers.push(onSnapshot(hseSummaryDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                setSummary((prev: SummaryData) => ({ 
+                    ...prev, 
+                    manPower: {
+                        total: data.total || 0,
+                        masuk: data.masuk || 0,
+                        ijin: data.ijin || 0,
+                        alpha: data.alpha || 0,
+                        sakit: data.sakit || 0,
+                        cuti: data.cuti || 0,
+                    }
+                }));
+            } else {
+                 setSummary((prev: SummaryData) => ({ ...prev, manPower: { total: 0, masuk: 0, ijin: 0, alpha: 0, sakit: 0, cuti: 0 } }));
+            }
+        }, (error) => console.error("Error fetching HSE summary:", error)));
+
 
         // Listener for BP Status (REAL-TIME)
         const statusQuery = query(collection(db, 'bp_unit_status'), where('location', '==', selectedLocation));
@@ -204,11 +227,6 @@ export default function OwnerPage() {
             setSummary((prev: SummaryData) => ({ ...prev, materialMenungguBongkar }));
         }, (error) => console.error("Error fetching Rencana Pemasukan:", error)));
         
-        const usersQuery = query(collection(db, 'users'), where('lokasi', '==', selectedLocation));
-        unsubscribers.push(onSnapshot(usersQuery, (snapshot) => {
-            setSummary((prev: SummaryData) => ({ ...prev, manPower: {...prev.manPower, total: snapshot.docs.length, masuk: snapshot.docs.length }}));
-        }, (error) => console.error("Error fetching users:", error)));
-
         const alatQuery = query(collection(db, 'alat'), where('lokasi', '==', selectedLocation));
         const alatUnsub = onSnapshot(alatQuery, (alatSnapshot) => {
             const alatData = alatSnapshot.docs.map(doc => doc.data() as AlatData);
