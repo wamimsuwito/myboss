@@ -26,6 +26,7 @@ import LaporanPemasukanPrintLayout from '@/components/laporan-pemasukan-print-la
 import { printElement } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import ReactDOM from 'react-dom/client';
 
 const materialConfig = [
     { key: 'semen', name: 'SEMEN' },
@@ -880,3 +881,5 @@ export default function AdminLogistikPage() {
     </>
   );
 }
+
+    
