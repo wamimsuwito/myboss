@@ -12,7 +12,7 @@ import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord, Productio
 import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, setDoc, getDoc, orderBy } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
-import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay, isWithinInterval, subDays, endOfDay, parseISO, isDate, differenceInMinutes, differenceInDays } from 'date-fns';
+import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subDays, startOfDay, endOfDay, isWithinInterval, parseISO, isDate, differenceInMinutes, differenceInDays } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
@@ -329,11 +329,11 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
                     <CardTitle className='flex justify-between items-center'>
                         <span>Laporan Kegiatan Harian</span>
                         <div className="flex items-center gap-4">
-                            <Input
+                             <Input
                                 placeholder="Cari Nama / NIK..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full sm:w-auto"
+                                className="w-full sm:w-[200px]"
                             />
                             <Badge variant="outline">{format(new Date(), "EEEE, dd MMMM yyyy", { locale: localeID })}</Badge>
                             <Button variant="outline" onClick={() => printElement('hse-activity-print-area')}>
@@ -379,6 +379,7 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
 }
 
 const ActivityHistoryComponent = ({ allActivities, users, location }: { allActivities: ActivityLog[], users: UserData[], location: string }) => {
+    const { toast } = useToast();
     const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: subDays(new Date(), 7), to: new Date() });
     
     const calculateDuration = (start: any, end: any): string => {
@@ -442,7 +443,7 @@ const EmployeeSummaryComponent = ({ usersInLocation }: { usersInLocation: UserDa
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isTodaySummarySaved, setIsTodaySummarySaved] = useState(false);
-    const [counts, setCounts] = useState({ total: '', masuk: '', ijin: '', alpha: '', sakit: '', cuti: '' });
+    const [counts, setCounts] = useState({ total: '', masuk: '', ijin: '', alpha: '', sakit: '', cuti: '', jadwalOff: '' });
 
     const userInfo: UserData | null = useMemo(() => JSON.parse(localStorage.getItem('user') || 'null'), []);
     const todayId = useMemo(() => `${userInfo?.lokasi}_${format(new Date(), 'yyyy-MM-dd')}`, [userInfo?.lokasi]);
@@ -461,10 +462,11 @@ const EmployeeSummaryComponent = ({ usersInLocation }: { usersInLocation: UserDa
                     alpha: String(data.alpha || ''),
                     sakit: String(data.sakit || ''),
                     cuti: String(data.cuti || ''),
+                    jadwalOff: String(data.jadwalOff || ''),
                 });
                 setIsTodaySummarySaved(true);
             } else {
-                 setCounts({ total: String(usersInLocation.length), masuk: '', ijin: '', alpha: '', sakit: '', cuti: '' });
+                 setCounts({ total: String(usersInLocation.length), masuk: '', ijin: '', alpha: '', sakit: '', cuti: '', jadwalOff: '' });
                  setIsTodaySummarySaved(false);
             }
         };
@@ -490,6 +492,7 @@ const EmployeeSummaryComponent = ({ usersInLocation }: { usersInLocation: UserDa
             alpha: Number(counts.alpha) || 0,
             sakit: Number(counts.sakit) || 0,
             cuti: Number(counts.cuti) || 0,
+            jadwalOff: Number(counts.jadwalOff) || 0,
         };
 
         try {
@@ -512,7 +515,7 @@ const EmployeeSummaryComponent = ({ usersInLocation }: { usersInLocation: UserDa
                 <CardDescription>Ringkasan status kehadiran karyawan di lokasi {userInfo?.lokasi} pada tanggal {format(new Date(), 'dd MMMM yyyy', { locale: localeID })}.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
                         <Label htmlFor="total">Total Karyawan</Label>
                         <Input id="total" name="total" type="number" placeholder="0" value={counts.total} onChange={handleCountChange} disabled={isTodaySummarySaved} className="font-bold text-lg h-12" />
@@ -536,6 +539,10 @@ const EmployeeSummaryComponent = ({ usersInLocation }: { usersInLocation: UserDa
                      <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
                         <Label htmlFor="cuti">Cuti</Label>
                         <Input id="cuti" name="cuti" type="number" placeholder="0" value={counts.cuti} onChange={handleCountChange} disabled={isTodaySummarySaved} className="text-lg h-12"/>
+                    </div>
+                     <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
+                        <Label htmlFor="jadwalOff">Jadwal Off</Label>
+                        <Input id="jadwalOff" name="jadwalOff" type="number" placeholder="0" value={counts.jadwalOff} onChange={handleCountChange} disabled={isTodaySummarySaved} className="text-lg h-12"/>
                     </div>
                 </div>
                  <div className="flex justify-end pt-4 border-t">
