@@ -182,7 +182,7 @@ export default function OwnerPage() {
         }, (error) => console.error("Error fetching BP status:", error)));
         
         // Listener for Schedules
-        const scheduleQuery = query(collection(db, 'schedules_today'));
+        const scheduleQuery = query(collection(db, 'schedules_today'), where('LOKASI', '==', selectedLocation));
         unsubscribers.push(onSnapshot(scheduleQuery, (snapshot) => {
             const schedules = snapshot.docs.map(doc => doc.data() as ScheduleRow);
             const totalJadwal = schedules.reduce((sum, s) => sum + parseFloat(s['TOTAL M³'] || '0'), 0);
@@ -449,3 +449,5 @@ export default function OwnerPage() {
         </div>
     );
 }
+
+    
