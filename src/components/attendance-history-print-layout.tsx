@@ -11,6 +11,12 @@ import { DateRange } from 'react-day-picker';
 interface AttendanceHistoryPrintLayoutProps {
   records: any[];
   period: DateRange | undefined;
+  summary: {
+    totalHariKerja: number;
+    totalJamLembur: number;
+    totalMenitTerlambat: number;
+    totalHariAbsen: number;
+  };
 }
 
 const safeFormatTimestamp = (timestamp: any, formatString: string) => {
@@ -40,7 +46,7 @@ const formatTotalOvertime = (checkIn: any, checkOut: any): string => {
 }
 
 
-export default function AttendanceHistoryPrintLayout({ records, period }: AttendanceHistoryPrintLayoutProps) {
+export default function AttendanceHistoryPrintLayout({ records, period, summary }: AttendanceHistoryPrintLayoutProps) {
     
   const periodTitle = period?.from 
     ? format(period.from, "d MMMM yyyy", { locale: localeID }) + (period.to ? " - " + format(period.to, "d MMMM yyyy", { locale: localeID }) : "") 
@@ -118,6 +124,32 @@ export default function AttendanceHistoryPrintLayout({ records, period }: Attend
             )}
           </tbody>
         </table>
+
+        {summary && (
+            <div className="mt-4 text-xs" style={{ pageBreakInside: 'avoid' }}>
+                <h3 className="font-bold mb-2">Ringkasan Periode</h3>
+                <table className='material-table w-1/2'>
+                    <tbody>
+                        <tr className='material-table'>
+                            <td className='border border-black p-1 font-semibold'>Total Hari Kerja</td>
+                            <td className='border border-black p-1 text-right'>{summary.totalHariKerja} Hari</td>
+                        </tr>
+                        <tr className='material-table'>
+                            <td className='border border-black p-1 font-semibold'>Total Hari Absen</td>
+                            <td className='border border-black p-1 text-right'>{summary.totalHariAbsen} Hari</td>
+                        </tr>
+                        <tr className='material-table'>
+                            <td className='border border-black p-1 font-semibold'>Total Menit Terlambat</td>
+                            <td className='border border-black p-1 text-right'>{summary.totalMenitTerlambat} Menit</td>
+                        </tr>
+                         <tr className='material-table'>
+                            <td className='border border-black p-1 font-semibold'>Total Jam Lembur</td>
+                            <td className='border border-black p-1 text-right'>{summary.totalJamLembur} Jam</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        )}
       </main>
 
       <footer className="signature-section mt-16">
@@ -135,4 +167,3 @@ export default function AttendanceHistoryPrintLayout({ records, period }: Attend
     </div>
   );
 }
-
