@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus, MapPin, Save, Calendar as CalendarIcon, FilterX } from 'lucide-react';
-import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord } from '@/lib/types';
+import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord, ProductionData } from '@/lib/types';
 import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, setDoc, getDoc, orderBy } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +21,8 @@ import { differenceInMinutes } from 'date-fns';
 import { printElement, cn } from '@/lib/utils';
 import HseAttendancePrintLayout from '@/components/hse-attendance-print-layout';
 import HseActivityPrintLayout from '@/components/hse-activity-print-layout';
+import AttendanceHistoryPrintLayout from '@/components/attendance-history-print-layout';
+import AttendanceTable from '@/components/attendance-table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { X } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -32,7 +34,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 
 
 type ActiveMenu = 'Absensi Harian' | 'Database Absensi' | 'Kegiatan Harian' | 'Database Kegiatan' | 'Jumlah Karyawan Hari Ini';
-type CombinedRecord = UserData & { attendance?: AttendanceRecord; overtime?: OvertimeRecord; activities?: ActivityLog[] };
+type CombinedRecord = UserData & { attendance?: AttendanceRecord; overtime?: OvertimeRecord; activities?: ActivityLog[], productions?: ProductionData[] };
 
 
 const menuItems: { name: ActiveMenu; icon: React.ElementType }[] = [
@@ -53,75 +55,7 @@ const safeFormatTimestamp = (timestamp: any, formatString: string) => {
 };
 
 
-const DailyAttendanceComponent = ({ location }: { location: string }) => {
-    const [combinedData, setCombinedData] = useState<CombinedRecord[]>([]);
-    const [isDataLoading, setIsDataLoading] = useState(true);
-
-    useEffect(() => {
-        if (!location) return;
-
-        setIsDataLoading(true);
-        
-        const now = new Date();
-        const cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 5, 30, 0); // 5:30 AM today
-        const twentyFourHoursAgo = subHours(now, 24);
-        const dataStartTime = isAfter(now, cutoff) ? cutoff : subHours(cutoff, 24);
-
-        const usersQuery = query(collection(db, 'users'), where('lokasi', '==', location));
-
-        const unsubUsers = onSnapshot(usersQuery, (usersSnapshot) => {
-            const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as UserData);
-            const userIds = usersData.map(u => u.id);
-
-            if (userIds.length === 0) {
-                setCombinedData([]);
-                setIsDataLoading(false);
-                return;
-            }
-            
-            const unsubscribers: (() => void)[] = [];
-            
-            const fetchData = () => {
-                const attendanceQuery = query(collection(db, 'absensi'), where('userId', 'in', userIds));
-                unsubscribers.push(onSnapshot(attendanceQuery, (attSnapshot) => {
-                    const attendanceData = attSnapshot.docs
-                        .map(d => d.data() as AttendanceRecord)
-                        .filter(r => r.checkInTime && isAfter(r.checkInTime.toDate(), dataStartTime));
-
-                    const overtimeQuery = query(collection(db, 'overtime_absensi'), where('userId', 'in', userIds));
-                    unsubscribers.push(onSnapshot(overtimeQuery, (ovtSnapshot) => {
-                        const overtimeData = ovtSnapshot.docs
-                            .map(d => d.data() as OvertimeRecord)
-                            .filter(r => r.checkInTime && isAfter(r.checkInTime.toDate(), dataStartTime));
-                        
-                        const activitiesQuery = query(collection(db, 'kegiatan_harian'), where('userId', 'in', userIds));
-                        unsubscribers.push(onSnapshot(activitiesQuery, (actSnapshot) => {
-                             const activitiesData = actSnapshot.docs
-                                .map(d => d.data() as ActivityLog)
-                                .filter(r => r.createdAt && isAfter(r.createdAt.toDate(), dataStartTime));
-                            
-                            const finalData = usersData.map(user => {
-                                const attendance = attendanceData.find(a => a.userId === user.id);
-                                const overtime = overtimeData.find(o => o.userId === user.id);
-                                const activities = activitiesData.filter(a => a.userId === user.id).sort((a,b) => a.createdAt.toDate().getTime() - b.createdAt.toDate().getTime());
-                                return { ...user, attendance, overtime, activities };
-                            });
-                            
-                            setCombinedData(finalData);
-                            setIsDataLoading(false);
-                        }));
-                    }));
-                }));
-            };
-
-            fetchData();
-            
-            return () => unsubscribers.forEach(unsub => unsub());
-        });
-        
-        return () => unsubUsers();
-        
-    }, [location]);
+const DailyAttendanceComponent = ({ users, location }: { users: CombinedRecord[]; location: string }) => {
     
     const calculateLateMinutes = (checkInTime: any): number => {
         if (!checkInTime) return 0;
@@ -131,22 +65,30 @@ const DailyAttendanceComponent = ({ location }: { location: string }) => {
         return late > 0 ? late : 0;
     };
     
-    const calculateTotalOvertime = (overtime: OvertimeRecord | undefined): string => {
-        if (!overtime || !overtime.checkInTime || !overtime.checkOutTime) return '-';
-        const start = overtime.checkInTime.toDate();
-        const end = overtime.checkOutTime.toDate();
-        const diff = differenceInMinutes(end, start);
-        if (diff <= 0) return '-';
-        const hours = Math.floor(diff / 60);
-        const minutes = diff % 60;
-        return `${hours}j ${minutes}m`;
-    };
-
+    const dataToDisplay = useMemo(() => {
+        return users.map(user => ({
+            ...user,
+            id: user.id, // For key
+            username: user.username,
+            nik: user.nik,
+            jabatan: user.jabatan,
+            checkInTime: user.attendance?.checkInTime,
+            checkOutTime: user.attendance?.checkOutTime,
+            checkInPhoto: user.attendance?.checkInPhoto,
+            checkOutPhoto: user.attendance?.checkOutPhoto,
+            checkInLocationName: user.attendance?.checkInLocationName || user.overtime?.checkInLocationName,
+            lateMinutes: calculateLateMinutes(user.attendance?.checkInTime),
+            overtimeData: user.overtime,
+            ritPertama: user.productions?.[0] ? safeFormatTimestamp(user.productions[0].jamMulai, 'HH:mm') : '-',
+            ritTerakhir: user.productions?.[user.productions.length - 1] ? safeFormatTimestamp(user.productions[user.productions.length - 1].jamSelesai, 'HH:mm') : '-'
+        }));
+    }, [users]);
+    
     return (
         <>
             <div className="hidden">
               <div id="hse-print-area">
-                <HseAttendancePrintLayout data={combinedData} location={location} />
+                <HseAttendancePrintLayout data={users} location={location} />
               </div>
             </div>
             <Card>
@@ -164,62 +106,7 @@ const DailyAttendanceComponent = ({ location }: { location: string }) => {
                     <CardDescription>Memantau kehadiran dan aktivitas karyawan di lokasi {location} hari ini.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {isDataLoading ? (
-                        <div className="flex justify-center items-center h-64">
-                            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                        </div>
-                    ) : (
-                    <div className="overflow-x-auto border rounded-lg">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className='w-8'>No</TableHead>
-                                    <TableHead className='w-48'>Nama/NIK</TableHead>
-                                    <TableHead>Jabatan</TableHead>
-                                    <TableHead className='text-center'>Absen Masuk</TableHead>
-                                    <TableHead className='text-center'>Absen Pulang</TableHead>
-                                    <TableHead className='text-center'>Terlambat</TableHead>
-                                    <TableHead className='w-64'>Deskripsi Kegiatan</TableHead>
-                                    <TableHead className='text-center'>Masuk Lembur</TableHead>
-                                    <TableHead className='text-center'>Pulang Lembur</TableHead>
-                                    <TableHead className='text-center'>Total Lembur</TableHead>
-                                    <TableHead className='w-56'>Deskripsi Lembur</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                            {combinedData.length > 0 ? combinedData.map((user, index) => (
-                                <TableRow key={user.id}>
-                                    <TableCell>{index + 1}</TableCell>
-                                    <TableCell>
-                                        <p className='font-semibold'>{user.username}</p>
-                                        <p className='text-xs text-muted-foreground'>{user.nik}</p>
-                                    </TableCell>
-                                    <TableCell>{user.jabatan}</TableCell>
-                                    <TableCell className='text-center'>{safeFormatTimestamp(user.attendance?.checkInTime, 'HH:mm')}</TableCell>
-                                    <TableCell className='text-center'>{safeFormatTimestamp(user.attendance?.checkOutTime, 'HH:mm')}</TableCell>
-                                    <TableCell className={`text-center font-bold ${calculateLateMinutes(user.attendance?.checkInTime) > 0 ? 'text-destructive' : ''}`}>{calculateLateMinutes(user.attendance?.checkInTime)} mnt</TableCell>
-                                    <TableCell className='text-xs whitespace-pre-wrap'>
-                                        {(user.activities || []).map((act, i) => (
-                                            <React.Fragment key={act.id}>
-                                                <p>{act.description}</p>
-                                                {i < (user.activities || []).length - 1 && <hr className="my-1"/>}
-                                            </React.Fragment>
-                                        ))}
-                                    </TableCell>
-                                    <TableCell className='text-center'>{safeFormatTimestamp(user.overtime?.checkInTime, 'HH:mm')}</TableCell>
-                                    <TableCell className='text-center'>{safeFormatTimestamp(user.overtime?.checkOutTime, 'HH:mm')}</TableCell>
-                                    <TableCell className='text-center'>{calculateTotalOvertime(user.overtime)}</TableCell>
-                                    <TableCell className="text-xs whitespace-pre-wrap">
-                                        {user.overtime?.description || '-'}
-                                    </TableCell>
-                                </TableRow>
-                            )) : (
-                                <TableRow><TableCell colSpan={11} className="h-48 text-center text-muted-foreground">Tidak ada data karyawan di lokasi ini.</TableCell></TableRow>
-                            )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                    )}
+                    <AttendanceTable records={dataToDisplay} />
                 </CardContent>
             </Card>
         </>
@@ -245,61 +132,58 @@ const PhotoViewer = ({ photoUrl, timestamp }: { photoUrl?: string | null, timest
     );
 };
 
-const AttendanceHistoryComponent = ({ location }: { location: string }) => {
-    const { toast } = useToast();
-    const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
-    const [allOvertime, setAllOvertime] = useState<OvertimeRecord[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { users: UserData[], allAttendance: AttendanceRecord[], allOvertime: OvertimeRecord[] }) => {
     const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: subDays(new Date(), 7), to: new Date() });
+    const [userFilter, setUserFilter] = useState('');
 
-    useEffect(() => {
-        if (!location) return;
-        setIsLoading(true);
-
-        const attendanceQuery = query(collection(db, 'absensi'));
-        const overtimeQuery = query(collection(db, 'overtime_absensi'));
-
-        const unsubAttendance = onSnapshot(attendanceQuery, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
-            setAllAttendance(data);
-        }, (error) => {
-            toast({ title: "Gagal memuat absensi", variant: "destructive" });
-            console.error(error);
-        });
-
-        const unsubOvertime = onSnapshot(overtimeQuery, (snapshot) => {
-            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as OvertimeRecord));
-            setAllOvertime(data);
-        }, (error) => {
-            toast({ title: "Gagal memuat lembur", variant: "destructive" });
-            console.error(error);
-        });
-
-        setIsLoading(false);
-        return () => {
-            unsubAttendance();
-            unsubOvertime();
-        };
-
-    }, [location, toast]);
-    
     const filteredRecords = useMemo(() => {
-        if (!dateRange?.from) return [];
-        const fromDate = startOfDay(dateRange.from);
-        const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
-
-        const combined: any[] = [...allAttendance, ...allOvertime];
-
-        return combined
-            .filter(item => {
+        let results = allAttendance;
+        if (dateRange?.from) {
+            const fromDate = startOfDay(dateRange.from);
+            const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+            results = results.filter(item => {
                 const itemDate = item.checkInTime?.toDate();
                 return itemDate && isWithinInterval(itemDate, { start: fromDate, end: toDate });
-            })
-            .sort((a, b) => b.checkInTime.toDate().getTime() - a.checkInTime.toDate().getTime());
-    }, [allAttendance, allOvertime, dateRange]);
+            });
+        }
+        
+        if (userFilter) {
+             results = results.filter(item => 
+                item.username.toLowerCase().includes(userFilter.toLowerCase())
+             );
+        }
+        
+        const combined = results.map(att => {
+            const user = users.find(u => u.id === att.userId);
+            const overtime = allOvertime.find(ovt => ovt.userId === att.userId && ovt.checkInTime && att.checkInTime && isSameDay(ovt.checkInTime.toDate(), att.checkInTime.toDate()));
+            return {
+                ...user,
+                ...att,
+                id: `${att.id}-${user?.id || ''}`,
+                lateMinutes: calculateLateMinutes(att.checkInTime),
+                overtimeData: overtime,
+            }
+        });
+
+        return combined.sort((a,b) => b.checkInTime.toDate().getTime() - a.checkInTime.toDate().getTime());
+    }, [allAttendance, allOvertime, users, dateRange, userFilter]);
+    
+    const calculateLateMinutes = (checkInTime: any): number => {
+        if (!checkInTime) return 0;
+        const date = checkInTime.toDate();
+        const deadline = new Date(date).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
+        const late = differenceInMinutes(date, deadline);
+        return late > 0 ? late : 0;
+    };
 
 
     return (
+        <>
+        <div className="hidden">
+            <div id="history-print-area">
+                <HseAttendancePrintLayout data={filteredRecords as any} location={"Semua Lokasi"} />
+            </div>
+        </div>
         <Card>
             <CardHeader>
                 <CardTitle>Database Absensi</CardTitle>
@@ -307,6 +191,12 @@ const AttendanceHistoryComponent = ({ location }: { location: string }) => {
             </CardHeader>
             <CardContent>
                 <div className="flex flex-wrap gap-2 items-center mb-4">
+                    <Input 
+                        placeholder="Cari nama karyawan..."
+                        value={userFilter}
+                        onChange={(e) => setUserFilter(e.target.value)}
+                        className="w-full sm:w-auto"
+                    />
                     <Popover>
                         <PopoverTrigger asChild>
                             <Button id="date" variant={"outline"} className={cn("w-full sm:w-[280px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
@@ -318,38 +208,13 @@ const AttendanceHistoryComponent = ({ location }: { location: string }) => {
                             <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
                         </PopoverContent>
                     </Popover>
-                    <Button variant="ghost" onClick={() => setDateRange(undefined)} disabled={!dateRange}><FilterX className="mr-2 h-4 w-4"/>Reset</Button>
+                    <Button variant="ghost" onClick={() => {setDateRange(undefined); setUserFilter('')}} disabled={!dateRange && !userFilter}><FilterX className="mr-2 h-4 w-4"/>Reset</Button>
+                    <Button variant="outline" className="ml-auto" onClick={() => printElement('history-print-area')} disabled={filteredRecords.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak Hasil</Button>
                 </div>
-
-                <div className="border rounded-lg overflow-x-auto">
-                     <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Tanggal</TableHead>
-                                <TableHead>Nama</TableHead>
-                                <TableHead>Tipe</TableHead>
-                                <TableHead>Jam Masuk</TableHead>
-                                <TableHead>Jam Pulang</TableHead>
-                                <TableHead>Keterangan</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading ? (<TableRow><TableCell colSpan={6} className="h-48 text-center"><Loader2 className="animate-spin h-8 w-8"/></TableCell></TableRow>)
-                            : filteredRecords.length > 0 ? filteredRecords.map(item => (
-                                <TableRow key={item.id}>
-                                    <TableCell>{safeFormatTimestamp(item.checkInTime, 'dd MMM yyyy')}</TableCell>
-                                    <TableCell>{item.username}</TableCell>
-                                    <TableCell><Badge variant={item.description ? 'destructive' : 'default'}>{item.description ? 'Lembur' : 'Reguler'}</Badge></TableCell>
-                                    <TableCell>{safeFormatTimestamp(item.checkInTime, 'HH:mm:ss')}</TableCell>
-                                    <TableCell>{safeFormatTimestamp(item.checkOutTime, 'HH:mm:ss')}</TableCell>
-                                    <TableCell className="text-xs">{item.description || '-'}</TableCell>
-                                </TableRow>
-                            )) : (<TableRow><TableCell colSpan={6} className="h-48 text-center text-muted-foreground">Tidak ada riwayat absensi pada periode yang dipilih.</TableCell></TableRow>)}
-                        </TableBody>
-                    </Table>
-                </div>
+                <AttendanceTable records={filteredRecords}/>
             </CardContent>
         </Card>
+        </>
     );
 };
 
@@ -462,16 +327,18 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
     )
 }
 
-const EmployeeSummaryComponent = ({ location }: { location: string }) => {
+const EmployeeSummaryComponent = ({ usersInLocation }: { usersInLocation: UserData[] }) => {
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isTodaySummarySaved, setIsTodaySummarySaved] = useState(false);
     const [counts, setCounts] = useState({ total: '', masuk: '', ijin: '', alpha: '', sakit: '', cuti: '' });
 
-    const todayId = useMemo(() => `${location}_${format(new Date(), 'yyyy-MM-dd')}`, [location]);
+    const userInfo: UserData | null = useMemo(() => JSON.parse(localStorage.getItem('user') || 'null'), []);
+    const todayId = useMemo(() => `${userInfo?.lokasi}_${format(new Date(), 'yyyy-MM-dd')}`, [userInfo?.lokasi]);
 
     useEffect(() => {
         const checkExistingSummary = async () => {
+            if (!userInfo?.lokasi) return;
             const summaryDocRef = doc(db, 'hse_daily_summaries', todayId);
             const summaryDoc = await getDoc(summaryDocRef);
             if (summaryDoc.exists()) {
@@ -486,12 +353,12 @@ const EmployeeSummaryComponent = ({ location }: { location: string }) => {
                 });
                 setIsTodaySummarySaved(true);
             } else {
-                 setCounts({ total: '', masuk: '', ijin: '', alpha: '', sakit: '', cuti: '' });
+                 setCounts({ total: String(usersInLocation.length), masuk: '', ijin: '', alpha: '', sakit: '', cuti: '' });
                  setIsTodaySummarySaved(false);
             }
         };
         checkExistingSummary();
-    }, [todayId]);
+    }, [todayId, userInfo?.lokasi, usersInLocation]);
 
     const handleCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -499,10 +366,11 @@ const EmployeeSummaryComponent = ({ location }: { location: string }) => {
     };
     
     const handleSaveSummary = async () => {
+        if (!userInfo?.lokasi) return;
         setIsSubmitting(true);
         const dataToSave = {
             id: todayId,
-            location,
+            location: userInfo.lokasi,
             date: format(new Date(), 'yyyy-MM-dd'),
             createdAt: Timestamp.now(),
             total: Number(counts.total) || 0,
@@ -530,7 +398,7 @@ const EmployeeSummaryComponent = ({ location }: { location: string }) => {
         <Card>
             <CardHeader>
                 <CardTitle>Jumlah Karyawan Hari Ini</CardTitle>
-                <CardDescription>Ringkasan status kehadiran karyawan di lokasi {location} pada tanggal {format(new Date(), 'dd MMMM yyyy', { locale: localeID })}.</CardDescription>
+                <CardDescription>Ringkasan status kehadiran karyawan di lokasi {userInfo?.lokasi} pada tanggal {format(new Date(), 'dd MMMM yyyy', { locale: localeID })}.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -562,7 +430,7 @@ const EmployeeSummaryComponent = ({ location }: { location: string }) => {
                  <div className="flex justify-end pt-4 border-t">
                     <Button onClick={handleSaveSummary} disabled={isSubmitting || isTodaySummarySaved}>
                         {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4"/>}
-                        {isTodaySummarySaved ? 'Laporan Sudah Disimpan' : 'Simpan Laporan'}
+                        {isTodaySummarySaved ? 'Laporan Hari Ini Sudah Disimpan' : 'Simpan Laporan Harian'}
                     </Button>
                 </div>
             </CardContent>
@@ -577,6 +445,11 @@ export default function HseK3Page() {
   const [userInfo, setUserInfo] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Absensi Harian');
+
+  const [allUsers, setAllUsers] = useState<UserData[]>([]);
+  const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
+  const [allOvertime, setAllOvertime] = useState<OvertimeRecord[]>([]);
+  const [allProductions, setAllProductions] = useState<ProductionData[]>([]);
 
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -597,6 +470,46 @@ export default function HseK3Page() {
     }
     setIsLoading(false);
   }, [router, toast]);
+  
+  const usersInLocation = useMemo(() => {
+      if (!userInfo?.lokasi) return [];
+      return allUsers.filter(u => u.lokasi === userInfo.lokasi);
+  }, [allUsers, userInfo?.lokasi]);
+
+   const combinedDataToday = useMemo(() => {
+        if (!userInfo?.lokasi) return [];
+
+        const todayStart = startOfToday();
+        
+        return usersInLocation.map(user => {
+            const attendance = allAttendance.find(rec => rec.userId === user.id && rec.checkInTime && isSameDay(rec.checkInTime.toDate(), todayStart));
+            const overtime = allOvertime.find(rec => rec.userId === user.id && rec.checkInTime && isSameDay(rec.checkInTime.toDate(), todayStart));
+            const productions = allProductions.filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase() && p.tanggal && isSameDay(p.tanggal.toDate(), todayStart))
+                .sort((a,b) => a.jamMulai.localeCompare(b.jamMulai));
+
+            return {
+                ...user,
+                attendance,
+                overtime,
+                productions,
+            }
+        }).filter(u => u.attendance || u.overtime);
+
+    }, [usersInLocation, allAttendance, allOvertime, allProductions, userInfo?.lokasi]);
+
+
+  useEffect(() => {
+    if (!userInfo) return;
+
+    const unsubscribers: (()=>void)[] = [];
+    
+    unsubscribers.push(onSnapshot(collection(db, 'users'), (snap) => setAllUsers(snap.docs.map(d => ({id: d.id, ...d.data()}) as UserData))));
+    unsubscribers.push(onSnapshot(collection(db, 'absensi'), (snap) => setAllAttendance(snap.docs.map(d => ({id: d.id, ...d.data()}) as AttendanceRecord))));
+    unsubscribers.push(onSnapshot(collection(db, 'overtime_absensi'), (snap) => setAllOvertime(snap.docs.map(d => ({id: d.id, ...d.data()}) as OvertimeRecord))));
+    unsubscribers.push(onSnapshot(collection(db, 'productions'), (snap) => setAllProductions(snap.docs.map(d => ({id: d.id, ...d.data()}) as ProductionData))));
+
+    return () => unsubscribers.forEach(unsub => unsub());
+  }, [userInfo]);
 
 
   const handleLogout = () => {
@@ -615,15 +528,15 @@ export default function HseK3Page() {
   const renderContent = () => {
     switch (activeMenu) {
         case 'Absensi Harian':
-            return <DailyAttendanceComponent location={userInfo.lokasi} />;
+            return <DailyAttendanceComponent users={combinedDataToday} location={userInfo.lokasi} />;
         case 'Database Absensi':
-            return <AttendanceHistoryComponent location={userInfo.lokasi} />;
+            return <AttendanceHistoryComponent users={usersInLocation} allAttendance={allAttendance} allOvertime={allOvertime} />;
         case 'Kegiatan Harian':
             return <DailyActivitiesComponent location={userInfo.lokasi} />;
         case 'Database Kegiatan':
              return <Card><CardHeader><CardTitle>Database Kegiatan Harian</CardTitle><CardDescription>Melihat semua riwayat laporan kegiatan dari karyawan di lokasi {userInfo.lokasi}.</CardDescription></CardHeader><CardContent><p>Konten untuk {activeMenu} sedang dalam pengembangan.</p></CardContent></Card>;
         case 'Jumlah Karyawan Hari Ini':
-            return <EmployeeSummaryComponent location={userInfo.lokasi} />;
+            return <EmployeeSummaryComponent usersInLocation={usersInLocation} />;
         default:
             return <p>Pilih menu untuk memulai.</p>;
     }
@@ -689,3 +602,4 @@ export default function HseK3Page() {
     </SidebarProvider>
   );
 }
+

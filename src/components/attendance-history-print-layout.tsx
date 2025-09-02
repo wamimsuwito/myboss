@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { AttendanceRecord, OvertimeRecord, UserData } from '@/lib/types';
@@ -9,32 +10,44 @@ import { DateRange } from 'react-day-picker';
 
 interface AttendanceHistoryPrintLayoutProps {
   records: any[];
-  period: DateRange;
-  summary: {
-    totalHariKerja: number;
-    totalJamLembur: number;
-    totalMenitTerlambat: number;
-    totalHariAbsen: number;
-  };
+  period: DateRange | undefined;
 }
 
 const safeFormatTimestamp = (timestamp: any, formatString: string) => {
-    if (!timestamp || typeof timestamp.toDate !== 'function') return '-';
+    if (!timestamp) return '-';
+    if(timestamp.toDate) timestamp = timestamp.toDate();
+    if(typeof timestamp === 'string') timestamp = new Date(timestamp);
+    if (!(timestamp instanceof Date)) return '-';
     try {
-        return format(timestamp.toDate(), formatString, { locale: localeID });
+        return format(timestamp, formatString, { locale: localeID });
     } catch (error) {
         return '-';
     }
 }
 
-export default function AttendanceHistoryPrintLayout({ records, period, summary }: AttendanceHistoryPrintLayoutProps) {
+const formatTotalOvertime = (checkIn: any, checkOut: any): string => {
+    const checkInDate = checkIn?.toDate ? checkIn.toDate() : new Date(checkIn);
+    const checkOutDate = checkOut?.toDate ? checkOut.toDate() : new Date(checkOut);
+    if (!checkInDate || !checkOutDate || isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) return '-';
+
+    const diffMins = differenceInMinutes(checkOutDate, checkInDate);
+    if (diffMins < 0) return '-';
+
+    const hours = Math.floor(diffMins / 60);
+    const minutes = diffMins % 60;
+
+    return `${hours}j ${minutes}m`;
+}
+
+
+export default function AttendanceHistoryPrintLayout({ records, period }: AttendanceHistoryPrintLayoutProps) {
     
-  const periodTitle = period.from 
+  const periodTitle = period?.from 
     ? format(period.from, "d MMMM yyyy", { locale: localeID }) + (period.to ? " - " + format(period.to, "d MMMM yyyy", { locale: localeID }) : "") 
     : "Semua Waktu";
 
-  const isSingleUser = records.length === 1;
-  const singleUserData = isSingleUser ? records[0] : null;
+  const isSingleUser = new Set(records.map(r => r.userId)).size === 1;
+  const singleUserData = isSingleUser && records.length > 0 ? records[0] : null;
 
   return (
     <div className="bg-white text-black p-4 font-sans printable-area">
@@ -50,33 +63,21 @@ export default function AttendanceHistoryPrintLayout({ records, period, summary 
             <div className="watermark">PT FARIKA RIAU PERKASA</div>
         </header>
          <hr className="border-t-2 border-black my-2" />
-        <h2 className="text-center font-bold text-lg uppercase my-4">{isSingleUser ? `LAPORAN DETAIL KEHADIRAN` : `LAPORAN RINGKASAN KEHADIRAN`}</h2>
+        <h2 className="text-center font-bold text-lg uppercase my-4">LAPORAN DETAIL KEHADIRAN</h2>
 
       <main>
-        <table className="info-table">
+        <table className="info-table text-sm mb-4">
           <tbody>
             <tr>
-              <td className='label'>PERIODE</td>
+              <td className='label font-semibold pr-2'>PERIODE</td>
               <td>: {periodTitle}</td>
             </tr>
             {isSingleUser && (
               <>
-                <tr>
-                  <td className='label'>NAMA</td>
-                  <td>: {singleUserData?.username}</td>
-                </tr>
-                <tr>
-                  <td className='label'>NIK</td>
-                  <td>: {singleUserData?.nik}</td>
-                </tr>
-                <tr>
-                  <td className='label'>JABATAN</td>
-                  <td>: {singleUserData?.jabatan}</td>
-                </tr>
-                 <tr>
-                  <td className='label'>LOKASI</td>
-                  <td>: {singleUserData?.lokasi}</td>
-                </tr>
+                <tr><td className='label font-semibold'>NAMA</td><td>: {singleUserData?.username}</td></tr>
+                <tr><td className='label font-semibold'>NIK</td><td>: {singleUserData?.nik}</td></tr>
+                <tr><td className='label font-semibold'>JABATAN</td><td>: {singleUserData?.jabatan}</td></tr>
+                <tr><td className='label font-semibold'>LOKASI</td><td>: {singleUserData?.checkInLocationName}</td></tr>
               </>
             )}
           </tbody>
@@ -84,57 +85,39 @@ export default function AttendanceHistoryPrintLayout({ records, period, summary 
 
         <table className='material-table w-full'>
           <thead>
-            <TableRow>
-              <TableHead>Tanggal</TableHead>
-              {!isSingleUser && <TableHead>Nama</TableHead>}
-              <TableHead>Jam Masuk</TableHead>
-              <TableHead>Jam Pulang</TableHead>
-              <TableHead>Terlambat</TableHead>
-              <TableHead>Masuk Lembur</TableHead>
-              <TableHead>Pulang Lembur</TableHead>
-              <TableHead>Total Lembur</TableHead>
-            </TableRow>
+            <tr className="material-table">
+                <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Tanggal</th>
+                {!isSingleUser && <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Nama</th>}
+                <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Jam Masuk</th>
+                <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Jam Pulang</th>
+                <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Terlambat</th>
+                <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Masuk Lembur</th>
+                <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Pulang Lembur</th>
+                <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Total Lembur</th>
+            </tr>
           </thead>
           <tbody>
-            {records.flatMap(user => 
-              user.attendance.map((att: AttendanceRecord) => {
-                const overtime = user.overtime.find((ovt: OvertimeRecord) => ovt.checkInTime && att.checkInTime && isSameDay(ovt.checkInTime.toDate(), att.checkInTime.toDate()));
+            {records.map((rec) => {
+                const overtime = rec.overtimeData;
                 return (
-                  <TableRow key={att.id}>
-                    <TableCell>{safeFormatTimestamp(att.checkInTime, 'dd/MM/yy')}</TableCell>
-                    {!isSingleUser && <TableCell className="text-left">{user.username}</TableCell>}
-                    <TableCell>{safeFormatTimestamp(att.checkInTime, 'HH:mm')}</TableCell>
-                    <TableCell>{safeFormatTimestamp(att.checkOutTime, 'HH:mm')}</TableCell>
-                    <TableCell>{(att.lateMinutes ?? 0) > 0 ? `${att.lateMinutes} mnt` : '-'}</TableCell>
-                    <TableCell>{safeFormatTimestamp(overtime?.checkInTime, 'HH:mm')}</TableCell>
-                    <TableCell>{safeFormatTimestamp(overtime?.checkOutTime, 'HH:mm')}</TableCell>
-                    <TableCell>{overtime && overtime.checkOutTime ? `${differenceInMinutes(overtime.checkOutTime.toDate(), overtime.checkInTime.toDate())} mnt` : '-'}</TableCell>
-                  </TableRow>
+                  <tr key={rec.id} className="material-table">
+                    <td className="border border-black p-1 text-center text-xs">{safeFormatTimestamp(rec.checkInTime, 'dd/MM/yy')}</td>
+                    {!isSingleUser && <td className="border border-black p-1 text-left text-xs">{rec.username}</td>}
+                    <td className="border border-black p-1 text-center text-xs">{safeFormatTimestamp(rec.checkInTime, 'HH:mm')}</td>
+                    <td className="border border-black p-1 text-center text-xs">{safeFormatTimestamp(rec.checkOutTime, 'HH:mm')}</td>
+                    <td className="border border-black p-1 text-center text-xs">{(rec.lateMinutes ?? 0) > 0 ? `${rec.lateMinutes} mnt` : '-'}</td>
+                    <td className="border border-black p-1 text-center text-xs">{safeFormatTimestamp(overtime?.checkInTime, 'HH:mm')}</td>
+                    <td className="border border-black p-1 text-center text-xs">{safeFormatTimestamp(overtime?.checkOutTime, 'HH:mm')}</td>
+                    <td className="border border-black p-1 text-center text-xs">{formatTotalOvertime(overtime?.checkInTime, overtime?.checkOutTime)}</td>
+                  </tr>
                 )
               })
-            )}
+            }
             {records.length === 0 && (
-                <TableRow><TableCell colSpan={isSingleUser ? 7 : 8} className="h-24 text-center">Tidak ada data absensi pada periode ini.</TableCell></TableRow>
+                <tr><td colSpan={isSingleUser ? 7 : 8} className="h-24 text-center">Tidak ada data absensi pada periode ini.</td></tr>
             )}
           </tbody>
         </table>
-
-        <div className="mt-6 flex justify-end">
-            <table className="summary-table">
-                 <thead>
-                    <TableRow>
-                        <TableCell colSpan={2} className="font-bold text-center">RINGKASAN PERIODE</TableCell>
-                    </TableRow>
-                 </thead>
-                 <tbody>
-                    <TableRow><TableCell className="font-semibold">Total Hari Kerja</TableCell><TableCell className="text-right">{summary.totalHariKerja} Hari</TableCell></TableRow>
-                    <TableRow><TableCell className="font-semibold">Total Jam Lembur</TableCell><TableCell className="text-right">{summary.totalJamLembur} Jam</TableCell></TableRow>
-                    <TableRow><TableCell className="font-semibold">Total Keterlambatan</TableCell><TableCell className="text-right">{summary.totalMenitTerlambat} Menit</TableCell></TableRow>
-                    <TableRow><TableCell className="font-semibold">Total Hari Absen</TableCell><TableCell className="text-right">{summary.totalHariAbsen} Hari</TableCell></TableRow>
-                 </tbody>
-            </table>
-        </div>
-
       </main>
 
       <footer className="signature-section mt-16">
@@ -146,9 +129,10 @@ export default function AttendanceHistoryPrintLayout({ records, period, summary 
           <div>
               <p>Disiapkan oleh,</p>
               <div className="signature-box"></div>
-              <p>(HRD Pusat)</p>
+              <p>(HSE K3)</p>
           </div>
       </footer>
     </div>
   );
 }
+
