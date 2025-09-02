@@ -7,24 +7,28 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus, MapPin, Save } from 'lucide-react';
+import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus, MapPin, Save, Calendar as CalendarIcon, FilterX } from 'lucide-react';
 import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord } from '@/lib/types';
-import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, endOfDay, setDoc, getDoc } from '@/lib/firebase';
+import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, endOfDay, setDoc, getDoc, orderBy } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
-import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay } from 'date-fns';
+import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay, isWithinInterval, subDays } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { differenceInMinutes } from 'date-fns';
-import { printElement } from '@/lib/utils';
+import { printElement, cn } from '@/lib/utils';
 import HseAttendancePrintLayout from '@/components/hse-attendance-print-layout';
 import HseActivityPrintLayout from '@/components/hse-activity-print-layout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogTrigger, DialogDescription } from '@/components/ui/dialog';
 import { X } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { DateRange } from 'react-day-picker';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 
 type ActiveMenu = 'Absensi Harian' | 'Database Absensi' | 'Kegiatan Harian' | 'Database Kegiatan' | 'Jumlah Karyawan Hari Ini';
@@ -240,6 +244,115 @@ const PhotoViewer = ({ photoUrl, timestamp }: { photoUrl?: string | null, timest
         </Dialog>
     );
 };
+
+const AttendanceHistoryComponent = ({ location }: { location: string }) => {
+    const { toast } = useToast();
+    const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
+    const [allOvertime, setAllOvertime] = useState<OvertimeRecord[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: subDays(new Date(), 7), to: new Date() });
+
+    useEffect(() => {
+        if (!location) return;
+        setIsLoading(true);
+
+        const attendanceQuery = query(collection(db, 'absensi'));
+        const overtimeQuery = query(collection(db, 'overtime_absensi'));
+
+        const unsubAttendance = onSnapshot(attendanceQuery, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
+            setAllAttendance(data);
+        }, (error) => {
+            toast({ title: "Gagal memuat absensi", variant: "destructive" });
+            console.error(error);
+        });
+
+        const unsubOvertime = onSnapshot(overtimeQuery, (snapshot) => {
+            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as OvertimeRecord));
+            setAllOvertime(data);
+        }, (error) => {
+            toast({ title: "Gagal memuat lembur", variant: "destructive" });
+            console.error(error);
+        });
+
+        setIsLoading(false);
+        return () => {
+            unsubAttendance();
+            unsubOvertime();
+        };
+
+    }, [location, toast]);
+    
+    const filteredRecords = useMemo(() => {
+        if (!dateRange?.from) return [];
+        const fromDate = startOfDay(dateRange.from);
+        const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+
+        const combined: any[] = [...allAttendance, ...allOvertime];
+
+        return combined
+            .filter(item => {
+                const itemDate = item.checkInTime?.toDate();
+                return itemDate && isWithinInterval(itemDate, { start: fromDate, end: toDate });
+            })
+            .sort((a, b) => b.checkInTime.toDate().getTime() - a.checkInTime.toDate().getTime());
+    }, [allAttendance, allOvertime, dateRange]);
+
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Database Absensi</CardTitle>
+                <CardDescription>Cari dan lihat riwayat absensi seluruh karyawan di lokasi Anda.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-wrap gap-2 items-center mb-4">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button id="date" variant={"outline"} className={cn("w-full sm:w-[280px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2} />
+                        </PopoverContent>
+                    </Popover>
+                    <Button variant="ghost" onClick={() => setDateRange(undefined)} disabled={!dateRange}><FilterX className="mr-2 h-4 w-4"/>Reset</Button>
+                </div>
+
+                <div className="border rounded-lg overflow-x-auto">
+                     <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Tanggal</TableHead>
+                                <TableHead>Nama</TableHead>
+                                <TableHead>Tipe</TableHead>
+                                <TableHead>Jam Masuk</TableHead>
+                                <TableHead>Jam Pulang</TableHead>
+                                <TableHead>Keterangan</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {isLoading ? (<TableRow><TableCell colSpan={6} className="h-48 text-center"><Loader2 className="animate-spin h-8 w-8"/></TableCell></TableRow>)
+                            : filteredRecords.length > 0 ? filteredRecords.map(item => (
+                                <TableRow key={item.id}>
+                                    <TableCell>{safeFormatTimestamp(item.checkInTime, 'dd MMM yyyy')}</TableCell>
+                                    <TableCell>{item.username}</TableCell>
+                                    <TableCell><Badge variant={item.description ? 'destructive' : 'default'}>{item.description ? 'Lembur' : 'Reguler'}</Badge></TableCell>
+                                    <TableCell>{safeFormatTimestamp(item.checkInTime, 'HH:mm:ss')}</TableCell>
+                                    <TableCell>{safeFormatTimestamp(item.checkOutTime, 'HH:mm:ss')}</TableCell>
+                                    <TableCell className="text-xs">{item.description || '-'}</TableCell>
+                                </TableRow>
+                            )) : (<TableRow><TableCell colSpan={6} className="h-48 text-center text-muted-foreground">Tidak ada riwayat absensi pada periode yang dipilih.</TableCell></TableRow>)}
+                        </TableBody>
+                    </Table>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
 
 const DailyActivitiesComponent = ({ location }: { location: string }) => {
     const [combinedData, setCombinedData] = useState<CombinedRecord[]>([]);
@@ -503,14 +616,14 @@ export default function HseK3Page() {
     switch (activeMenu) {
         case 'Absensi Harian':
             return <DailyAttendanceComponent location={userInfo.lokasi} />;
+        case 'Database Absensi':
+            return <AttendanceHistoryComponent location={userInfo.lokasi} />;
         case 'Kegiatan Harian':
             return <DailyActivitiesComponent location={userInfo.lokasi} />;
-        case 'Jumlah Karyawan Hari Ini':
-            return <EmployeeSummaryComponent location={userInfo.lokasi} />;
-        case 'Database Absensi':
-             return <Card><CardHeader><CardTitle>Database Absensi</CardTitle><CardDescription>Melihat riwayat kehadiran seluruh karyawan di lokasi {userInfo.lokasi}.</CardDescription></CardHeader><CardContent><p>Konten untuk {activeMenu} sedang dalam pengembangan.</p></CardContent></Card>;
         case 'Database Kegiatan':
              return <Card><CardHeader><CardTitle>Database Kegiatan Harian</CardTitle><CardDescription>Melihat semua riwayat laporan kegiatan dari karyawan di lokasi {userInfo.lokasi}.</CardDescription></CardHeader><CardContent><p>Konten untuk {activeMenu} sedang dalam pengembangan.</p></CardContent></Card>;
+        case 'Jumlah Karyawan Hari Ini':
+            return <EmployeeSummaryComponent location={userInfo.lokasi} />;
         default:
             return <p>Pilih menu untuk memulai.</p>;
     }
