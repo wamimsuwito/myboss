@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus, MapPin, Save, Calendar as CalendarIcon, FilterX } from 'lucide-react';
-import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord, ProductionData } from '@/lib/types';
+import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord, ProductionData, Report } from '@/lib/types';
 import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, setDoc, getDoc, orderBy } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
@@ -210,7 +210,7 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
         <>
         <div className="hidden">
             <div id="history-print-area">
-                <AttendanceHistoryPrintLayout records={filteredRecords as any} period={dateRange} summary={summary} />
+                <AttendanceHistoryPrintLayout records={filteredRecords as any} period={dateRange} summary={summary}/>
             </div>
         </div>
         <Card>
@@ -570,16 +570,10 @@ export default function HseK3Page() {
         if (!userInfo?.lokasi) return [];
         const todayStart = startOfToday();
         
-        const parseAndCheckDate = (timestamp: any) => {
-            const date = toValidDate(timestamp);
-            return date && isSameDay(date, todayStart);
-        };
-        
         return usersInLocation.map(user => {
-            const attendance = allAttendance.find(rec => rec.userId === user.id && parseAndCheckDate(rec.checkInTime));
-            const overtime = allOvertime.find(rec => rec.userId === user.id && parseAndCheckDate(rec.checkInTime));
-            const productions = allProductions
-                .filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase() && parseAndCheckDate(p.tanggal))
+            const attendance = allAttendance.find(rec => rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, todayStart));
+            const overtime = allOvertime.find(rec => rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, todayStart));
+            const productions = allProductions.filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase() && toValidDate(p.tanggal) && isSameDay(toValidDate(p.tanggal)!, todayStart))
                 .sort((a,b) => toValidDate(a.jamMulai)!.getTime() - toValidDate(b.jamMulai)!.getTime());
 
             return {
@@ -623,13 +617,13 @@ export default function HseK3Page() {
   const renderContent = () => {
     switch (activeMenu) {
         case 'Absensi Harian':
-            return <DailyAttendanceComponent users={combinedDataToday} location={userInfo.lokasi} />;
+            return <DailyAttendanceComponent users={combinedDataToday} location={userInfo.lokasi || ''} />;
         case 'Database Absensi':
             return <AttendanceHistoryComponent users={usersInLocation} allAttendance={allAttendance} allOvertime={allOvertime} />;
         case 'Kegiatan Harian':
-            return <DailyActivitiesComponent location={userInfo.lokasi} />;
+            return <DailyActivitiesComponent location={userInfo.lokasi || ''} />;
         case 'Database Kegiatan':
-             return <ActivityHistoryComponent allActivities={allActivities} users={usersInLocation} location={userInfo.lokasi} />;
+             return <ActivityHistoryComponent allActivities={allActivities} users={usersInLocation} location={userInfo.lokasi || ''} />;
         case 'Jumlah Karyawan Hari Ini':
             return <EmployeeSummaryComponent usersInLocation={usersInLocation} />;
         default:
@@ -696,5 +690,3 @@ export default function HseK3Page() {
     </SidebarProvider>
   );
 }
-
-```
