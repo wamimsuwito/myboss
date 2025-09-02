@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -373,7 +374,7 @@ const EmployeeSummaryComponent = ({ location }: { location: string }) => {
 
                 const todayStart = startOfDay(new Date());
 
-                // Fetch regular attendance for today
+                // Fetch regular attendance for today for users in the specified location
                 const attendanceQuery = query(
                     collection(db, 'absensi'), 
                     where('userId', 'in', userIdsInLocation),
@@ -381,7 +382,7 @@ const EmployeeSummaryComponent = ({ location }: { location: string }) => {
                 );
                 const attendanceSnap = await getDocs(attendanceQuery);
                 
-                // Fetch overtime attendance for today
+                // Fetch overtime attendance for today for users in the specified location
                 const overtimeQuery = query(
                     collection(db, 'overtime_absensi'), 
                     where('userId', 'in', userIdsInLocation),
