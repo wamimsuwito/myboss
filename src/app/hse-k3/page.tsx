@@ -213,7 +213,7 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
         <>
         <div className="hidden">
             <div id="history-print-area">
-                <AttendanceHistoryPrintLayout records={filteredRecords as any} period={dateRange} summary={summary}/>
+                <AttendanceHistoryPrintLayout records={filteredRecords as any} period={dateRange} summary={summary} />
             </div>
         </div>
         <Card>
