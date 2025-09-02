@@ -181,28 +181,61 @@ export default function OwnerPage() {
             setBpStatuses(statuses);
         }, (error) => console.error("Error fetching BP status:", error)));
         
-        // Listener for Schedules
-        const scheduleQuery = query(collection(db, 'schedules_today'), where('LOKASI', '==', selectedLocation));
-        unsubscribers.push(onSnapshot(scheduleQuery, (snapshot) => {
-            const schedules = snapshot.docs.map(doc => doc.data() as ScheduleRow);
-            const totalJadwal = schedules.reduce((sum, s) => sum + parseFloat(s['TOTAL M³'] || '0'), 0);
-            const totalTerkirim = schedules.reduce((sum, s) => sum + parseFloat(s['TERKIRIM M³'] || '0'), 0);
+        // Listener for Productions to get schedule info
+        const productionQuery = query(collection(db, 'productions'), where('lokasiProduksi', '==', selectedLocation), where('tanggal', '>=', Timestamp.fromDate(todayStart)));
+        unsubscribers.push(onSnapshot(productionQuery, (snapshot) => {
+            const productionsToday = snapshot.docs.map(doc => doc.data() as ProductionData);
             
-            const activeSchedules = schedules.filter(s => s.STATUS === 'proses' || s.STATUS === 'selesai');
+            // Re-aggregate schedule-like data from productions
+            const schedules = productionsToday.reduce((acc, prod) => {
+                const key = `${prod.jobId}-${prod.namaPelanggan}-${prod.lokasiProyek}-${prod.mutuBeton}`;
+                if (!acc[key]) {
+                    acc[key] = {
+                        'NO': prod.jobId,
+                        'NAMA': prod.namaPelanggan,
+                        'LOKASI': prod.lokasiProyek,
+                        'GRADE': prod.mutuBeton,
+                        'CP/M': prod['CP/M'] || '',
+                        'TOTAL M³': 0, // This will be calculated from schedules, so we start here
+                        'TERKIRIM M³': 0,
+                        'STATUS': 'proses', // Default, will be updated
+                    };
+                }
+                acc[key]['TERKIRIM M³'] += prod.targetVolume;
+                return acc;
+            }, {} as Record<string, any>);
             
-            const cpLocations = new Set(schedules.filter(s => s['CP/M']?.toUpperCase() === 'CP').map(s => s.LOKASI)).size;
+            // To get TOTAL M³, we still need to query the original schedule
+            const scheduleCollectionQuery = query(collection(db, 'schedules_today'));
+            getDocs(scheduleCollectionQuery).then(scheduleSnapshot => {
+                 const allSchedules = scheduleSnapshot.docs.map(d => d.data() as ScheduleRow);
+                 const schedulesFromProductions = Object.values(schedules);
+                 
+                 schedulesFromProductions.forEach(sched => {
+                     const originalSchedule = allSchedules.find(s => s.NO === sched.NO);
+                     if (originalSchedule) {
+                         sched['TOTAL M³'] = parseFloat(originalSchedule['TOTAL M³'] || '0');
+                         sched['SISA M³'] = sched['TOTAL M³'] - sched['TERKIRIM M³'];
+                         if(sched['SISA M³'] <= 0) sched['STATUS'] = 'selesai';
+                     }
+                 });
 
-            const lokasiTerkirimCount = new Set(activeSchedules.map(s => s.LOKASI)).size;
-            
-            setSummary((prev: SummaryData) => ({
-                ...prev,
-                requestMasuk: totalJadwal,
-                requestCount: schedules.length,
-                volumeCor: totalTerkirim,
-                lokasiCp: cpLocations,
-                lokasiTerkirimCount: lokasiTerkirimCount,
-            }));
-        }, (error) => console.error("Error fetching schedules:", error)));
+                 const totalJadwal = schedulesFromProductions.reduce((sum, s) => sum + (s['TOTAL M³'] || 0), 0);
+                 const totalTerkirim = schedulesFromProductions.reduce((sum, s) => sum + (s['TERKIRIM M³'] || 0), 0);
+                 const cpLocations = new Set(schedulesFromProductions.filter(s => s['CP/M']?.toUpperCase() === 'CP').map(s => s.LOKASI)).size;
+                 const lokasiTerkirimCount = new Set(schedulesFromProductions.filter(s => s.STATUS === 'proses' || s.STATUS === 'selesai').map(s => s.LOKASI)).size;
+
+                 setSummary((prev: SummaryData) => ({
+                    ...prev,
+                    requestMasuk: totalJadwal,
+                    requestCount: schedulesFromProductions.length,
+                    volumeCor: totalTerkirim,
+                    lokasiCp: cpLocations,
+                    lokasiTerkirimCount: lokasiTerkirimCount,
+                 }));
+            });
+        }, (error) => console.error("Error fetching productions:", error)));
+
         
         const pemasukanQuery = query(collection(db, 'arsip_pemasukan_material_semua'), where('timestamp', '>=', todayStart.toISOString()));
         unsubscribers.push(onSnapshot(pemasukanQuery, (snapshot) => {
@@ -449,5 +482,3 @@ export default function OwnerPage() {
         </div>
     );
 }
-
-    
