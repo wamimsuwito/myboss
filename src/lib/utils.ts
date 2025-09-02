@@ -13,17 +13,15 @@ export function printElement(elementId: string) {
     return;
   }
 
-  // Create a container for the print content that will be temporarily added to the body
   const printContainer = document.createElement('div');
-  printContainer.id = 'print-container-temp';
-  printContainer.className = 'print-container'; // Used by CSS to isolate the print view
-  printContainer.innerHTML = printableElement.closest('[role="dialog"]')?.outerHTML || printableElement.outerHTML;
-
-  document.body.appendChild(printContainer);
-
-  window.print();
+  printContainer.className = 'print-container';
   
-  // Clean up after printing
+  // Clone the node to avoid moving the original element
+  const contentToPrint = printableElement.cloneNode(true) as HTMLElement;
+  printContainer.appendChild(contentToPrint);
+  
+  document.body.appendChild(printContainer);
+  window.print();
   document.body.removeChild(printContainer);
 }
 

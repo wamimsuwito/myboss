@@ -5,16 +5,28 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { PemasukanLogEntry } from '@/lib/types';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
+import { DateRange } from 'react-day-picker';
 
 interface LaporanPemasukanPrintLayoutProps {
   data: PemasukanLogEntry[];
   location: string;
-  title?: string;
+  period: DateRange | undefined;
 }
 
-export default function LaporanPemasukanPrintLayout({ data, location, title = 'Laporan Harian Pemasukan Material' }: LaporanPemasukanPrintLayoutProps) {
-  const reportDate = data.length > 0 ? format(new Date(data[0].timestamp), 'dd MMMM yyyy', { locale: id }) : format(new Date(), 'dd MMMM yyyy', { locale: id });
+
+const safeFormatTimestamp = (timestamp: any, formatString: string) => {
+    if (!timestamp) return '-';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    if (isNaN(date.getTime())) return '-';
+    return format(date, formatString, { locale: id });
+};
+
+export default function LaporanPemasukanPrintLayout({ data, location, period }: LaporanPemasukanPrintLayoutProps) {
   
+  const periodTitle = period?.from 
+    ? format(period.from, "d MMMM yyyy", { locale: id }) + (period.to ? " - " + format(period.to, "d MMMM yyyy", { locale: id }) : "") 
+    : "Semua Waktu";
+
   return (
     <div className="bg-white text-black p-4 font-sans printable-area">
       <div className="watermark">PT FARIKA RIAU PERKASA</div>
@@ -29,51 +41,42 @@ export default function LaporanPemasukanPrintLayout({ data, location, title = 'L
             <div style={{ clear: 'both' }}></div>
         </header>
         <hr className="border-t-2 border-black my-2" />
-        <h2 className="text-center font-bold text-lg uppercase my-4">{title}</h2>
+        <h2 className="text-center font-bold text-lg uppercase my-4">Laporan Pemasukan Material</h2>
         <p className="report-date text-center text-sm mb-4">
-          Lokasi: {location} - Tanggal: {title.includes('Harian') ? reportDate : ''}
+          Lokasi: {location} - Periode: {periodTitle}
         </p>
 
       <main>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Waktu</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Material</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">No. SPB</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Kapal/Truk</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Sopir/Kapten</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Jumlah</TableHead>
-              <TableHead className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Keterangan</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <table className="material-table w-full">
+          <thead>
+            <tr className="material-table">
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Waktu</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Material</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">No. SPB</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Kapal/Truk</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Sopir/Kapten</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Jumlah</th>
+              <th className="text-black font-bold border border-black px-2 py-1 text-center text-xs">Keterangan</th>
+            </tr>
+          </thead>
+          <tbody>
             {data.map((entry, index) => (
-              <TableRow key={entry.id || index}>
-                <TableCell className="border border-black p-1 text-center text-xs">{format(new Date(entry.timestamp), 'dd/MM/yy HH:mm')}</TableCell>
-                <TableCell className="border border-black p-1 text-center text-xs">{entry.material}</TableCell>
-                <TableCell className="border border-black p-1 text-center text-xs">{entry.noSpb}</TableCell>
-                <TableCell className="border border-black p-1 text-center text-xs">{entry.namaKapal}</TableCell>
-                <TableCell className="border border-black p-1 text-center text-xs">{entry.namaSopir}</TableCell>
-                <TableCell className="border border-black p-1 text-center text-xs">{entry.jumlah.toLocaleString('id-ID')} {entry.unit}</TableCell>
-                <TableCell className="border border-black p-1 text-center text-xs">{entry.keterangan || '-'}</TableCell>
-              </TableRow>
+              <tr key={entry.id || index}>
+                <td className="border border-black p-1 text-center text-xs">{safeFormatTimestamp(entry.timestamp, 'dd/MM/yy HH:mm')}</td>
+                <td className="border border-black p-1 text-center text-xs">{entry.material}</td>
+                <td className="border border-black p-1 text-center text-xs">{entry.noSpb}</td>
+                <td className="border border-black p-1 text-center text-xs">{entry.namaKapal}</td>
+                <td className="border border-black p-1 text-center text-xs">{entry.namaSopir}</td>
+                <td className="border border-black p-1 text-center text-xs">{entry.jumlah.toLocaleString('id-ID')} {entry.unit}</td>
+                <td className="border border-black p-1 text-center text-xs">{entry.keterangan || '-'}</td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+             {data.length === 0 && (
+                <tr><td colSpan={7} className="h-24 text-center">Tidak ada data untuk dicetak.</td></tr>
+            )}
+          </tbody>
+        </table>
       </main>
-      <footer className="signature-section">
-          <div>
-              <p>Disiapkan oleh,</p>
-              <div className="signature-box"></div>
-              <p>(Admin Logistik)</p>
-          </div>
-           <div>
-              <p>Diketahui oleh,</p>
-              <div className="signature-box"></div>
-              <p>(Kepala Workshop)</p>
-          </div>
-      </footer>
     </div>
   );
 }

@@ -105,6 +105,11 @@
 }
 
 @media print {
+    body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    
     body > *:not(.print-container) {
       display: none !important;
     }
@@ -117,29 +122,38 @@
       width: 100%;
       height: 100%;
     }
-    
-    .print-container [role="dialog"] {
-      display: block !important;
-      position: static !important;
-      transform: none !important;
-      width: 100% !important;
-      max-width: none !important;
-      height: auto !important;
-      box-shadow: none !important;
-      border: none !important;
-      padding: 0 !important;
-      margin: 0 !important;
-    }
 
     .no-print, .no-print * {
         display: none !important;
     }
 
-    .printable-area, .printable-area * {
+    .printable-area {
         color: black !important;
         background-color: white !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
+    }
+    
+    .printable-area * {
+        color: inherit !important;
+        background-color: inherit !important;
+    }
+
+    .material-table, .material-table th, .material-table td {
+        border-color: black !important;
+    }
+    .print-header {
+      color: black !important;
+    }
+    .print-logo {
+      filter: none !important;
+    }
+    .signature-section {
+        display: flex;
+        justify-content: space-around;
+        margin-top: 4rem;
+        page-break-inside: avoid;
+    }
+    .signature-box {
+        height: 80px;
     }
 
     .watermark {

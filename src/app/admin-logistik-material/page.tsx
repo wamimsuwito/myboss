@@ -462,52 +462,40 @@ export default function AdminLogistikPage() {
         const statusInfo = status ? statusMap[status] : { text: 'Unknown', className: 'bg-gray-200' };
         return <Badge className={statusInfo.className}>{statusInfo.text}</Badge>;
     };
+  
+    const handlePrintReport = (type: 'today' | 'history') => {
+        const dataToPrint = type === 'today' ? dailyLog : filteredPemasukan;
+        const period = type === 'today' ? undefined : dateRange;
+        
+        if (dataToPrint.length === 0) {
+            toast({ title: "Tidak ada data untuk dicetak", variant: 'destructive' });
+            return;
+        }
 
-  const handlePrintReport = (type: 'today' | 'history') => {
-    const dataToPrint = type === 'today' ? dailyLog : filteredPemasukan;
-    if(dataToPrint.length === 0) {
-        toast({ title: "Tidak ada data untuk dicetak", variant: 'destructive' });
-        return;
-    }
-    const printTitle = type === 'today' 
-        ? `Laporan Harian Pemasukan Material (${format(new Date(), 'dd MMM yyyy')})`
-        : `Laporan Pemasukan Material (${dateRange?.from ? format(dateRange.from, 'dd MMM') : ''} - ${dateRange?.to ? format(dateRange.to, 'dd MMM yyyy') : ''})`;
+        const printContentId = "pemasukan-report-print-area";
+        let printArea = document.getElementById(printContentId);
 
-    const printContainer = document.createElement('div');
-    printContainer.id = "print-area";
-    printContainer.className = "hidden";
-    
-    const table = `
-        <h1>${printTitle}</h1>
-        <p>Lokasi: ${userInfo?.lokasi}</p>
-        <table>
-            <thead>
-                <tr>
-                    <th>Waktu</th>
-                    <th>Material</th>
-                    <th>No. SPB</th>
-                    <th>Kapal/Truk</th>
-                    <th>Jumlah</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${dataToPrint.map(entry => `
-                    <tr>
-                        <td>${safeFormatDate(entry.timestamp, 'dd/MM/yy HH:mm')}</td>
-                        <td>${entry.material}</td>
-                        <td>${entry.noSpb}</td>
-                        <td>${entry.namaKapal}</td>
-                        <td>${entry.jumlah.toLocaleString('id-ID')} ${entry.unit}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
-    printContainer.innerHTML = table;
-    document.body.appendChild(printContainer);
-    printElement('print-area');
-    document.body.removeChild(printContainer);
-  }
+        if (!printArea) {
+            printArea = document.createElement('div');
+            printArea.id = printContentId;
+            document.body.appendChild(printArea);
+        }
+
+        const printRoot = ReactDOM.createRoot(printArea);
+        printRoot.render(
+            <React.StrictMode>
+                <LaporanPemasukanPrintLayout
+                    data={dataToPrint}
+                    location={userInfo?.lokasi || ''}
+                    period={period}
+                />
+            </React.StrictMode>
+        );
+
+        setTimeout(() => {
+            printElement(printContentId);
+        }, 100);
+    };
 
   const clearHistoryFilter = () => {
     setDateRange(undefined);
