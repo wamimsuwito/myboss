@@ -64,6 +64,7 @@ import {
     Briefcase,
     ShieldX,
     Eye,
+    Play,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { UserData, Report, LocationData, SopirBatanganData, AlatData, MechanicTask } from '@/lib/types';
@@ -438,7 +439,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
                         {filteredTasks.length > 0 ? (
                         filteredTasks.map((task) => {
                             const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
-                            const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
+                            const sopir = users.find(u => u.id === triggeringReport?.operatorId);
                             const calculateEffectiveDuration = (task: MechanicTask) => {
                                 if (!task.startedAt || !task.completedAt) return '-';
                                 const duration = new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime() - (task.totalDelayDuration || 0);
@@ -530,6 +531,9 @@ export default function KepalaMekanikPage() {
   const [repairDescription, setRepairDescription] = useState('');
   const [delayTask, setDelayTask] = useState<MechanicTask | null>(null);
   const [delayReason, setDelayReason] = useState('');
+  
+  const [startTask, setStartTask] = useState<MechanicTask | null>(null);
+
 
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
@@ -804,6 +808,11 @@ export default function KepalaMekanikPage() {
     return mechanicTasks.filter(task => task.status !== 'COMPLETED');
   }, [mechanicTasks]);
   
+    const myActiveTasks = useMemo(() => {
+        if (!userInfo) return [];
+        return activeTasks.filter(task => task.mechanics.some(m => m.id === userInfo.id));
+    }, [activeTasks, userInfo]);
+
   const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status']) => {
     if (newStatus === 'COMPLETED') {
         setCompletionTask(task);
@@ -816,18 +825,20 @@ export default function KepalaMekanikPage() {
         setDelayReason('');
         return;
     }
+    
+    if (newStatus === 'IN_PROGRESS' && task.status === 'PENDING') {
+      setStartTask(task);
+      return;
+    }
+
 
     const taskDocRef = doc(db, 'mechanic_tasks', task.id);
-    const updateData: Partial<MechanicTask> = { status: newStatus };
+    let updateData: Partial<MechanicTask> = { status: newStatus };
 
-    if (newStatus === 'IN_PROGRESS' && task.status === 'PENDING' && !task.startedAt) {
-      updateData.startedAt = new Date().getTime();
-    } else if (newStatus === 'IN_PROGRESS' && task.status === 'DELAYED') {
+    if (newStatus === 'IN_PROGRESS' && task.status === 'DELAYED') {
       const lastDelay = task.riwayatTunda?.[task.riwayatTunda.length - 1];
       if (lastDelay && !lastDelay.waktuSelesai) {
           lastDelay.waktuSelesai = Timestamp.now();
-          const delayDuration = lastDelay.waktuSelesai.toMillis() - lastDelay.waktuMulai.toMillis();
-          updateData.totalDelayDuration = (task.totalDelayDuration || 0) + delayDuration;
           updateData.riwayatTunda = task.riwayatTunda;
       }
     }
@@ -851,7 +862,6 @@ export default function KepalaMekanikPage() {
         const updateData: Partial<MechanicTask> = {
             status: 'DELAYED',
             delayReason: delayReason,
-            delayStartedAt: new Date().getTime(),
             riwayatTunda: [...(delayTask.riwayatTunda || []), { alasan: delayReason, waktuMulai: Timestamp.now(), waktuSelesai: null! }]
         };
         try {
@@ -866,6 +876,26 @@ export default function KepalaMekanikPage() {
             setIsSubmitting(false);
         }
     };
+    
+    const handleConfirmStart = async () => {
+        if (!startTask) return;
+        setIsSubmitting(true);
+        const taskDocRef = doc(db, 'mechanic_tasks', startTask.id);
+        const updateData: Partial<MechanicTask> = { 
+            status: 'IN_PROGRESS',
+            startedAt: new Date().getTime() 
+        };
+         try {
+            await updateDoc(taskDocRef, updateData as any);
+            toast({ title: "Pekerjaan Dimulai", description: `WO untuk ${startTask.vehicle.hullNumber} telah dimulai.` });
+            setStartTask(null);
+        } catch (error) {
+            console.error("Error starting task:", error);
+            toast({ title: "Gagal Memulai WO", variant: "destructive" });
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
 
 
   const handleConfirmCompletion = async () => {
@@ -956,6 +986,25 @@ export default function KepalaMekanikPage() {
     }
   };
 
+  const renderLaporanLogistik = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+  
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -970,67 +1019,13 @@ export default function KepalaMekanikPage() {
                 </div>
               </main>
             );
-        case 'Work order saya (WO)':
-            return (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Daftar Laporan Kerusakan (Work Order)</CardTitle>
-                        <CardDescription>Daftar kendaraan yang dilaporkan rusak atau perlu perhatian dan membutuhkan perbaikan segera.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                       <div className="overflow-x-auto border rounded-lg">
-                           <Table>
-                               <TableHeader>
-                                   <TableRow>
-                                       <TableHead>Waktu Pelaporan</TableHead>
-                                       <TableHead>Sopir/Operator</TableHead>
-                                       <TableHead>Nomor Kendaraan</TableHead>
-                                       <TableHead>Deskripsi Kerusakan</TableHead>
-                                       <TableHead className='text-right'>Aksi</TableHead>
-                                   </TableRow>
-                               </TableHeader>
-                               <TableBody>
-                                   {isFetchingData ? (
-                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                   ) : woList.length > 0 ? (
-                                     woList.map(report => {
-                                       const vehicle = alat.find(a => a.nomorLambung === report.nomorLambung);
-                                       const operator = users.find(u => u.id === report.operatorId);
-                                       if (!vehicle) return null;
-                                       return (
-                                         <TableRow key={report.id}>
-                                             <TableCell>{format(new Date(report.timestamp), 'dd MMM, HH:mm', { locale: localeID })}</TableCell>
-                                             <TableCell>
-                                                 <p>{operator?.username || 'N/A'}</p>
-                                                 <p className="text-xs text-muted-foreground">NIK: {operator?.nik || '-'}</p>
-                                             </TableCell>
-                                             <TableCell>
-                                                 <p className="font-semibold">{vehicle.nomorLambung}</p>
-                                                 <p className="text-xs text-muted-foreground">{vehicle.nomorPolisi} ({vehicle.jenisKendaraan})</p>
-                                             </TableCell>
-                                             <TableCell className="max-w-xs truncate">{report.description}</TableCell>
-                                             <TableCell className="text-right">
-                                                 <CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={mechanicsInLocation} onTaskCreated={() => {}} />
-                                             </TableCell>
-                                         </TableRow>
-                                       );
-                                     })
-                                   ) : (
-                                       <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>
-                                   )}
-                               </TableBody>
-                           </Table>
-                       </div>
-                    </CardContent>
-                </Card>
-            );
         case 'Work order aktif':
-            return (
-                <Card>
+             return (
+                 <Card>
                   <CardHeader>
                     <CardTitle>Work Order Aktif</CardTitle>
                     <CardDescription>
-                      Daftar semua pekerjaan perbaikan yang sedang menunggu atau dalam proses.
+                      Daftar semua pekerjaan perbaikan yang sedang menunggu atau dalam proses di lokasi ini.
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -1041,7 +1036,6 @@ export default function KepalaMekanikPage() {
                             <TableHead>Kendaraan</TableHead>
                             <TableHead>Pelapor</TableHead>
                             <TableHead>Deskripsi</TableHead>
-                            <TableHead>Foto</TableHead>
                             <TableHead>Mekanik Bertugas</TableHead>
                             <TableHead>Target Selesai</TableHead>
                             <TableHead>Status</TableHead>
@@ -1050,12 +1044,12 @@ export default function KepalaMekanikPage() {
                         <TableBody>
                           {isFetchingData ? (
                             <TableRow>
-                              <TableCell colSpan={7} className="h-24 text-center">
+                              <TableCell colSpan={6} className="h-24 text-center">
                                 <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                               </TableCell>
                             </TableRow>
-                          ) : activeTasks.length > 0 ? (
-                            activeTasks.map((task) => {
+                          ) : activeTasks.filter(t => t.vehicle.hullNumber && alat.find(a => a.nomorLambung === t.vehicle.hullNumber)?.lokasi === userInfo?.lokasi).length > 0 ? (
+                            activeTasks.filter(t => t.vehicle.hullNumber && alat.find(a => a.nomorLambung === t.vehicle.hullNumber)?.lokasi === userInfo?.lokasi).map((task) => {
                               const triggeringReport = reports.find(
                                 (r) => r.id === task.vehicle?.triggeringReportId
                               );
@@ -1082,23 +1076,6 @@ export default function KepalaMekanikPage() {
                                     {triggeringReport?.description || 'N/A'}
                                   </TableCell>
                                   <TableCell>
-                                    {triggeringReport?.photo && (
-                                        <Dialog>
-                                            <DialogTrigger asChild>
-                                                <Button variant="ghost" size="icon">
-                                                    <Eye className="h-5 w-5" />
-                                                </Button>
-                                            </DialogTrigger>
-                                            <DialogContent className="max-w-3xl">
-                                                <DialogHeader>
-                                                    <DialogTitle>Foto Laporan Kerusakan</DialogTitle>
-                                                </DialogHeader>
-                                                <img src={Array.isArray(triggeringReport.photo) ? triggeringReport.photo[0] : triggeringReport.photo} alt="Foto Kerusakan" className="rounded-lg w-full h-auto" data-ai-hint="mechanic report broken" />
-                                            </DialogContent>
-                                        </Dialog>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
                                     {task.mechanics.map((m) => m.name).join(', ')}
                                   </TableCell>
                                   <TableCell>
@@ -1106,24 +1083,14 @@ export default function KepalaMekanikPage() {
                                     {' @ '}{task.vehicle.targetTime}
                                   </TableCell>
                                   <TableCell>
-                                    <Select value={task.status} onValueChange={(newStatus) => handleTaskStatusChange(task, newStatus as MechanicTask['status'])}>
-                                      <SelectTrigger className="w-36">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="PENDING">Menunggu</SelectItem>
-                                        <SelectItem value="IN_PROGRESS">Dikerjakan</SelectItem>
-                                        <SelectItem value="DELAYED">Tunda</SelectItem>
-                                        <SelectItem value="COMPLETED">Selesai</SelectItem>
-                                      </SelectContent>
-                                    </Select>
+                                    {getTaskStatusBadge(task.status)}
                                   </TableCell>
                                 </TableRow>
                               );
                             })
                           ) : (
                             <TableRow>
-                              <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                                 Tidak ada work order yang sedang aktif.
                               </TableCell>
                             </TableRow>
@@ -1133,7 +1100,50 @@ export default function KepalaMekanikPage() {
                     </div>
                   </CardContent>
                 </Card>
-              );
+             );
+        case 'Work order saya (WO)':
+            return (
+                 <Card>
+                  <CardHeader>
+                    <CardTitle>Work Order Saya</CardTitle>
+                    <CardDescription>Daftar semua pekerjaan yang ditugaskan kepada Anda.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto border rounded-lg">
+                      <Table>
+                        <TableHeader><TableRow><TableHead>Kendaraan</TableHead><TableHead>Deskripsi</TableHead><TableHead>Target</TableHead><TableHead>Status</TableHead><TableHead className='text-right'>Aksi</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                          {isFetchingData ? (
+                             <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                          ) : myActiveTasks.length > 0 ? (
+                            myActiveTasks.map((task) => (
+                                <TableRow key={task.id}>
+                                  <TableCell><p className="font-semibold">{task.vehicle.hullNumber}</p><p className="text-xs text-muted-foreground">{task.vehicle.licensePlate}</p></TableCell>
+                                  <TableCell className="max-w-[200px] truncate">{task.vehicle.repairDescription}</TableCell>
+                                  <TableCell>{format(new Date(task.vehicle.targetDate), 'dd MMM')} @ {task.vehicle.targetTime}</TableCell>
+                                  <TableCell>{getTaskStatusBadge(task.status)}</TableCell>
+                                  <TableCell className="text-right">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            {task.status === 'PENDING' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task, 'IN_PROGRESS')}><Play className="mr-2"/> Mulai</DropdownMenuItem>}
+                                            {task.status === 'IN_PROGRESS' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task, 'DELAYED')}><AlertTriangle className="mr-2"/> Tunda</DropdownMenuItem>}
+                                            {task.status === 'DELAYED' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task, 'IN_PROGRESS')}><Play className="mr-2"/> Lanjutkan</DropdownMenuItem>}
+                                            {task.status === 'IN_PROGRESS' && <DropdownMenuItem onSelect={() => handleTaskStatusChange(task, 'COMPLETED')}><CheckCircle className="mr-2"/> Selesaikan</DropdownMenuItem>}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </TableCell>
+                                </TableRow>
+                            ))
+                          ) : (
+                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada pekerjaan yang ditugaskan kepada Anda.</TableCell></TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+            )
         case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
@@ -1188,7 +1198,9 @@ export default function KepalaMekanikPage() {
                 </Card>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+        case 'Laporan Logistik':
+             return renderLaporanLogistik();
         case 'Anggota Mekanik':
              const activeMechanicIds = new Set(
                 mechanicTasks
@@ -1365,6 +1377,24 @@ export default function KepalaMekanikPage() {
             </DialogFooter>
         </DialogContent>
     </Dialog>
+    
+     <AlertDialog open={!!startTask} onOpenChange={() => setStartTask(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Mulai Pekerjaan?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Anda akan memulai pekerjaan untuk kendaraan <strong>{startTask?.vehicle.hullNumber}</strong>. Waktu pengerjaan akan mulai dihitung.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmStart} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Ya, Mulai
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
 
 
     <SidebarProvider>
@@ -1429,3 +1459,4 @@ export default function KepalaMekanikPage() {
   );
 }
 
+```
