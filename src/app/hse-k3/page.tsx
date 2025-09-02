@@ -1,9 +1,8 @@
 
-
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -12,12 +11,11 @@ import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord, Productio
 import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, setDoc, getDoc, orderBy } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
-import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay, isWithinInterval, subDays, endOfDay, parseISO, isDate } from 'date-fns';
+import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay, isWithinInterval, subDays, endOfDay, parseISO, isDate, differenceInMinutes } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { differenceInMinutes } from 'date-fns';
 import { printElement, cn } from '@/lib/utils';
 import HseAttendancePrintLayout from '@/components/hse-attendance-print-layout';
 import HseActivityPrintLayout from '@/components/hse-activity-print-layout';
@@ -149,6 +147,15 @@ const PhotoViewer = ({ photoUrl, timestamp }: { photoUrl?: string | null, timest
 const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { users: UserData[], allAttendance: AttendanceRecord[], allOvertime: OvertimeRecord[] }) => {
     const [dateRange, setDateRange] = useState<DateRange | undefined>({ from: subDays(new Date(), 7), to: new Date() });
     const [userFilter, setUserFilter] = useState('');
+    
+    const calculateLateMinutes = (checkInTime: any): number => {
+        if (!checkInTime) return 0;
+        const date = toValidDate(checkInTime);
+        if(!date) return 0;
+        const deadline = new Date(date).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
+        const late = differenceInMinutes(date, deadline);
+        return late > 0 ? late : 0;
+    };
 
     const filteredRecords = useMemo(() => {
         let results = allAttendance;
@@ -181,15 +188,6 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
 
         return combined.sort((a,b) => toValidDate(b.checkInTime)!.getTime() - toValidDate(a.checkInTime)!.getTime());
     }, [allAttendance, allOvertime, users, dateRange, userFilter]);
-    
-    const calculateLateMinutes = (checkInTime: any): number => {
-        if (!checkInTime) return 0;
-        const date = toValidDate(checkInTime);
-        if(!date) return 0;
-        const deadline = new Date(date).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
-        const late = differenceInMinutes(date, deadline);
-        return late > 0 ? late : 0;
-    };
 
 
     return (
@@ -617,3 +615,4 @@ export default function HseK3Page() {
   );
 }
 
+    
