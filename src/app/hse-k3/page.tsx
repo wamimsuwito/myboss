@@ -193,9 +193,16 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
     const summary = useMemo(() => {
         return {
             totalHariKerja: filteredRecords.length,
-            totalJamLembur: 0,
+            totalJamLembur: filteredRecords.reduce((sum, rec) => {
+                const overtime = rec.overtimeData;
+                if(overtime?.checkInTime && overtime?.checkOutTime) {
+                    const diff = differenceInMinutes(toValidDate(overtime.checkOutTime)!, toValidDate(overtime.checkInTime)!);
+                    return sum + Math.floor((diff > 0 ? diff : 0) / 60);
+                }
+                return sum;
+            }, 0),
             totalMenitTerlambat: filteredRecords.reduce((sum, rec) => sum + (rec.lateMinutes || 0), 0),
-            totalHariAbsen: 0,
+            totalHariAbsen: 0, // Logic needs to be defined based on expected work days
         }
     }, [filteredRecords]);
 
@@ -562,11 +569,18 @@ export default function HseK3Page() {
    const combinedDataToday = useMemo(() => {
         if (!userInfo?.lokasi) return [];
         const todayStart = startOfToday();
+        
+        const parseAndCheckDate = (timestamp: any) => {
+            const date = toValidDate(timestamp);
+            return date && isSameDay(date, todayStart);
+        };
+        
         return usersInLocation.map(user => {
-            const attendance = allAttendance.find(rec => rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, todayStart));
-            const overtime = allOvertime.find(rec => rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, todayStart));
-            const productions = allProductions.filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase() && toValidDate(p.tanggal) && isSameDay(toValidDate(p.tanggal)!, todayStart))
-                .sort((a,b) => parseISO(a.jamMulai).getTime() - parseISO(b.jamMulai).getTime());
+            const attendance = allAttendance.find(rec => rec.userId === user.id && parseAndCheckDate(rec.checkInTime));
+            const overtime = allOvertime.find(rec => rec.userId === user.id && parseAndCheckDate(rec.checkInTime));
+            const productions = allProductions
+                .filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase() && parseAndCheckDate(p.tanggal))
+                .sort((a,b) => toValidDate(a.jamMulai)!.getTime() - toValidDate(b.jamMulai)!.getTime());
 
             return {
                 ...user,
@@ -683,3 +697,4 @@ export default function HseK3Page() {
   );
 }
 
+```
