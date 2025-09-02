@@ -350,71 +350,12 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
 }
 
 const EmployeeSummaryComponent = ({ location }: { location: string }) => {
-    const [summary, setSummary] = useState({ total: 0, hadir: 0 });
-    const [counts, setCounts] = useState({ ijin: '', alpha: '', sakit: '', cuti: '' });
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        if (!location) return;
-
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                // Fetch total employees in the location
-                const usersQuery = query(collection(db, 'users'), where('lokasi', '==', location));
-                const usersSnap = await getDocs(usersQuery);
-                const totalKaryawan = usersSnap.docs.length;
-                const userIdsInLocation = usersSnap.docs.map(doc => doc.id);
-
-                if (userIdsInLocation.length === 0) {
-                    setSummary({ total: 0, hadir: 0 });
-                    setIsLoading(false);
-                    return;
-                }
-
-                const todayStart = startOfDay(new Date());
-
-                // Fetch regular attendance for today for users in the specified location
-                const attendanceQuery = query(
-                    collection(db, 'absensi'), 
-                    where('userId', 'in', userIdsInLocation),
-                    where('checkInTime', '>=', Timestamp.fromDate(todayStart))
-                );
-                const attendanceSnap = await getDocs(attendanceQuery);
-                
-                // Fetch overtime attendance for today for users in the specified location
-                const overtimeQuery = query(
-                    collection(db, 'overtime_absensi'), 
-                    where('userId', 'in', userIdsInLocation),
-                    where('checkInTime', '>=', Timestamp.fromDate(todayStart))
-                );
-                const overtimeSnap = await getDocs(overtimeQuery);
-
-                // Combine unique user IDs from both attendance types
-                const presentUserIds = new Set([
-                    ...attendanceSnap.docs.map(d => d.data().userId),
-                    ...overtimeSnap.docs.map(d => d.data().userId)
-                ]);
-
-                setSummary({ total: totalKaryawan, hadir: presentUserIds.size });
-            } catch (error) {
-                console.error("Failed to fetch employee summary:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [location]);
-
+    const [counts, setCounts] = useState({ total: '', hadir: '', ijin: '', alpha: '', sakit: '', cuti: '' });
+    
     const handleCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setCounts(prev => ({ ...prev, [name]: value }));
     };
-
-    if (isLoading) {
-        return <div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>;
-    }
     
     return (
         <Card>
@@ -424,12 +365,12 @@ const EmployeeSummaryComponent = ({ location }: { location: string }) => {
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
-                    <Label>Total Karyawan</Label>
-                    <Input value={`${summary.total} Orang`} disabled className="font-bold text-lg h-12" />
+                    <Label htmlFor="total">Total Karyawan</Label>
+                    <Input id="total" name="total" type="number" placeholder="0" value={counts.total} onChange={handleCountChange} className="font-bold text-lg h-12" />
                 </div>
                 <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
-                    <Label>Karyawan Masuk Hari Ini</Label>
-                    <Input value={`${summary.hadir} Orang`} disabled className="font-bold text-lg h-12" />
+                    <Label htmlFor="hadir">Karyawan Masuk Hari Ini</Label>
+                    <Input id="hadir" name="hadir" type="number" placeholder="0" value={counts.hadir} onChange={handleCountChange} className="font-bold text-lg h-12" />
                 </div>
                  <div className="space-y-2 p-4 bg-muted/50 rounded-lg">
                     <Label htmlFor="ijin">Ijin</Label>
