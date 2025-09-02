@@ -12,7 +12,7 @@ import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord, Productio
 import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, setDoc, getDoc, orderBy } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
-import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay, isWithinInterval, subDays, endOfDay } from 'date-fns';
+import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay, isWithinInterval, subDays, endOfDay, parseISO, isDate } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
@@ -47,11 +47,24 @@ const menuItems: { name: ActiveMenu; icon: React.ElementType }[] = [
 
 const CHECK_IN_DEADLINE = { hours: 7, minutes: 30 };
 
+const toValidDate = (timestamp: any): Date | null => {
+    if (!timestamp) return null;
+    if (timestamp.toDate) return timestamp.toDate();
+    if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+        const date = new Date(timestamp);
+        return isNaN(date.getTime()) ? null : date;
+    }
+    return null;
+};
+
 const safeFormatTimestamp = (timestamp: any, formatString: string) => {
-    if (!timestamp) return '-';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    if (isNaN(date.getTime())) return '-';
-    return format(date, formatString, { locale: localeID });
+    const date = toValidDate(timestamp);
+    if (!date) return '-';
+    try {
+        return format(date, formatString, { locale: localeID });
+    } catch (error) {
+        return '-';
+    }
 };
 
 
@@ -59,7 +72,8 @@ const DailyAttendanceComponent = ({ users, location }: { users: CombinedRecord[]
     
     const calculateLateMinutes = (checkInTime: any): number => {
         if (!checkInTime) return 0;
-        const date = checkInTime.toDate();
+        const date = toValidDate(checkInTime);
+        if (!date) return 0;
         const deadline = new Date(date).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
         const late = differenceInMinutes(date, deadline);
         return late > 0 ? late : 0;
@@ -142,7 +156,7 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
             const fromDate = startOfDay(dateRange.from);
             const toDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
             results = results.filter(item => {
-                const itemDate = item.checkInTime?.toDate();
+                const itemDate = toValidDate(item.checkInTime);
                 return itemDate && isWithinInterval(itemDate, { start: fromDate, end: toDate });
             });
         }
@@ -155,7 +169,7 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
         
         const combined = results.map(att => {
             const user = users.find(u => u.id === att.userId);
-            const overtime = allOvertime.find(ovt => ovt.userId === att.userId && ovt.checkInTime && att.checkInTime && isSameDay(ovt.checkInTime.toDate(), att.checkInTime.toDate()));
+            const overtime = allOvertime.find(ovt => ovt.userId === att.userId && toValidDate(ovt.checkInTime) && toValidDate(att.checkInTime) && isSameDay(toValidDate(ovt.checkInTime)!, toValidDate(att.checkInTime)!));
             return {
                 ...user,
                 ...att,
@@ -165,12 +179,13 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
             }
         });
 
-        return combined.sort((a,b) => b.checkInTime.toDate().getTime() - a.checkInTime.toDate().getTime());
+        return combined.sort((a,b) => toValidDate(b.checkInTime)!.getTime() - toValidDate(a.checkInTime)!.getTime());
     }, [allAttendance, allOvertime, users, dateRange, userFilter]);
     
     const calculateLateMinutes = (checkInTime: any): number => {
         if (!checkInTime) return 0;
-        const date = checkInTime.toDate();
+        const date = toValidDate(checkInTime);
+        if(!date) return 0;
         const deadline = new Date(date).setHours(CHECK_IN_DEADLINE.hours, CHECK_IN_DEADLINE.minutes, 0, 0);
         const late = differenceInMinutes(date, deadline);
         return late > 0 ? late : 0;
@@ -181,7 +196,7 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
         <>
         <div className="hidden">
             <div id="history-print-area">
-                <HseAttendancePrintLayout data={filteredRecords as any} location={"Semua Lokasi"} />
+                <AttendanceHistoryPrintLayout records={filteredRecords as any} period={dateRange} />
             </div>
         </div>
         <Card>
@@ -247,11 +262,11 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
             const unsubActivities = onSnapshot(activitiesQuery, (actSnapshot) => {
                 const activitiesData = actSnapshot.docs
                     .map(d => d.data() as ActivityLog)
-                    .filter(r => r.createdAt && isAfter(r.createdAt.toDate(), dataStartTime));
+                    .filter(r => r.createdAt && isAfter(toValidDate(r.createdAt)!, dataStartTime));
 
                 const finalData = usersData.map(user => ({
                     ...user,
-                    activities: activitiesData.filter(a => a.userId === user.id).sort((a,b) => a.createdAt.toDate().getTime() - b.createdAt.toDate().getTime())
+                    activities: activitiesData.filter(a => a.userId === user.id).sort((a,b) => toValidDate(a.createdAt)!.getTime() - toValidDate(b.createdAt)!.getTime())
                 })).filter(u => u.activities && u.activities.length > 0);
 
                 setCombinedData(finalData);
@@ -266,9 +281,9 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
 
     const calculateDuration = (start: any, end: any): string => {
         if (!start || !end) return '-';
-        const startDate = start.toDate ? start.toDate() : new Date(start);
-        const endDate = end.toDate ? end.toDate() : new Date(end);
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return '-';
+        const startDate = toValidDate(start);
+        const endDate = toValidDate(end);
+        if (!startDate || !endDate) return '-';
         return formatDistanceStrict(endDate, startDate, { locale: localeID });
     };
 
@@ -482,10 +497,10 @@ export default function HseK3Page() {
         const todayStart = startOfToday();
         
         return usersInLocation.map(user => {
-            const attendance = allAttendance.find(rec => rec.userId === user.id && rec.checkInTime && isSameDay(rec.checkInTime.toDate(), todayStart));
-            const overtime = allOvertime.find(rec => rec.userId === user.id && rec.checkInTime && isSameDay(rec.checkInTime.toDate(), todayStart));
-            const productions = allProductions.filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase() && p.tanggal && isSameDay(p.tanggal.toDate(), todayStart))
-                .sort((a,b) => a.jamMulai.localeCompare(b.jamMulai));
+            const attendance = allAttendance.find(rec => rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, todayStart));
+            const overtime = allOvertime.find(rec => rec.userId === user.id && toValidDate(rec.checkInTime) && isSameDay(toValidDate(rec.checkInTime)!, todayStart));
+            const productions = allProductions.filter(p => p.namaSopir?.toUpperCase() === user.username.toUpperCase() && toValidDate(p.tanggal) && isSameDay(toValidDate(p.tanggal)!, todayStart))
+                .sort((a,b) => parseISO(a.jamMulai).getTime() - parseISO(b.jamMulai).getTime());
 
             return {
                 ...user,
@@ -577,7 +592,6 @@ export default function HseK3Page() {
                         <div className="flex items-center gap-4">
                             <SidebarTrigger/>
                              <div className="flex items-center gap-3">
-                              <User className="w-8 h-8 text-primary" />
                               <div>
                                   <p className="text-xl font-bold">{userInfo.username}</p>
                                   <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
