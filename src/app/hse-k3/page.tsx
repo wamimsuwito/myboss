@@ -12,7 +12,7 @@ import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord, Productio
 import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, setDoc, getDoc, orderBy } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
-import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay, isWithinInterval, subDays, endOfDay, parseISO, isDate, differenceInMinutes } from 'date-fns';
+import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subHours, startOfDay, isWithinInterval, subDays, endOfDay, parseISO, isDate, differenceInMinutes, differenceInDays } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
@@ -254,6 +254,7 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
 const DailyActivitiesComponent = ({ location }: { location: string }) => {
     const [combinedData, setCombinedData] = useState<(UserData & { activities?: ActivityLog[] })[]>([]);
     const [isDataLoading, setIsDataLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
 
      useEffect(() => {
         if (!location) return;
@@ -296,6 +297,18 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
 
     }, [location]);
 
+    const filteredCombinedData = useMemo(() => {
+        if (!searchTerm) {
+            return combinedData;
+        }
+        const lowercasedFilter = searchTerm.toLowerCase();
+        return combinedData.filter(user =>
+            user.username.toLowerCase().includes(lowercasedFilter) ||
+            user.nik.toLowerCase().includes(lowercasedFilter)
+        );
+    }, [combinedData, searchTerm]);
+
+
     const calculateDuration = (start: any, end: any): string => {
         if (!start || !end) return '-';
         const startDate = toValidDate(start);
@@ -308,14 +321,20 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
         <>
             <div className="hidden">
                 <div id="hse-activity-print-area">
-                    <HseActivityPrintLayout data={combinedData} location={location} />
+                    <HseActivityPrintLayout data={filteredCombinedData} location={location} />
                 </div>
             </div>
              <Card>
                 <CardHeader>
                     <CardTitle className='flex justify-between items-center'>
                         <span>Laporan Kegiatan Harian</span>
-                         <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4">
+                            <Input
+                                placeholder="Cari Nama / NIK..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full sm:w-auto"
+                            />
                             <Badge variant="outline">{format(new Date(), "EEEE, dd MMMM yyyy", { locale: localeID })}</Badge>
                             <Button variant="outline" onClick={() => printElement('hse-activity-print-area')}>
                                 <Printer className="mr-2 h-4 w-4" />
@@ -333,7 +352,7 @@ const DailyActivitiesComponent = ({ location }: { location: string }) => {
                         <Table>
                             <TableHeader><TableRow><TableHead>No</TableHead><TableHead>Nama/NIK</TableHead><TableHead>Jabatan</TableHead><TableHead className='w-[30%]'>Deskripsi Kegiatan</TableHead><TableHead className='text-center'>Sebelum</TableHead><TableHead className='text-center'>Proses</TableHead><TableHead className='text-center'>Sesudah</TableHead><TableHead className='text-center'>Durasi</TableHead></TableRow></TableHeader>
                             <TableBody>
-                            {combinedData.length > 0 ? combinedData.flatMap((user, userIndex) => 
+                            {filteredCombinedData.length > 0 ? filteredCombinedData.flatMap((user, userIndex) => 
                                 (user.activities && user.activities.length > 0) ? user.activities.map((activity, activityIndex) => (
                                     <TableRow key={`${user.id}-${activity.id}`}>
                                         {activityIndex === 0 && <TableCell rowSpan={user.activities?.length}>{userIndex + 1}</TableCell>}
