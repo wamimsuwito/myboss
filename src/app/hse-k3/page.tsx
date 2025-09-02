@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus, MapPin, Save, Calendar as CalendarIcon, FilterX } from 'lucide-react';
+import { Loader2, User, LogOut, Fingerprint, Briefcase, LayoutDashboard, Users, Database, History, ClipboardList, AlertTriangle, Printer, Eye, Camera, UserPlus, MapPin, Save, Calendar as CalendarIcon, FilterX, Clock } from 'lucide-react';
 import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord, ProductionData, Report } from '@/lib/types';
 import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, setDoc, getDoc, orderBy } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
@@ -191,8 +191,11 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
     }, [allAttendance, allOvertime, users, dateRange, userFilter, calculateLateMinutes]);
     
     const summary = useMemo(() => {
+        const uniqueDays = new Set(filteredRecords.map(r => format(toValidDate(r.checkInTime)!, 'yyyy-MM-dd')));
+        const totalWorkDays = uniqueDays.size;
+
         return {
-            totalHariKerja: filteredRecords.length,
+            totalHariKerja: totalWorkDays,
             totalJamLembur: filteredRecords.reduce((sum, rec) => {
                 const overtime = rec.overtimeData;
                 if(overtime?.checkInTime && overtime?.checkOutTime) {
@@ -202,9 +205,9 @@ const AttendanceHistoryComponent = ({ users, allAttendance, allOvertime }: { use
                 return sum;
             }, 0),
             totalMenitTerlambat: filteredRecords.reduce((sum, rec) => sum + (rec.lateMinutes || 0), 0),
-            totalHariAbsen: 0, // Logic needs to be defined based on expected work days
+            totalHariAbsen: userFilter ? (dateRange?.from && dateRange.to ? differenceInDays(dateRange.to, dateRange.from) + 1 - totalWorkDays : 0) : 0, // Only for single user
         }
-    }, [filteredRecords]);
+    }, [filteredRecords, userFilter, dateRange]);
 
     return (
         <>
