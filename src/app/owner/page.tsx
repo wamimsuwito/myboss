@@ -181,28 +181,57 @@ export default function OwnerPage() {
             setBpStatuses(statuses);
         }, (error) => console.error("Error fetching BP status:", error)));
         
-        // Listener for Schedules
-        const scheduleQuery = query(collection(db, 'schedules_today'), where('lokasiProduksi', '==', selectedLocation));
-        unsubscribers.push(onSnapshot(scheduleQuery, (snapshot) => {
-            const schedules = snapshot.docs.map(doc => doc.data() as ScheduleRow);
-            const totalJadwal = schedules.reduce((sum, s) => sum + (parseFloat(s['VOL M³'] || '0') + parseFloat(s['PENAMBAHAN VOL M³'] || '0')), 0);
-            const totalTerkirim = schedules.reduce((sum, s) => sum + parseFloat(s['TERKIRIM M³'] || '0'), 0);
+        // Listener for Schedules from Production Data
+        const productionQuery = query(collection(db, 'productions'), where('lokasiProduksi', '==', selectedLocation), where('tanggal', '>=', Timestamp.fromDate(todayStart)));
+        unsubscribers.push(onSnapshot(productionQuery, (snapshot) => {
+            const productionsToday = snapshot.docs.map(doc => doc.data() as ProductionData);
             
-            const activeSchedules = schedules.filter(s => s.STATUS === 'proses' || s.STATUS === 'selesai');
+            // Re-aggregate schedule-like data from productions
+            const schedules = productionsToday.reduce((acc, prod) => {
+                const key = `${prod.jobId}|${prod.lokasiProyek}|${prod.mutuBeton}`;
+                if (!acc[key]) {
+                    acc[key] = {
+                        'TOTAL M³': '0',
+                        'TERKIRIM M³': '0',
+                        'LOKASI': prod.lokasiProyek,
+                        'CP/M': prod['CP/M'],
+                    };
+                }
+                acc[key]['TERKIRIM M³'] = String((parseFloat(acc[key]['TERKIRIM M³']) || 0) + prod.targetVolume);
+                return acc;
+            }, {} as Record<string, any>);
             
-            const cpLocations = new Set(schedules.filter(s => s['CP/M']?.toUpperCase() === 'CP').map(s => s.LOKASI)).size;
+            // Fetch the original schedule to get total volume
+            getDocs(query(collection(db, 'schedules_today'))).then(scheduleSnapshot => {
+                const originalSchedules = scheduleSnapshot.docs.map(doc => doc.data() as ScheduleRow);
+                
+                originalSchedules.forEach(origSched => {
+                    const key = `${origSched.NO}|${origSched.LOKASI}|${origSched.GRADE}`;
+                    if(schedules[key]) {
+                        const vol = parseFloat(origSched['VOL M³'] || '0');
+                        const tambahVol = parseFloat(origSched['PENAMBAHAN VOL M³'] || '0');
+                        schedules[key]['TOTAL M³'] = String(vol + tambahVol);
+                    }
+                });
 
-            const lokasiTerkirimCount = new Set(activeSchedules.map(s => s.LOKASI)).size;
-            
-            setSummary((prev: SummaryData) => ({
-                ...prev,
-                requestMasuk: totalJadwal,
-                requestCount: schedules.length,
-                volumeCor: totalTerkirim,
-                lokasiCp: cpLocations,
-                lokasiTerkirimCount: lokasiTerkirimCount,
-            }));
-        }, (error) => console.error("Error fetching schedules:", error)));
+                const finalSchedules = Object.values(schedules);
+                const totalJadwal = finalSchedules.reduce((sum, s) => sum + parseFloat(s['TOTAL M³'] || '0'), 0);
+                const totalTerkirim = finalSchedules.reduce((sum, s) => sum + parseFloat(s['TERKIRIM M³'] || '0'), 0);
+                
+                const cpLocations = new Set(finalSchedules.filter(s => s['CP/M']?.toUpperCase() === 'CP').map(s => s.LOKASI)).size;
+                const lokasiTerkirimCount = new Set(finalSchedules.map(s => s.LOKASI)).size;
+
+                setSummary((prev: SummaryData) => ({
+                    ...prev,
+                    requestMasuk: totalJadwal,
+                    requestCount: finalSchedules.length,
+                    volumeCor: totalTerkirim,
+                    lokasiCp: cpLocations,
+                    lokasiTerkirimCount: lokasiTerkirimCount,
+                }));
+            });
+
+        }, (error) => console.error("Error fetching productions:", error)));
         
         const pemasukanQuery = query(collection(db, 'arsip_pemasukan_material_semua'), where('timestamp', '>=', todayStart.toISOString()));
         unsubscribers.push(onSnapshot(pemasukanQuery, (snapshot) => {
@@ -232,8 +261,8 @@ export default function OwnerPage() {
         const alatUnsub = onSnapshot(alatQuery, (alatSnapshot) => {
             const alatData = alatSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as AlatData);
             
-            const reportsQuery = query(collection(db, 'checklist_reports'), where('location', '==', selectedLocation));
-            const pairingsQuery = query(collection(db, 'sopir_batangan'), where('lokasi', '==', selectedLocation));
+            const reportsQuery = query(collection(db, 'checklist_reports'));
+            const pairingsQuery = query(collection(db, 'sopir_batangan'));
 
             Promise.all([getDocs(reportsQuery), getDocs(pairingsQuery)]).then(([reportSnapshot, pairingSnapshot]) => {
                 const allReports = reportSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as Report);
@@ -247,21 +276,22 @@ export default function OwnerPage() {
 
                     const latestReport = allReports
                         .filter(r => r.nomorLambung === vehicle.nomorLambung)
-                        .sort((a, b) => (b.timestamp?.toDate() || 0) > (a.timestamp?.toDate() || 0) ? 1 : -1)[0];
+                        .sort((a, b) => (b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 0) - (a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 0))[0];
 
                     const jenis = vehicle.jenisKendaraan.toLowerCase().replace(/\s+/g, '_');
                     
-                    if (latestReport && latestReport.overallStatus === 'rusak') {
+                    if (!isPaired) {
+                        baik[jenis] = (baik[jenis] || 0) + 1;
+                    } else if (latestReport && latestReport.overallStatus === 'rusak') {
                         rusak[jenis] = (rusak[jenis] || 0) + 1;
                     } else {
-                        // Dianggap 'baik' jika tidak ada laporan, laporannya bukan 'rusak', atau tidak ada sopir
                         baik[jenis] = (baik[jenis] || 0) + 1;
                     }
                 });
                 
                 setSummary((prev: SummaryData) => ({ ...prev, armada: {...prev.armada, rusak, baik, total: alatData.length }}));
             }).catch(error => console.error("Error fetching reports or pairings:", error));
-        }));
+        });
         unsubscribers.push(alatUnsub);
         
         const dailyQcQuery = query(collection(db, "daily_qc_inspections"), where('location', '==', selectedLocation), orderBy('createdAt', 'desc'), limit(1));
@@ -458,4 +488,3 @@ export default function OwnerPage() {
         </div>
     );
 }
-
