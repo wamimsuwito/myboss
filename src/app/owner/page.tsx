@@ -372,8 +372,8 @@ export default function OwnerPage() {
                 <div className="space-y-4">
                     <SectionTitle title="Ringkasan Produksi Hari Ini" icon={BarChart} />
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <StatCard title="Request Masuk" value={summary.requestMasuk} unit="M³" icon={Calendar} description={`${summary.requestCount} List Request`} />
-                        <StatCard title="Volume Cor Saat Ini" value={summary.volumeCor.toFixed(2)} unit="M³" icon={BarChart} description={`${summary.lokasiTerkirimCount} Lokasi Terlayani`}/>
+                        <StatCard title="Request Masuk" value={summary.requestMasuk.toLocaleString('id-ID', {maximumFractionDigits: 2})} unit="M³" icon={Calendar} description={`${summary.requestCount} List Request`} />
+                        <StatCard title="Volume Cor Saat Ini" value={summary.volumeCor.toLocaleString('id-ID', { maximumFractionDigits: 2 })} unit="M³" icon={BarChart} description={`${summary.lokasiTerkirimCount} Lokasi Terlayani`}/>
                         <StatCard title="Lokasi Menggunakan CP" value={summary.lokasiCp} unit="Lokasi" icon={Building} description="Jumlah proyek via Concrete Pump." />
                     </div>
                 </div>
