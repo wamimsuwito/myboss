@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio, Watch } from 'lucide-react';
 import { db, collection, getDocs, onSnapshot, query, where, Timestamp, orderBy, limit, doc } from '@/lib/firebase';
-import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji, SopirBatanganData } from '@/lib/types';
+import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji, SopirBatanganData, ProductionData } from '@/lib/types';
 import { format, isAfter, subMinutes, differenceInMinutes, differenceInHours, differenceInDays, startOfToday } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 
@@ -22,7 +22,7 @@ const StatCard = ({ title, value, unit, icon: Icon, description }: { title: stri
         </CardHeader>
         <CardContent>
             <div className="text-2xl font-bold">
-                {typeof value === 'number' ? value.toLocaleString('id-ID') : value}
+                {typeof value === 'number' ? value.toLocaleString('id-ID', {maximumFractionDigits: 2}) : value}
                 {unit && <span className="text-base font-normal text-muted-foreground ml-1">{unit}</span>}
             </div>
             {description && <p className="text-xs text-muted-foreground">{description}</p>}
@@ -184,10 +184,10 @@ export default function OwnerPage() {
         // Listener for Schedules from Production Data
         const productionQuery = query(collection(db, 'productions'), where('lokasiProduksi', '==', selectedLocation), where('tanggal', '>=', Timestamp.fromDate(todayStart)));
         unsubscribers.push(onSnapshot(productionQuery, (snapshot) => {
-            const productionsToday = snapshot.docs.map(doc => doc.data() as any);
+            const productionsToday = snapshot.docs.map(doc => doc.data() as ProductionData);
             
             // Re-aggregate schedule-like data from productions
-            const schedules = productionsToday.reduce((acc: any, prod: any) => {
+            const schedules = productionsToday.reduce((acc, prod) => {
                 const key = `${prod.jobId}|${prod.lokasiProyek}|${prod.mutuBeton}`;
                 if (!acc[key]) {
                     acc[key] = {
@@ -215,8 +215,8 @@ export default function OwnerPage() {
                 });
 
                 const finalSchedules = Object.values(schedules);
-                const totalJadwal = finalSchedules.reduce((sum, s) => sum + parseFloat(s['TOTAL M³'] || '0'), 0);
-                const totalTerkirim = finalSchedules.reduce((sum, s) => sum + parseFloat(s['TERKIRIM M³'] || '0'), 0);
+                const totalJadwal = finalSchedules.reduce((sum: number, s) => sum + parseFloat(s['TOTAL M³'] || '0'), 0);
+                const totalTerkirim = finalSchedules.reduce((sum: number, s) => sum + parseFloat(s['TERKIRIM M³'] || '0'), 0);
                 
                 const cpLocations = new Set(finalSchedules.filter(s => s['CP/M']?.toUpperCase() === 'CP').map(s => s.LOKASI)).size;
                 const lokasiTerkirimCount = new Set(finalSchedules.map(s => s.LOKASI)).size;
@@ -261,10 +261,10 @@ export default function OwnerPage() {
         const alatUnsub = onSnapshot(alatQuery, (alatSnapshot) => {
             const alatData = alatSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as AlatData);
             
-            const reportsQuery = query(collection(db, 'checklist_reports'));
-            const pairingsQuery = query(collection(db, 'sopir_batangan'));
-
-            Promise.all([getDocs(reportsQuery), getDocs(pairingsQuery)]).then(([reportSnapshot, pairingSnapshot]) => {
+            Promise.all([
+                getDocs(query(collection(db, 'checklist_reports'))),
+                getDocs(query(collection(db, 'sopir_batangan'), where("lokasi", "==", selectedLocation)))
+            ]).then(([reportSnapshot, pairingSnapshot]) => {
                 const allReports = reportSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as Report);
                 const allPairings = pairingSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as SopirBatanganData);
 
@@ -273,7 +273,7 @@ export default function OwnerPage() {
                 
                 alatData.forEach(vehicle => {
                     const isPaired = allPairings.some(p => p.nomorLambung === vehicle.nomorLambung);
-
+                    
                     const latestReport = allReports
                         .filter(r => r.nomorLambung === vehicle.nomorLambung)
                         .sort((a, b) => (b.timestamp?.toDate ? b.timestamp.toDate().getTime() : 0) - (a.timestamp?.toDate ? a.timestamp.toDate().getTime() : 0))[0];
@@ -281,7 +281,7 @@ export default function OwnerPage() {
                     const jenis = vehicle.jenisKendaraan.toLowerCase().replace(/\s+/g, '_');
                     
                     if (!isPaired) {
-                         baik[jenis] = (baik[jenis] || 0) + 1;
+                        baik[jenis] = (baik[jenis] || 0) + 1;
                     } else if (latestReport && latestReport.overallStatus === 'rusak') {
                         rusak[jenis] = (rusak[jenis] || 0) + 1;
                     } else {
@@ -488,3 +488,4 @@ export default function OwnerPage() {
         </div>
     );
 }
+
