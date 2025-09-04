@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio, Watch } from 'lucide-react';
 import { db, collection, getDocs, onSnapshot, query, where, Timestamp, orderBy, limit, doc } from '@/lib/firebase';
-import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji, ProductionData, SopirBatanganData } from '@/lib/types';
+import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji, SopirBatanganData } from '@/lib/types';
 import { format, isAfter, subMinutes, differenceInMinutes, differenceInHours, differenceInDays, startOfToday } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 
@@ -184,10 +184,10 @@ export default function OwnerPage() {
         // Listener for Schedules from Production Data
         const productionQuery = query(collection(db, 'productions'), where('lokasiProduksi', '==', selectedLocation), where('tanggal', '>=', Timestamp.fromDate(todayStart)));
         unsubscribers.push(onSnapshot(productionQuery, (snapshot) => {
-            const productionsToday = snapshot.docs.map(doc => doc.data() as ProductionData);
+            const productionsToday = snapshot.docs.map(doc => doc.data() as any);
             
             // Re-aggregate schedule-like data from productions
-            const schedules = productionsToday.reduce((acc, prod) => {
+            const schedules = productionsToday.reduce((acc: any, prod: any) => {
                 const key = `${prod.jobId}|${prod.lokasiProyek}|${prod.mutuBeton}`;
                 if (!acc[key]) {
                     acc[key] = {
@@ -281,7 +281,7 @@ export default function OwnerPage() {
                     const jenis = vehicle.jenisKendaraan.toLowerCase().replace(/\s+/g, '_');
                     
                     if (!isPaired) {
-                        baik[jenis] = (baik[jenis] || 0) + 1;
+                         baik[jenis] = (baik[jenis] || 0) + 1;
                     } else if (latestReport && latestReport.overallStatus === 'rusak') {
                         rusak[jenis] = (rusak[jenis] || 0) + 1;
                     } else {
@@ -374,7 +374,7 @@ export default function OwnerPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <StatCard title="Request Masuk" value={summary.requestMasuk.toLocaleString('id-ID', {maximumFractionDigits: 2})} unit="M³" icon={Calendar} description={`${summary.requestCount} List Request`} />
                         <StatCard title="Volume Cor Saat Ini" value={summary.volumeCor.toLocaleString('id-ID', { maximumFractionDigits: 2 })} unit="M³" icon={BarChart} description={`${summary.lokasiTerkirimCount} Lokasi Terlayani`}/>
-                        <StatCard title="Lokasi Menggunakan CP" value={summary.lokasiCp} unit="Lokasi" icon={Building} description="Jumlah proyek via Concrete Pump." />
+                        <StatCard title="Lokasi Menggunakan CP" value={summary.lokasiCp} unit="Lokasi" icon={Building} description="Jumlah lokasi cor dengan concrete pump." />
                     </div>
                 </div>
 
