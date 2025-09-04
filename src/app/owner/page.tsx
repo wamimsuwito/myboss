@@ -206,7 +206,7 @@ export default function OwnerPage() {
             }, {} as Record<string, any>);
             
             // To get TOTAL M³, we still need to query the original schedule
-            const scheduleCollectionQuery = query(collection(db, 'schedules_today'));
+            const scheduleCollectionQuery = query(collection(db, 'schedules_today'), where('lokasi', '==', selectedLocation));
             getDocs(scheduleCollectionQuery).then(scheduleSnapshot => {
                  const allSchedules = scheduleSnapshot.docs.map(d => d.data() as ScheduleRow);
                  const schedulesFromProductions = Object.values(schedules);
@@ -333,7 +333,7 @@ export default function OwnerPage() {
                     </div>
                     <div>
                         <h1 className="text-2xl font-bold tracking-wider">Owner Dashboard</h1>
-                        <p className="text-muted-foreground">Ringkasan Operasional Kilat</p>
+                        <p className="text-muted-foreground">Ringkasan Operasional</p>
                     </div>
                 </div>
                  <div className="flex items-center gap-4 w-full md:w-auto">
