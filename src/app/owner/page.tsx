@@ -229,7 +229,7 @@ export default function OwnerPage() {
         }, (error) => console.error("Error fetching Rencana Pemasukan:", error)));
         
         const alatQuery = query(collection(db, 'alat'), where('lokasi', '==', selectedLocation));
-        unsubscribers.push(onSnapshot(alatQuery, (alatSnapshot) => {
+        const alatUnsub = onSnapshot(alatQuery, (alatSnapshot) => {
             const alatData = alatSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as AlatData);
             
             const reportsQuery = query(collection(db, 'checklist_reports'), where('location', '==', selectedLocation));
@@ -243,11 +243,12 @@ export default function OwnerPage() {
                 const baik: { [key: string]: number } = {};
                 
                 alatData.forEach(vehicle => {
+                    const isPaired = allPairings.some(p => p.nomorLambung === vehicle.nomorLambung);
+
                     const latestReport = allReports
                         .filter(r => r.nomorLambung === vehicle.nomorLambung)
                         .sort((a, b) => (b.timestamp?.toDate() || 0) > (a.timestamp?.toDate() || 0) ? 1 : -1)[0];
 
-                    const isPaired = allPairings.some(p => p.nomorLambung === vehicle.nomorLambung);
                     const jenis = vehicle.jenisKendaraan.toLowerCase().replace(/\s+/g, '_');
                     
                     if (latestReport && latestReport.overallStatus === 'rusak') {
@@ -261,6 +262,7 @@ export default function OwnerPage() {
                 setSummary((prev: SummaryData) => ({ ...prev, armada: {...prev.armada, rusak, baik, total: alatData.length }}));
             }).catch(error => console.error("Error fetching reports or pairings:", error));
         }));
+        unsubscribers.push(alatUnsub);
         
         const dailyQcQuery = query(collection(db, "daily_qc_inspections"), where('location', '==', selectedLocation), orderBy('createdAt', 'desc'), limit(1));
         unsubscribers.push(onSnapshot(dailyQcQuery, (snapshot) => {
