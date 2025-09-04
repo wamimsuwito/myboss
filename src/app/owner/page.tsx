@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio, Watch } from 'lucide-react';
 import { db, collection, getDocs, onSnapshot, query, where, Timestamp, orderBy, limit, doc } from '@/lib/firebase';
-import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji } from '@/lib/types';
+import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji, ProductionData } from '@/lib/types';
 import { format, isAfter, subMinutes, differenceInMinutes, differenceInHours, differenceInDays, startOfToday } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 
@@ -206,7 +206,7 @@ export default function OwnerPage() {
             }, {} as Record<string, any>);
             
             // To get TOTAL M³, we still need to query the original schedule
-            const scheduleCollectionQuery = query(collection(db, 'schedules_today'), where('lokasi', '==', selectedLocation));
+            const scheduleCollectionQuery = query(collection(db, 'schedules_today'), where('LOKASI', '==', selectedLocation));
             getDocs(scheduleCollectionQuery).then(scheduleSnapshot => {
                  const allSchedules = scheduleSnapshot.docs.map(d => d.data() as ScheduleRow);
                  const schedulesFromProductions = Object.values(schedules);
