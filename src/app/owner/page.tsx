@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, LogOut, Building, Calendar, BarChart, Package, Ship, Users, ShieldCheck, ClipboardList, Thermometer, TestTube, Droplets, HardHat, UserCheck, UserX, Star, Radio, Watch } from 'lucide-react';
 import { db, collection, getDocs, onSnapshot, query, where, Timestamp, orderBy, limit, doc } from '@/lib/firebase';
-import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji, ProductionData } from '@/lib/types';
+import type { UserData, LocationData, ScheduleRow, RencanaPemasukan, Job, Report, BpUnitStatus, AlatData, DailyQCInspection, BendaUji, ProductionData, SopirBatanganData } from '@/lib/types';
 import { format, isAfter, subMinutes, differenceInMinutes, differenceInHours, differenceInDays, startOfToday } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 
@@ -182,43 +182,27 @@ export default function OwnerPage() {
         }, (error) => console.error("Error fetching BP status:", error)));
         
         // Listener for Schedules
-        const productionQuery = query(collection(db, 'productions'), where('lokasiProduksi', '==', selectedLocation), where('tanggal', '>=', Timestamp.fromDate(todayStart)));
-        unsubscribers.push(onSnapshot(productionQuery, (snapshot) => {
-            const productionsToday = snapshot.docs.map(doc => doc.data() as ProductionData);
+        const scheduleQuery = query(collection(db, 'schedules_today'), where('lokasiProduksi', '==', selectedLocation));
+        unsubscribers.push(onSnapshot(scheduleQuery, (snapshot) => {
+            const schedules = snapshot.docs.map(doc => doc.data() as ScheduleRow);
+            const totalJadwal = schedules.reduce((sum, s) => sum + (parseFloat(s['VOL M³'] || '0') + parseFloat(s['PENAMBAHAN VOL M³'] || '0')), 0);
+            const totalTerkirim = schedules.reduce((sum, s) => sum + parseFloat(s['TERKIRIM M³'] || '0'), 0);
             
-            // Re-aggregate schedule-like data from productions
-            const schedules = productionsToday.reduce((acc, prod) => {
-                const key = prod.jobId; // Assuming jobId is the schedule number
-                if (!acc[key]) {
-                    acc[key] = {
-                        'TOTAL M³': 0,
-                        'TERKIRIM M³': 0,
-                        'LOKASI': prod.lokasiProyek,
-                        'CP/M': prod['CP/M'],
-                        'STATUS': 'proses', // Placeholder, real status should be from schedule
-                    };
-                }
-                acc[key]['TOTAL M³'] += prod.targetVolume;
-                acc[key]['TERKIRIM M³'] += prod.targetVolume;
-                return acc;
-            }, {} as {[key: string]: Partial<ScheduleRow>});
+            const activeSchedules = schedules.filter(s => s.STATUS === 'proses' || s.STATUS === 'selesai');
+            
+            const cpLocations = new Set(schedules.filter(s => s['CP/M']?.toUpperCase() === 'CP').map(s => s.LOKASI)).size;
 
-            const scheduleValues = Object.values(schedules);
-            const totalJadwal = scheduleValues.reduce((sum, s) => sum + parseFloat(s['TOTAL M³'] || '0'), 0);
-            const totalTerkirim = scheduleValues.reduce((sum, s) => sum + parseFloat(s['TERKIRIM M³'] || '0'), 0);
-            const cpLocations = new Set(scheduleValues.filter(s => s['CP/M']?.toUpperCase() === 'CP').map(s => s.LOKASI)).size;
-            const lokasiTerkirimCount = new Set(scheduleValues.map(s => s.LOKASI)).size;
-
+            const lokasiTerkirimCount = new Set(activeSchedules.map(s => s.LOKASI)).size;
+            
             setSummary((prev: SummaryData) => ({
                 ...prev,
                 requestMasuk: totalJadwal,
-                requestCount: scheduleValues.length,
+                requestCount: schedules.length,
                 volumeCor: totalTerkirim,
                 lokasiCp: cpLocations,
                 lokasiTerkirimCount: lokasiTerkirimCount,
             }));
-        }, (error) => console.error("Error fetching productions:", error)));
-
+        }, (error) => console.error("Error fetching schedules:", error)));
         
         const pemasukanQuery = query(collection(db, 'arsip_pemasukan_material_semua'), where('timestamp', '>=', todayStart.toISOString()));
         unsubscribers.push(onSnapshot(pemasukanQuery, (snapshot) => {
@@ -246,30 +230,36 @@ export default function OwnerPage() {
         
         const alatQuery = query(collection(db, 'alat'), where('lokasi', '==', selectedLocation));
         unsubscribers.push(onSnapshot(alatQuery, (alatSnapshot) => {
-            const alatData = alatSnapshot.docs.map(doc => doc.data() as AlatData);
+            const alatData = alatSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as AlatData);
             
             const reportsQuery = query(collection(db, 'checklist_reports'), where('location', '==', selectedLocation));
-            unsubscribers.push(onSnapshot(reportsQuery, (reportSnapshot) => {
-                const allReports = reportSnapshot.docs.map(doc => doc.data() as Report);
+            const pairingsQuery = query(collection(db, 'sopir_batangan'), where('lokasi', '==', selectedLocation));
+
+            Promise.all([getDocs(reportsQuery), getDocs(pairingsQuery)]).then(([reportSnapshot, pairingSnapshot]) => {
+                const allReports = reportSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as Report);
+                const allPairings = pairingSnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}) as SopirBatanganData);
+
                 const rusak: { [key: string]: number } = {};
                 const baik: { [key: string]: number } = {};
                 
                 alatData.forEach(vehicle => {
                     const latestReport = allReports
                         .filter(r => r.nomorLambung === vehicle.nomorLambung)
-                        .sort((a, b) => b.timestamp.toDate() - a.timestamp.toDate())[0];
-                    
+                        .sort((a, b) => (b.timestamp?.toDate() || 0) > (a.timestamp?.toDate() || 0) ? 1 : -1)[0];
+
+                    const isPaired = allPairings.some(p => p.nomorLambung === vehicle.nomorLambung);
                     const jenis = vehicle.jenisKendaraan.toLowerCase().replace(/\s+/g, '_');
                     
                     if (latestReport && latestReport.overallStatus === 'rusak') {
                         rusak[jenis] = (rusak[jenis] || 0) + 1;
                     } else {
+                        // Dianggap 'baik' jika tidak ada laporan, laporannya bukan 'rusak', atau tidak ada sopir
                         baik[jenis] = (baik[jenis] || 0) + 1;
                     }
                 });
                 
                 setSummary((prev: SummaryData) => ({ ...prev, armada: {...prev.armada, rusak, baik, total: alatData.length }}));
-            }));
+            }).catch(error => console.error("Error fetching reports or pairings:", error));
         }));
         
         const dailyQcQuery = query(collection(db, "daily_qc_inspections"), where('location', '==', selectedLocation), orderBy('createdAt', 'desc'), limit(1));
