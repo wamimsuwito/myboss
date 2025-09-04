@@ -181,61 +181,48 @@ export default function OwnerPage() {
             setBpStatuses(statuses);
         }, (error) => console.error("Error fetching BP status:", error)));
         
-        // Listener for Productions to get schedule info
-        const productionQuery = query(collection(db, 'productions'), where('lokasiProduksi', '==', selectedLocation), where('tanggal', '>=', Timestamp.fromDate(todayStart)));
-        unsubscribers.push(onSnapshot(productionQuery, (snapshot) => {
-            const productionsToday = snapshot.docs.map(doc => doc.data() as ProductionData);
+        // Listener for Schedules
+        const scheduleQuery = query(collection(db, 'schedules_today'));
+        unsubscribers.push(onSnapshot(scheduleQuery, (snapshot) => {
+            const allSchedules = snapshot.docs.map(doc => doc.data() as ScheduleRow);
             
-            // Re-aggregate schedule-like data from productions
-            const schedules = productionsToday.reduce((acc, prod) => {
-                const key = `${prod.jobId}-${prod.namaPelanggan}-${prod.lokasiProyek}-${prod.mutuBeton}`;
-                if (!acc[key]) {
-                    acc[key] = {
-                        'NO': prod.jobId,
-                        'NAMA': prod.namaPelanggan,
-                        'LOKASI': prod.lokasiProyek,
-                        'GRADE': prod.mutuBeton,
-                        'CP/M': prod['CP/M'] || '',
-                        'TOTAL M³': 0, // This will be calculated from schedules, so we start here
-                        'TERKIRIM M³': 0,
-                        'STATUS': 'proses', // Default, will be updated
-                    };
-                }
-                acc[key]['TERKIRIM M³'] += prod.targetVolume;
-                return acc;
-            }, {} as Record<string, any>);
-            
-            // To get TOTAL M³, we still need to query the original schedule
-            const scheduleCollectionQuery = query(collection(db, 'schedules_today'), where('LOKASI', '==', selectedLocation));
-            getDocs(scheduleCollectionQuery).then(scheduleSnapshot => {
-                 const allSchedules = scheduleSnapshot.docs.map(d => d.data() as ScheduleRow);
-                 const schedulesFromProductions = Object.values(schedules);
-                 
-                 schedulesFromProductions.forEach(sched => {
-                     const originalSchedule = allSchedules.find(s => s.NO === sched.NO);
-                     if (originalSchedule) {
-                         sched['TOTAL M³'] = parseFloat(originalSchedule['TOTAL M³'] || '0');
-                         sched['SISA M³'] = sched['TOTAL M³'] - sched['TERKIRIM M³'];
-                         if(sched['SISA M³'] <= 0) sched['STATUS'] = 'selesai';
-                     }
-                 });
+            // This logic assumes we need to find the production data to determine the location,
+            // then find the corresponding schedule. This seems overly complex.
+            // A better approach is to filter schedules based on a location field if it exists,
+            // or infer it from related production data. Let's assume production data has the BP location.
 
-                 const totalJadwal = schedulesFromProductions.reduce((sum, s) => sum + (s['TOTAL M³'] || 0), 0);
-                 const totalTerkirim = schedulesFromProductions.reduce((sum, s) => sum + (s['TERKIRIM M³'] || 0), 0);
-                 const cpLocations = new Set(schedulesFromProductions.filter(s => s['CP/M']?.toUpperCase() === 'CP').map(s => s.LOKASI)).size;
-                 const lokasiTerkirimCount = new Set(schedulesFromProductions.filter(s => s.STATUS === 'proses' || s.STATUS === 'selesai').map(s => s.LOKASI)).size;
+            const productionQuery = query(collection(db, 'productions'), where('lokasiProduksi', '==', selectedLocation), where('tanggal', '>=', Timestamp.fromDate(todayStart)));
+            getDocs(productionQuery).then(productionSnapshot => {
+                const productionsToday = productionSnapshot.docs.map(doc => doc.data() as ProductionData);
+                const relevantScheduleNos = new Set(productionsToday.map(p => p.jobId));
+                
+                const schedulesForLocation = allSchedules.filter(s => relevantScheduleNos.has(s.NO));
 
-                 setSummary((prev: SummaryData) => ({
+                const totalJadwal = schedulesForLocation.reduce((sum, s) => {
+                    const vol = parseFloat(s['VOL M³'] || '0');
+                    const tambahVol = parseFloat(s['PENAMBAHAN VOL M³'] || '0');
+                    return sum + vol + tambahVol;
+                }, 0);
+
+                const totalTerkirim = schedulesForLocation.reduce((sum, s) => sum + parseFloat(s['TERKIRIM M³'] || '0'), 0);
+                
+                const activeSchedules = schedulesForLocation.filter(s => s.STATUS === 'proses' || s.STATUS === 'selesai');
+                
+                const cpLocations = new Set(schedulesForLocation.filter(s => s['CP/M']?.toUpperCase() === 'CP').map(s => s.LOKASI)).size;
+
+                const lokasiTerkirimCount = new Set(activeSchedules.map(s => s.LOKASI)).size;
+                
+                setSummary((prev: SummaryData) => ({
                     ...prev,
                     requestMasuk: totalJadwal,
-                    requestCount: schedulesFromProductions.length,
+                    requestCount: schedulesForLocation.length,
                     volumeCor: totalTerkirim,
                     lokasiCp: cpLocations,
                     lokasiTerkirimCount: lokasiTerkirimCount,
-                 }));
+                }));
             });
-        }, (error) => console.error("Error fetching productions:", error)));
 
+        }, (error) => console.error("Error fetching schedules:", error)));
         
         const pemasukanQuery = query(collection(db, 'arsip_pemasukan_material_semua'), where('timestamp', '>=', todayStart.toISOString()));
         unsubscribers.push(onSnapshot(pemasukanQuery, (snapshot) => {
@@ -482,3 +469,4 @@ export default function OwnerPage() {
         </div>
     );
 }
+
