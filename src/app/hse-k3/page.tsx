@@ -12,7 +12,7 @@ import type { UserData, AttendanceRecord, ActivityLog, OvertimeRecord, Productio
 import { db, collection, query, where, getDocs, onSnapshot, doc, updateDoc, Timestamp, setDoc, getDoc, orderBy } from '@/lib/firebase';
 import { Sidebar, SidebarProvider, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
 import { useToast } from '@/hooks/use-toast';
-import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subDays, startOfDay, endOfDay, isWithinInterval, parseISO, isDate, differenceInMinutes, differenceInDays } from 'date-fns';
+import { format, isSameDay, startOfToday, formatDistanceStrict, isAfter, subDays, startOfDay, endOfDay, isWithinInterval, parseISO, isDate, differenceInMinutes, differenceInDays, subHours } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
