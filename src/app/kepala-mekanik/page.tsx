@@ -101,14 +101,20 @@ const menuItems = [
     { name: 'Anggota Mekanik', icon: Users },
 ];
 
-type ActiveMenu = 
-  | 'Dashboard' 
+type ActiveMenu =
+  | 'Dashboard'
   | 'Work order saya (WO)'
   | 'Work order aktif'
-  | 'Sopir & Batangan' 
-  | 'Histori Perbaikan Alat' 
-  | 'Alat Rusak Berat/Karantina' 
-  | 'Anggota Mekanik';
+  | 'Sopir & Batangan'
+  | 'Histori Perbaikan Alat'
+  | 'Alat Rusak Berat/Karantina'
+  | 'Anggota Mekanik'
+  | 'Laporan Logistik'
+  | 'Manajemen Pengguna'
+  | 'Riwayat Penalti'
+  | 'Komplain dari Sopir'
+  | 'Usulan / Saran dari Sopir'
+  | 'Pesan Masuk';
 
 
 const taskFormSchema = z.object({
@@ -510,7 +516,7 @@ const HistoriContent = ({ user, mechanicTasks, users, alat, allReports }: { user
 };
 
 
-export default function WorkshopPage() {
+export default function KepalaMekanikPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dashboard');
@@ -588,7 +594,7 @@ export default function WorkshopPage() {
       return;
     }
     const userData = JSON.parse(userString);
-     if (userData.jabatan.toUpperCase() !== 'KEPALA WORKSHOP') {
+     if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
       toast({
         variant: 'destructive',
         title: 'Akses Ditolak',
