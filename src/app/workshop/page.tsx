@@ -828,158 +828,6 @@ export default function WorkshopPage() {
     localStorage.removeItem('user');
     router.push('/login');
   };
-  
-  const handleAddAlat = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!userInfo?.lokasi) {
-        toast({ title: 'Lokasi Pengguna Tidak Ditemukan', variant: 'destructive' });
-        return;
-    }
-
-    setIsSubmitting(true);
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-
-    const newAlatData: Omit<AlatData, 'id'> = {
-      nomorLambung: (formData.get('nomorLambung') as string).toUpperCase(),
-      nomorPolisi: (formData.get('nomorPolisi') as string).toUpperCase(),
-      jenisKendaraan: (formData.get('jenisKendaraan') as string).toUpperCase(),
-      lokasi: userInfo.lokasi,
-      statusKarantina: false,
-    };
-
-    if (!newAlatData.nomorLambung || !newAlatData.nomorPolisi || !newAlatData.jenisKendaraan) {
-        toast({ title: 'Input Tidak Lengkap', variant: 'destructive' });
-        setIsSubmitting(false);
-        return;
-    }
-
-    try {
-        await addDoc(collection(db, 'alat'), newAlatData);
-        toast({ title: 'Alat Ditambahkan' });
-        form.reset();
-    } catch(error) {
-        toast({ title: 'Error', description: 'Gagal menambahkan alat.', variant: 'destructive'});
-    } finally {
-        setIsSubmitting(false);
-    }
-  };
-
-  const handleMutasiRequest = (alatToMutate: AlatData) => {
-    setMutasiTarget(alatToMutate);
-    setIsMutasiDialogOpen(true);
-  };
-  
-  const handleConfirmMutasi = async () => {
-    if (!mutasiTarget || !newLocationForMutasi) {
-        toast({ title: 'Lokasi Tujuan Diperlukan', variant: 'destructive' });
-        return;
-    }
-    setIsMutating(true);
-    
-    try {
-        const alatDocRef = doc(db, 'alat', mutasiTarget.id);
-        await updateDoc(alatDocRef, { lokasi: newLocationForMutasi });
-        toast({ title: 'Mutasi Berhasil' });
-    } catch (error) {
-        toast({ title: 'Mutasi Gagal', variant: 'destructive' });
-    } finally {
-        setIsMutating(false);
-        setIsMutasiDialogOpen(false);
-        setMutasiTarget(null);
-        setNewLocationForMutasi('');
-    }
-  };
-
-  const handleDeleteRequest = (item: AlatData | SopirBatanganData | UserData, type: 'alat' | 'pairing' | 'user') => {
-    setItemToDelete(item);
-    setDeleteType(type);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!itemToDelete || !deleteType) return;
-    setIsSubmitting(true);
-    try {
-        const collectionName = deleteType === 'alat' ? 'alat' : deleteType === 'pairing' ? 'sopir_batangan' : 'users';
-        const docRef = doc(db, collectionName, itemToDelete.id);
-        await deleteDoc(docRef);
-        toast({ title: 'Data Dihapus' });
-    } catch (error) {
-        toast({ title: 'Gagal Menghapus', variant: 'destructive' });
-    } finally {
-        setIsSubmitting(false);
-        setIsDeleteDialogOpen(false);
-        setItemToDelete(null);
-        setDeleteType(null);
-    }
-  };
-
-  const handleEditAlatRequest = (alatToEdit: AlatData) => {
-    setEditingAlat(alatToEdit);
-  };
-
-  const handleConfirmEditAlat = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!editingAlat) return;
-    setIsEditingAlat(true);
-
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    
-    const updatedAlatData = {
-      nomorLambung: (formData.get('editNomorLambung') as string).toUpperCase(),
-      nomorPolisi: (formData.get('editNomorPolisi') as string).toUpperCase(),
-      jenisKendaraan: (formData.get('editJenisKendaraan') as string).toUpperCase(),
-    };
-    
-    try {
-        const alatDocRef = doc(db, 'alat', editingAlat.id);
-        await updateDoc(alatDocRef, updatedAlatData);
-        toast({ title: 'Alat Diperbarui' });
-        setEditingAlat(null);
-    } catch (error) {
-        toast({ title: 'Error', variant: 'destructive' });
-    } finally {
-        setIsEditingAlat(false);
-    }
-  };
-
-  const handleEditUserRequest = (userToEdit: UserData) => {
-      setEditingUser(userToEdit);
-  }
-  
-  const handleConfirmEditUser = async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      if(!editingUser) return;
-      setIsEditingUser(true);
-
-      const form = event.currentTarget;
-      const formData = new FormData(form);
-
-      const updatedUserData: Partial<UserData> = {
-        username: (formData.get('editUsername') as string).toUpperCase(),
-        nik: (formData.get('editNik') as string).toUpperCase(),
-        jabatan: formData.get('editJabatan') as string,
-        lokasi: formData.get('editLokasi') as string,
-      };
-      const newPassword = formData.get('editPassword') as string;
-      if (newPassword) {
-        updatedUserData.password = newPassword;
-      }
-
-      try {
-          const userDocRef = doc(db, 'users', editingUser.id);
-          await updateDoc(userDocRef, updatedUserData);
-          toast({ title: 'Pengguna Diperbarui' });
-          setEditingUser(null);
-      } catch(e) {
-          toast({ title: 'Gagal Memperbarui', variant: 'destructive' });
-      } finally {
-          setIsEditingUser(false);
-      }
-  }
-
 
   // Sopir & Batangan Handlers
   const handleSavePairing = async () => {
@@ -1116,10 +964,6 @@ export default function WorkshopPage() {
     </Card>
   );
 
-  const mechanicsInLocation = useMemo(() => 
-      users.filter(u => u.jabatan?.toUpperCase().includes('MEKANIK') && u.lokasi === userInfo?.lokasi), 
-  [users, userInfo?.lokasi]);
-
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1253,44 +1097,46 @@ export default function WorkshopPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle>Anggota Tim Mekanik</CardTitle>
-                        <CardDescription>Daftar semua mekanik di lokasi Anda.</CardDescription>
+                        <CardDescription>
+                            Daftar semua mekanik di lokasi Anda.
+                        </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="overflow-x-auto border rounded-lg">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Nama</TableHead>
-                                        <TableHead>NIK</TableHead>
-                                        <TableHead>Tugas Aktif</TableHead>
-                                        <TableHead>Status</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isFetchingData ? (
-                                        <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                    ) : mechanicsInLocation.length > 0 ? (
-                                        mechanicsInLocation.map(mechanic => {
-                                            const activeTask = mechanicTasks.find(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === mechanic.id));
-                                            return (
-                                                <TableRow key={mechanic.id}>
-                                                    <TableCell className="font-medium">{mechanic.username}</TableCell>
-                                                    <TableCell>{mechanic.nik}</TableCell>
-                                                    <TableCell>{activeTask ? `${activeTask.vehicle.hullNumber} - ${activeTask.vehicle.repairDescription}` : '-'}</TableCell>
-                                                    <TableCell>
-                                                        <Badge variant={activeTask ? 'destructive' : 'default'} className={!activeTask ? 'bg-green-600' : ''}>
-                                                            {activeTask ? 'Bertugas' : 'Standby'}
-                                                        </Badge>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
-                                        })
-                                    ) : (
-                                        <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada mekanik di lokasi ini.</TableCell></TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
+                       <div className="overflow-x-auto border rounded-lg">
+                           <Table>
+                               <TableHeader>
+                                   <TableRow>
+                                       <TableHead>Nama</TableHead>
+                                       <TableHead>NIK</TableHead>
+                                       <TableHead>Tugas Aktif</TableHead>
+                                       <TableHead>Status</TableHead>
+                                   </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                 {isFetchingData ? (
+                                     <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                 ) : mechanicsInLocation.length > 0 ? (
+                                     mechanicsInLocation.map(mechanic => {
+                                        const activeTask = mechanicTasks.find(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === mechanic.id));
+                                        return (
+                                            <TableRow key={mechanic.id}>
+                                                <TableCell className="font-medium">{mechanic.username}</TableCell>
+                                                <TableCell>{mechanic.nik}</TableCell>
+                                                <TableCell>{activeTask ? `${activeTask.vehicle.hullNumber} - ${activeTask.vehicle.repairDescription}` : '-'}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={activeTask ? 'destructive' : 'default'} className={!activeTask ? 'bg-green-600' : ''}>
+                                                        {activeTask ? 'Bertugas' : 'Standby'}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                     })
+                                 ) : (
+                                      <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada mekanik di lokasi ini.</TableCell></TableRow>
+                                 )}
+                               </TableBody>
+                           </Table>
+                       </div>
                     </CardContent>
                 </Card>
             );
