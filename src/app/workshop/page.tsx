@@ -879,6 +879,103 @@ export default function WorkshopPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  const handleMutasiRequest = (item: AlatData) => {
+    setMutasiTarget(item);
+    setIsMutasiDialogOpen(true);
+  }
+
+  const handleConfirmMutasi = async () => {
+    if (!mutasiTarget || !newLocationForMutasi) {
+        toast({ title: "Lokasi Tujuan harus dipilih", variant: "destructive" });
+        return;
+    }
+    setIsMutating(true);
+    try {
+        const alatRef = doc(db, 'alat', mutasiTarget.id);
+        await updateDoc(alatRef, { lokasi: newLocationForMutasi });
+        toast({ title: 'Mutasi Berhasil', description: `${mutasiTarget.nomorLambung} dipindahkan ke ${newLocationForMutasi}.` });
+        setIsMutasiDialogOpen(false);
+    } catch (error) {
+        toast({ title: 'Gagal Mutasi', variant: 'destructive' });
+    } finally {
+        setIsMutating(false);
+    }
+  }
+
+  const handleDeleteRequest = (item: AlatData | SopirBatanganData | UserData, type: 'alat' | 'pairing' | 'user') => {
+    setItemToDelete(item);
+    setDeleteType(type);
+    setIsDeleteDialogOpen(true);
+  };
+  
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete || !deleteType) return;
+    setIsSubmitting(true);
+    try {
+        await deleteDoc(doc(db, deleteType === 'pairing' ? 'sopir_batangan' : deleteType, itemToDelete.id));
+        toast({ title: 'Data Dihapus' });
+    } catch (e) {
+        toast({ title: 'Gagal Menghapus', variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+        setIsDeleteDialogOpen(false);
+        setItemToDelete(null);
+        setDeleteType(null);
+    }
+  };
+
+  const handleConfirmEditAlat = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingAlat) return;
+    setIsEditingAlat(true);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    
+    const updatedAlatData = {
+      nomorLambung: (formData.get('editNomorLambung') as string).toUpperCase(),
+      nomorPolisi: (formData.get('editNomorPolisi') as string).toUpperCase(),
+      jenisKendaraan: (formData.get('editJenisKendaraan') as string).toUpperCase(),
+    };
+    try {
+        const alatDocRef = doc(db, 'alat', editingAlat.id);
+        await updateDoc(alatDocRef, updatedAlatData);
+        toast({ title: 'Alat Diperbarui'});
+        setEditingAlat(null);
+    } catch (error) {
+        toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal memperbarui data alat.' });
+    }
+    setIsEditingAlat(false);
+  }
+
+  const handleConfirmEditUser = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingUser) return;
+    setIsEditingUser(true);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    
+    const updatedUserData: Partial<UserData> = {
+      username: (formData.get('editUsername') as string).toUpperCase(),
+      nik: (formData.get('editNik') as string).toUpperCase(),
+      jabatan: formData.get('editJabatan') as string,
+      lokasi: formData.get('editLokasi') as string,
+    };
+    const newPassword = formData.get('editPassword') as string;
+    if (newPassword) {
+      updatedUserData.password = newPassword;
+    }
+    try {
+        const userDocRef = doc(db, 'users', editingUser.id);
+        await updateDoc(userDocRef, updatedUserData);
+        toast({ title: 'Pengguna Diperbarui'});
+        setEditingUser(null);
+    } catch (error) {
+        toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal memperbarui data pengguna.' });
+    }
+    setIsEditingUser(false);
+  }
+
+
   const handleQuarantineRequest = (item: AlatData) => {
       setQuarantineTarget(item);
       setIsQuarantineConfirmOpen(true);
@@ -944,7 +1041,7 @@ export default function WorkshopPage() {
         setQuarantineTarget(null);
     }
   };
-
+  
   const renderLaporanLogistik = () => (
     <Card>
       <CardHeader>
@@ -1115,8 +1212,8 @@ export default function WorkshopPage() {
                                <TableBody>
                                  {isFetchingData ? (
                                      <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                 ) : mechanicsInLocation.length > 0 ? (
-                                     mechanicsInLocation.map(mechanic => {
+                                 ) : usersInLocation.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK")).length > 0 ? (
+                                     usersInLocation.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK")).map(mechanic => {
                                         const activeTask = mechanicTasks.find(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === mechanic.id));
                                         return (
                                             <TableRow key={mechanic.id}>
@@ -1143,9 +1240,43 @@ export default function WorkshopPage() {
         case 'Laporan Logistik':
              return renderLaporanLogistik();
         case 'Manajemen Pengguna':
-            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
+            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Manajemen Pengguna</h2><p>Halaman untuk mengelola pengguna di lokasi Anda.</p></CardContent></Card>;
         case 'Manajemen Alat':
-            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
+            return (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Manajemen Alat di Lokasi {userInfo?.lokasi}</CardTitle>
+                        <CardDescription>Daftar semua alat yang terdaftar di lokasi Anda.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto border rounded-lg">
+                           <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>No. Lambung</TableHead>
+                                        <TableHead>No. Polisi</TableHead>
+                                        <TableHead>Jenis Kendaraan</TableHead>
+                                        <TableHead className="text-right">Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isFetchingData ? (<TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : filteredAlatByLocation.length > 0 ? (filteredAlatByLocation.map(item => (
+                                        <TableRow key={item.id}>
+                                            <TableCell className="font-medium">{item.nomorLambung}</TableCell>
+                                            <TableCell>{item.nomorPolisi}</TableCell>
+                                            <TableCell>{item.jenisKendaraan}</TableCell>
+                                            <TableCell className="text-right space-x-1">
+                                                <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(item)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>
+                                                <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(item)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))) : (<TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada alat di lokasi ini.</TableCell></TableRow>)}
+                                </TableBody>
+                           </Table>
+                       </div>
+                    </CardContent>
+                </Card>
+            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1407,4 +1538,3 @@ export default function WorkshopPage() {
     </>
   );
 }
-
