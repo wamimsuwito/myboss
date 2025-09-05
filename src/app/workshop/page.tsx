@@ -1023,7 +1023,7 @@ export default function WorkshopPage() {
                 operatorId: 'SISTEM',
                 location: quarantineTarget.lokasi,
                 overallStatus: 'rusak',
-                description: 'alat ini dalam kondisi rusak berat, lepas karantina untuk mulai perbaikan',
+                description: 'alat ini dalam kondisi rusak berat, lepas dari karantina untuk mulai perbaikan',
                 photo: '',
             };
             await addDoc(collection(db, 'checklist_reports'), dummyReport);
@@ -1240,7 +1240,7 @@ export default function WorkshopPage() {
         case 'Laporan Logistik':
              return renderLaporanLogistik();
         case 'Manajemen Pengguna':
-            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Manajemen Pengguna</h2><p>Halaman untuk mengelola pengguna di lokasi Anda.</p></CardContent></Card>;
+            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
         case 'Manajemen Alat':
             return (
                  <Card>
