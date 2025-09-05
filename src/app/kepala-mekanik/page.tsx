@@ -320,7 +320,7 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     }
 };
 
-const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null; allTasks: MechanicTask[]; allUsers: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
+const HistoryComponent = ({ user, allTasks, users, allAlat, allReports }: { user: UserData | null; allTasks: MechanicTask[]; users: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
     const [date, setDate] = useState<DateRange | undefined>({
@@ -329,10 +329,10 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
     });
 
     const sopirOptions = useMemo(() => {
-        return allUsers.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'))
+        return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'))
             .filter(u => user?.lokasi ? u.lokasi === user.lokasi : true)
             .sort((a,b) => a.username.localeCompare(b.username));
-    }, [allUsers, user]);
+    }, [users, user]);
   
     const filteredTasks = useMemo(() => {
       const fromDate = date?.from ? startOfDay(date.from) : null;
@@ -376,7 +376,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
         <>
             <div className='hidden'>
                 <div id="history-print-area">
-                    <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
+                    <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={users} location={user?.lokasi} />
                 </div>
             </div>
             <Card>
@@ -525,6 +525,8 @@ export default function KepalaMekanikPage() {
   const [isDetailListOpen, setIsDetailListOpen] = useState(false);
   const [detailListTitle, setDetailListTitle] = useState('');
   const [detailListData, setDetailListData] = useState<any[]>([]);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
   
   const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
   const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
@@ -915,170 +917,6 @@ export default function KepalaMekanikPage() {
                 </div>
               </main>
             );
-        case 'Work order saya (WO)':
-            return (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Daftar Laporan Kerusakan (Work Order)</CardTitle>
-                        <CardDescription>Daftar kendaraan yang dilaporkan rusak dan membutuhkan perbaikan segera.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                       <div className="overflow-x-auto border rounded-lg">
-                           <Table>
-                               <TableHeader>
-                                   <TableRow>
-                                       <TableHead>Waktu Pelaporan</TableHead>
-                                       <TableHead>Sopir/Operator</TableHead>
-                                       <TableHead>Nomor Kendaraan</TableHead>
-                                       <TableHead>Deskripsi Kerusakan</TableHead>
-                                       <TableHead className='text-right'>Aksi</TableHead>
-                                   </TableRow>
-                               </TableHeader>
-                               <TableBody>
-                                   {isFetchingData ? (
-                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                   ) : woList.length > 0 ? (
-                                     woList.map(report => {
-                                       const vehicle = alat.find(a => a.nomorLambung === report.nomorLambung);
-                                       const operator = users.find(u => u.id === report.operatorId);
-                                       if (!vehicle) return null;
-                                       return (
-                                         <TableRow key={report.id}>
-                                             <TableCell>{format(new Date(report.timestamp), 'dd MMM, HH:mm', { locale: localeID })}</TableCell>
-                                             <TableCell>
-                                                 <p>{operator?.username || 'N/A'}</p>
-                                                 <p className="text-xs text-muted-foreground">NIK: {operator?.nik || '-'}</p>
-                                             </TableCell>
-                                             <TableCell>
-                                                 <p className="font-semibold">{vehicle.nomorLambung}</p>
-                                                 <p className="text-xs text-muted-foreground">{vehicle.nomorPolisi} ({vehicle.jenisKendaraan})</p>
-                                             </TableCell>
-                                             <TableCell className="max-w-xs truncate">{report.description}</TableCell>
-                                             <TableCell className="text-right">
-                                                 <CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={mechanicsInLocation} onTaskCreated={() => {}} />
-                                             </TableCell>
-                                         </TableRow>
-                                       );
-                                     })
-                                   ) : (
-                                       <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>
-                                   )}
-                               </TableBody>
-                           </Table>
-                       </div>
-                    </CardContent>
-                </Card>
-            );
-        case 'Work order aktif':
-            return (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Work Order Aktif</CardTitle>
-                    <CardDescription>
-                      Daftar semua pekerjaan perbaikan yang sedang menunggu atau dalam proses.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto border rounded-lg">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Kendaraan</TableHead>
-                            <TableHead>Pelapor</TableHead>
-                            <TableHead>Deskripsi</TableHead>
-                            <TableHead>Foto</TableHead>
-                            <TableHead>Mekanik Bertugas</TableHead>
-                            <TableHead>Target Selesai</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {isFetchingData ? (
-                            <TableRow>
-                              <TableCell colSpan={7} className="h-24 text-center">
-                                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-                              </TableCell>
-                            </TableRow>
-                          ) : activeTasks.length > 0 ? (
-                            activeTasks.map((task) => {
-                              const triggeringReport = reports.find(
-                                (r) => r.id === task.vehicle?.triggeringReportId
-                              );
-                              const sopir = users.find(
-                                (u) => u.id === triggeringReport?.operatorId
-                              );
-                              return (
-                                <TableRow key={task.id}>
-                                  <TableCell>
-                                    <p className="font-semibold">
-                                      {task.vehicle.hullNumber}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {task.vehicle.licensePlate}
-                                    </p>
-                                  </TableCell>
-                                  <TableCell>
-                                    <p>{sopir?.username || 'N/A'}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {formatRelative(new Date(task.createdAt), new Date(), { locale: localeID })}
-                                    </p>
-                                  </TableCell>
-                                  <TableCell className="max-w-[200px] truncate">
-                                    {triggeringReport?.description || 'N/A'}
-                                  </TableCell>
-                                  <TableCell>
-                                    {triggeringReport?.photo && (
-                                        <Dialog>
-                                            <DialogTrigger asChild>
-                                                <Button variant="ghost" size="icon">
-                                                    <Eye className="h-5 w-5" />
-                                                </Button>
-                                            </DialogTrigger>
-                                            <DialogContent className="max-w-3xl">
-                                                <DialogHeader>
-                                                    <DialogTitle>Foto Laporan Kerusakan</DialogTitle>
-                                                </DialogHeader>
-                                                <img src={Array.isArray(triggeringReport.photo) ? triggeringReport.photo[0] : triggeringReport.photo} alt="Foto Kerusakan" className="rounded-lg w-full h-auto" data-ai-hint="mechanic report broken" />
-                                            </DialogContent>
-                                        </Dialog>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    {task.mechanics.map((m) => m.name).join(', ')}
-                                  </TableCell>
-                                  <TableCell>
-                                    {format(new Date(task.vehicle.targetDate), 'dd MMM yyyy')}
-                                    {' @ '}{task.vehicle.targetTime}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Select value={task.status} onValueChange={(newStatus) => handleTaskStatusChange(task, newStatus as MechanicTask['status'])}>
-                                      <SelectTrigger className="w-36">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="PENDING">Menunggu</SelectItem>
-                                        <SelectItem value="IN_PROGRESS">Dikerjakan</SelectItem>
-                                        <SelectItem value="DELAYED">Tunda</SelectItem>
-                                        <SelectItem value="COMPLETED">Selesai</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                                Tidak ada work order yang sedang aktif.
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
         case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
@@ -1128,7 +966,7 @@ export default function KepalaMekanikPage() {
                 </Card>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} users={users} allAlat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         case 'Anggota Mekanik':
              return (
                 <Card>
@@ -1194,49 +1032,49 @@ export default function KepalaMekanikPage() {
     <>
      <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
       <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
-        <DialogContent className="max-w-3xl">
-            <DialogHeader>
-                <DialogTitle>Detail: {detailListTitle}</DialogTitle>
-                <DialogDescription>
-                    Berikut adalah daftar alat yang termasuk dalam kategori ini di lokasi Anda.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto mt-4 pr-2">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>No. Polisi</TableHead>
-                            <TableHead>No. Lambung</TableHead>
-                            <TableHead>Sopir (Batangan)</TableHead>
-                            <TableHead>Status</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {detailListData.length > 0 ? (
-                            detailListData.map(item => (
-                                <TableRow key={item.id}>
-                                    <TableCell>{item.nomorPolisi}</TableCell>
-                                    <TableCell>{item.nomorLambung}</TableCell>
-                                    <TableCell>{item.operatorPelapor}</TableCell>
-                                    <TableCell>{getStatusBadge(item.status)}</TableCell>
-                                </TableRow>
-                            ))
-                        ) : (
+            <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Detail: {detailListTitle}</DialogTitle>
+                    <DialogDescription>
+                        Berikut adalah daftar alat yang termasuk dalam kategori ini di lokasi Anda.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[60vh] overflow-y-auto mt-4 pr-2">
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center h-24">
-                                    Tidak ada alat dalam kategori ini.
-                                </TableCell>
+                                <TableHead>No. Polisi</TableHead>
+                                <TableHead>No. Lambung</TableHead>
+                                <TableHead>Sopir (Batangan)</TableHead>
+                                <TableHead>Status</TableHead>
                             </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
-            <DialogFooter className="mt-4">
-                <DialogClose asChild>
-                    <Button type="button" variant="secondary">Tutup</Button>
-                </DialogClose>
-            </DialogFooter>
-        </DialogContent>
+                        </TableHeader>
+                        <TableBody>
+                            {detailListData.length > 0 ? (
+                                detailListData.map(item => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>{item.nomorPolisi}</TableCell>
+                                        <TableCell>{item.nomorLambung}</TableCell>
+                                        <TableCell>{item.operatorPelapor}</TableCell>
+                                        <TableCell>{getStatusBadge(item.status)}</TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="text-center h-24">
+                                        Tidak ada alat dalam kategori ini.
+                                    </TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+                <DialogFooter className="mt-4">
+                    <DialogClose asChild>
+                        <Button type="button" variant="secondary">Tutup</Button>
+                    </DialogClose>
+                </DialogFooter>
+            </DialogContent>
       </Dialog>
       
        <AlertDialog open={isQuarantineConfirmOpen} onOpenChange={setIsQuarantineConfirmOpen}>
@@ -1275,7 +1113,7 @@ export default function KepalaMekanikPage() {
                     >
                         <item.icon className="h-4 w-4" />
                         <span className="text-sm">{item.name}</span>
-                         {item.name === 'Work order saya (WO)' && hasNewMessage && (
+                         {item.name === 'Pesan Masuk' && hasNewMessage && (
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
                          )}
                     </SidebarMenuButton>
