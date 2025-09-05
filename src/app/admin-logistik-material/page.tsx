@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Sidebar, SidebarProvider, SidebarInset, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarFooter, SidebarTrigger } from '@/components/ui/sidebar';
-import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, query, where, Timestamp, getDoc, deleteDoc, orderBy } from '@/lib/firebase';
+import { db, collection, getDocs, setDoc, doc, addDoc, updateDoc, onSnapshot, query, where, Timestamp, getDoc, deleteDoc, orderBy, increment } from '@/lib/firebase';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -311,69 +311,83 @@ export default function AdminLogistikPage() {
     }
   };
   
-    const handleJobStatusChange = async (jobId: string, newStatus: Job['status']) => {
-        const jobRef = doc(db, 'available_jobs', jobId);
-        const jobData = jobs.find(j => j.id === jobId);
-        if (!jobData) return;
-
-        let updateData: Partial<Job> = { status: newStatus };
-
-        if (newStatus === 'Proses' && !jobData.jamMulai) {
-            updateData.jamMulai = new Date().toISOString();
-        } else if (newStatus === 'Selesai' && !jobData.jamSelesai) {
-             updateData.jamSelesai = new Date().toISOString();
-
-            if (jobData.rencanaId) {
-                const rencanaDocRef = doc(db, 'rencana_pemasukan', jobData.rencanaId);
-                const rencanaDocSnap = await getDoc(rencanaDocRef);
-                if (rencanaDocSnap.exists()) {
-                    const rencanaData = rencanaDocSnap.data() as RencanaPemasukan;
-                    const logEntry: Omit<PemasukanLogEntry, 'id'> = {
-                        timestamp: new Date().toISOString(),
-                        material: jobData.material,
-                        noSpb: rencanaData.noSpb,
-                        namaKapal: jobData.namaKapal,
-                        namaSopir: rencanaData.namaSopir || '',
-                        jumlah: jobData.totalVolume,
-                        unit: 'M³',
-                        keterangan: `Selesai bongkar otomatis dari WO.`,
-                        lokasi: userInfo?.lokasi,
-                    };
-                    await addDoc(collection(db, 'arsip_pemasukan_material_semua'), logEntry);
-                    await updateDoc(rencanaDocRef, { status: 'Selesai Bongkar' });
-                    toast({ title: "Pemasukan Material Dicatat", description: `${jobData.totalVolume} M³ ${jobData.material} telah dicatat.` });
-                }
-            }
-
-        } else if (newStatus === 'Tunda') {
-            const reason = prompt("Masukkan alasan menunda pekerjaan:");
-            if (reason) {
-                updateData.riwayatTunda = [...(jobData.riwayatTunda || []), { alasan: reason, waktuMulai: new Date().toISOString() }];
-            } else {
-                return; // User cancelled
-            }
-        } else if (newStatus === 'Proses' && jobData.status === 'Tunda') {
-            const lastTunda = jobData.riwayatTunda?.[jobData.riwayatTunda.length - 1];
-            if (lastTunda && !lastTunda.waktuSelesai) {
-                lastTunda.waktuSelesai = new Date().toISOString();
-                const tundaDuration = new Date(lastTunda.waktuSelesai).getTime() - new Date(lastTunda.waktuMulai).getTime();
-                updateData.totalWaktuTunda = (jobData.totalWaktuTunda || 0) + tundaDuration;
-                updateData.riwayatTunda = jobData.riwayatTunda;
-            }
-        }
-        
-        await updateDoc(jobRef, updateData);
-        
-        if (newStatus === 'Selesai') {
-            await addDoc(collection(db, 'archived_jobs'), {
-                ...jobData,
-                ...updateData,
-                tripLogs: allTripHistories[jobId] || [],
-                archivedAt: new Date().toISOString()
+  const handleJobStatusChange = async (jobId: string, newStatus: Job['status']) => {
+    const jobRef = doc(db, 'available_jobs', jobId);
+    const jobData = jobs.find(j => j.id === jobId);
+    if (!jobData || !userInfo?.lokasi) return;
+  
+    let updateData: Partial<Job> = { status: newStatus };
+  
+    if (newStatus === 'Proses' && !jobData.jamMulai) {
+        updateData.jamMulai = new Date().toISOString();
+    } else if (newStatus === 'Selesai' && !jobData.jamSelesai) {
+        updateData.jamSelesai = new Date().toISOString();
+  
+        // Update stock
+        try {
+            const stockRef = doc(db, `locations/${userInfo.lokasi}/stock`, 'aggregates');
+            const materialKey = jobData.material.toLowerCase() as 'batu' | 'pasir';
+            await updateDoc(stockRef, {
+                [materialKey]: increment(jobData.totalVolume)
             });
-            await deleteDoc(jobRef); // Delete from active jobs
+            toast({ title: "Stok Material Diperbarui", description: `Stok ${jobData.material} bertambah ${jobData.totalVolume} M³.` });
+        } catch (stockError) {
+            console.error("Failed to update stock:", stockError);
+            toast({ title: "Gagal Memperbarui Stok", variant: "destructive", description: "Silakan perbarui stok secara manual." });
         }
-    };
+  
+        // Log to history
+        if (jobData.rencanaId) {
+            const rencanaDocRef = doc(db, 'rencana_pemasukan', jobData.rencanaId);
+            const rencanaDocSnap = await getDoc(rencanaDocRef);
+            if (rencanaDocSnap.exists()) {
+                const rencanaData = rencanaDocSnap.data() as RencanaPemasukan;
+                const logEntry: Omit<PemasukanLogEntry, 'id'> = {
+                    timestamp: new Date().toISOString(),
+                    material: jobData.material,
+                    noSpb: rencanaData.noSpb,
+                    namaKapal: jobData.namaKapal,
+                    namaSopir: rencanaData.namaSopir || '',
+                    jumlah: jobData.totalVolume,
+                    unit: 'M³',
+                    keterangan: `Selesai bongkar otomatis dari WO.`,
+                    lokasi: userInfo?.lokasi,
+                };
+                await addDoc(collection(db, 'arsip_pemasukan_material_semua'), logEntry);
+                await updateDoc(rencanaDocRef, { status: 'Selesai Bongkar' });
+                toast({ title: "Pemasukan Material Dicatat", description: `${jobData.totalVolume} M³ ${jobData.material} telah dicatat.` });
+            }
+        }
+  
+    } else if (newStatus === 'Tunda') {
+        const reason = prompt("Masukkan alasan menunda pekerjaan:");
+        if (reason) {
+            updateData.riwayatTunda = [...(jobData.riwayatTunda || []), { alasan: reason, waktuMulai: new Date().toISOString() }];
+        } else {
+            return; // User cancelled
+        }
+    } else if (newStatus === 'Proses' && jobData.status === 'Tunda') {
+        const lastTunda = jobData.riwayatTunda?.[jobData.riwayatTunda.length - 1];
+        if (lastTunda && !lastTunda.waktuSelesai) {
+            lastTunda.waktuSelesai = new Date().toISOString();
+            const tundaDuration = new Date(lastTunda.waktuSelesai).getTime() - new Date(lastTunda.waktuMulai).getTime();
+            updateData.totalWaktuTunda = (jobData.totalWaktuTunda || 0) + tundaDuration;
+            updateData.riwayatTunda = jobData.riwayatTunda;
+        }
+    }
+    
+    await updateDoc(jobRef, updateData);
+    
+    if (newStatus === 'Selesai') {
+        await addDoc(collection(db, 'archived_jobs'), {
+            ...jobData,
+            ...updateData,
+            tripLogs: allTripHistories[jobId] || [],
+            archivedAt: new Date().toISOString()
+        });
+        await deleteDoc(jobRef); // Delete from active jobs
+    }
+  };
     
     const calculateEffectiveTime = (job: any) => {
         const start = job.jamMulai ? new Date(job.jamMulai) : (job.arrivalConfirmedAt ? new Date(job.arrivalConfirmedAt) : null);
