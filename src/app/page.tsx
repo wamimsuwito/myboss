@@ -645,12 +645,17 @@ export default function DashboardPage() {
             return;
         }
 
-        const usage: MaterialUsage = {
+        const usageKg: MaterialUsage = {
             pasir: (activeJobMix.pasir1 + activeJobMix.pasir2) * currentVolume,
             batu: (activeJobMix.batu1 + activeJobMix.batu2) * currentVolume,
             semen: activeJobMix.semen * currentVolume,
             air: activeJobMix.air * currentVolume,
             sikaVz: 0, sikaNn: 0, visco: 0,
+        };
+
+        const usageM3 = {
+            pasir: usageKg.pasir / 1225, // Konversi pasir dari kg ke m3
+            batu: usageKg.batu / 1400,   // Konversi batu dari kg ke m3
         };
         
         const scheduleDocRef = doc(db, 'schedules_today', activeSchedule.id as string);
@@ -688,16 +693,15 @@ export default function DashboardPage() {
 
             if (aggregateStockDoc.exists()) {
                 transaction.update(aggregateStockRef, {
-                    pasir: increment(-usage.pasir),
-                    batu: increment(-usage.batu)
+                    pasir: increment(-usageM3.pasir),
+                    batu: increment(-usageM3.batu)
                 });
             }
             
-            // VERIFIED AND CORRECTED LOGIC
             if (cementStockDoc.exists() && data.selectedSilo) {
                 const siloKey = `silos.silo-${data.selectedSilo}.stock`;
                 transaction.update(cementStockRef, {
-                    [siloKey]: increment(-usage.semen)
+                    [siloKey]: increment(-usageKg.semen)
                 });
             }
         });
@@ -726,7 +730,7 @@ export default function DashboardPage() {
             totalVolumeTerkirim: parseFloat(updatedScheduleData['TERKIRIM M³']),
             lokasiProduksi: userInfo.lokasi,
             unitBp: userInfo.unitBp,
-            materialUsage: usage,
+            materialUsage: usageKg,
         };
         await addDoc(collection(db, 'productions'), productionEntry);
         
