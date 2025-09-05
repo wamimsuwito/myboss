@@ -779,14 +779,12 @@ export default function KepalaMekanikPage() {
   };
   
   const woList = useMemo(() => {
-    // 1. Get hull numbers of vehicles with active WOs
     const activeWoHullNumbers = new Set(
         mechanicTasks
             .filter(task => task.status === 'PENDING' || task.status === 'IN_PROGRESS' || task.status === 'DELAYED')
             .map(task => task.vehicle.hullNumber)
     );
 
-    // 2. Filter reports for vehicles that do NOT have an active WO
     return reports
         .filter(report => 
             (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian') &&
@@ -801,8 +799,8 @@ export default function KepalaMekanikPage() {
   [users, userInfo?.lokasi]);
 
   const activeTasks = useMemo(() => {
-    return mechanicTasks.filter(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === userInfo?.id));
-  }, [mechanicTasks, userInfo?.id]);
+    return mechanicTasks.filter(task => task.status !== 'COMPLETED');
+  }, [mechanicTasks]);
   
   const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status'], reasonOrDescription?: string) => {
     const taskDocRef = doc(db, 'mechanic_tasks', task.id);
@@ -964,6 +962,132 @@ export default function KepalaMekanikPage() {
         setQuarantineTarget(null);
     }
   };
+
+  const handleSavePairing = async () => {
+    if (!selectedSopir || !selectedAlat || !userInfo) return;
+
+    setIsSubmitting(true);
+    const pairingData: Omit<SopirBatanganData, 'id'> = {
+        userId: selectedSopir.id,
+        namaSopir: selectedSopir.username,
+        nik: selectedSopir.nik,
+        vehicleId: selectedAlat.id,
+        nomorPolisi: selectedAlat.nomorPolisi,
+        nomorLambung: selectedAlat.nomorLambung,
+        lokasi: userInfo.lokasi,
+        keterangan: keterangan,
+        timestamp: Timestamp.now(),
+    };
+
+    try {
+        if (editingPairing) {
+            await updateDoc(doc(db, 'sopir_batangan', editingPairing.id), pairingData);
+            toast({ title: 'Pasangan Diperbarui' });
+        } else {
+            await addDoc(collection(db, 'sopir_batangan'), pairingData);
+            toast({ title: 'Pasangan Disimpan' });
+        }
+        setEditingPairing(null);
+        setSelectedSopir(null);
+        setSelectedAlat(null);
+        setKeterangan('');
+    } catch (error) {
+        toast({ title: 'Gagal Menyimpan', variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleEditPairing = (pairing: SopirBatanganData) => {
+    setEditingPairing(pairing);
+    setSelectedSopir(users.find(u => u.id === pairing.userId) || null);
+    setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
+    setKeterangan(pairing.keterangan || '');
+  };
+
+  const handleDeleteRequest = (item: AlatData | SopirBatanganData, type: 'alat' | 'pairing') => {
+      setItemToDelete(item);
+      setDeleteType(type);
+      setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+      if (!itemToDelete || !deleteType) return;
+      setIsSubmitting(true);
+      try {
+          if (deleteType === 'alat') {
+              await deleteDoc(doc(db, 'alat', itemToDelete.id));
+              toast({ title: 'Alat Dihapus' });
+          } else if (deleteType === 'pairing') {
+              await deleteDoc(doc(db, 'sopir_batangan', itemToDelete.id));
+              toast({ title: 'Pasangan Dihapus' });
+          }
+      } catch (error) {
+          toast({ title: 'Gagal Menghapus', variant: 'destructive' });
+      } finally {
+          setIsSubmitting(false);
+          setIsDeleteDialogOpen(false);
+      }
+  };
+  
+  const handleMutasiRequest = (item: AlatData) => {
+    setMutasiTarget(item);
+    setIsMutasiDialogOpen(true);
+  };
+  
+  const handleConfirmMutasi = async () => {
+    if (!mutasiTarget || !newLocationForMutasi) return;
+    setIsMutating(true);
+    try {
+        await updateDoc(doc(db, 'alat', mutasiTarget.id), { lokasi: newLocationForMutasi });
+        toast({ title: 'Mutasi Berhasil' });
+    } catch (error) {
+        toast({ title: 'Gagal Mutasi', variant: 'destructive' });
+    } finally {
+        setIsMutating(false);
+        setIsMutasiDialogOpen(false);
+    }
+  };
+  
+  const handleConfirmEditAlat = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingAlat) return;
+    setIsEditingAlat(true);
+    const formData = new FormData(e.currentTarget);
+    const updatedData = {
+        nomorLambung: formData.get('editNomorLambung') as string,
+        nomorPolisi: formData.get('editNomorPolisi') as string,
+        jenisKendaraan: formData.get('editJenisKendaraan') as string,
+    };
+    try {
+        await updateDoc(doc(db, 'alat', editingAlat.id), updatedData);
+        toast({ title: 'Alat Diperbarui' });
+    } catch (error) {
+        toast({ title: 'Gagal Memperbarui', variant: 'destructive' });
+    } finally {
+        setIsEditingAlat(false);
+        setEditingAlat(null);
+    }
+  };
+  
+  const renderLaporanLogistik = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   const renderContent = () => {
     switch (activeMenu) {
@@ -1197,7 +1321,7 @@ export default function KepalaMekanikPage() {
                 </Card>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} isFetchingData={isFetchingData} />;
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} allAlat={alat} allReports={reports} isFetchingData={isFetchingData} />;
         case 'Anggota Mekanik':
              return (
                 <Card>
@@ -1441,4 +1565,3 @@ export default function KepalaMekanikPage() {
     </>
   );
 }
-
