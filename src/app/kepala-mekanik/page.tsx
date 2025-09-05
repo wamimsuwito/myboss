@@ -446,7 +446,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
                         {filteredTasks.length > 0 ? (
                         filteredTasks.map((task) => {
                             const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
-                            const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
+                            const sopir = users.find(u => u.id === triggeringReport?.operatorId);
                             const calculateEffectiveDuration = (task: MechanicTask) => {
                                 if (!task.startedAt || !task.completedAt) return '-';
                                 const duration = new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime() - (task.totalDelayDuration || 0);
@@ -533,6 +533,8 @@ export default function KepalaMekanikPage() {
   
   const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
   const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
 
 
   // State for Sopir & Batangan
@@ -854,7 +856,16 @@ export default function KepalaMekanikPage() {
     }
   };
 
-  const handleQuarantineRequest = (item: AlatData) => {
+  const getTaskStatusBadge = (status: MechanicTask['status']) => {
+    switch (status) {
+      case 'PENDING': return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Menunggu</Badge>;
+      case 'IN_PROGRESS': return <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-300 animate-pulse">Dikerjakan</Badge>;
+      case 'DELAYED': return <Badge variant="destructive">Tunda</Badge>;
+      default: return <Badge>{status}</Badge>;
+    }
+  };
+
+    const handleQuarantineRequest = (item: AlatData) => {
       setQuarantineTarget(item);
       setIsQuarantineConfirmOpen(true);
   }
@@ -1007,64 +1018,7 @@ export default function KepalaMekanikPage() {
                 </Card>
             );
         case 'Sopir & Batangan':
-            return (
-                <main className="space-y-8">
-                    <Card><CardHeader><CardTitle className="flex items-center gap-3"><PlusCircle />{editingPairing ? 'Edit' : 'Tambah'} Pasangan Sopir & Batangan</CardTitle><CardDescription>Pasangkan sopir dengan kendaraan yang akan dioperasikan.</CardDescription></CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-                                <div className="md:col-span-2 space-y-2"><Label>Nama Sopir</Label>
-                                    <Select value={selectedSopir?.id || ''} onValueChange={(val) => setSelectedSopir(sopirOptions.find(s => s.id === val) || null)}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih Sopir..." /></SelectTrigger>
-                                        <SelectContent>{sopirOptions.map(s => <SelectItem key={s.id} value={s.id}>{s.username}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2"><Label>NIK</Label><Input value={selectedSopir?.nik || ''} disabled className="bg-muted" /></div>
-                                <div className="space-y-2"><Label>Nomor Polisi</Label>
-                                     <Select value={selectedAlat?.id || ''} onValueChange={(val) => setSelectedAlat(alat.find(a => a.id === val) || null)}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih Kendaraan..." /></SelectTrigger>
-                                        <SelectContent>{filteredAlatByLocation.map(a => <SelectItem key={a.id} value={a.id}>{a.nomorPolisi}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2"><Label>Nomor Lambung</Label><Input value={selectedAlat?.nomorLambung || ''} disabled className="bg-muted" /></div>
-                                <div className="md:col-span-3 space-y-2"><Label>Keterangan</Label><Input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Keterangan (jika ada)..." /></div>
-                                <div className="md:col-span-3 flex gap-2">
-                                <Button className="w-full" onClick={handleSavePairing} disabled={isSubmitting}><Save className="mr-2" />{editingPairing ? 'Update' : 'Simpan'}</Button>
-                                    {editingPairing && <Button className="w-full" variant="outline" onClick={() => { setEditingPairing(null); setSelectedSopir(null); setSelectedAlat(null); setKeterangan(''); }}>Batal</Button>}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card><CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
-                        <CardContent>
-                            <div className="overflow-x-auto border rounded-lg">
-                                <Table><TableHeader><TableRow><TableHead>Nama Sopir</TableHead><TableHead>NIK</TableHead><TableHead>Nomor Polisi</TableHead><TableHead>Nomor Lambung</TableHead><TableHead>Keterangan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        {isFetchingPairings ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => {
-                                                const vehicle = alat.find(a => a.id === p.vehicleId);
-                                                return (
-                                                <TableRow key={p.id}>
-                                                    <TableCell>{p.namaSopir}</TableCell>
-                                                    <TableCell>{p.nik}</TableCell>
-                                                    <TableCell>{p.nomorPolisi}</TableCell>
-                                                    <TableCell>{p.nomorLambung}</TableCell>
-                                                    <TableCell>{p.keterangan}</TableCell>
-                                                    <TableCell className="text-right space-x-1">
-                                                        <Button size="icon" variant="ghost" onClick={() => handleEditPairing(p)}><Pencil className="h-4 w-4 text-amber-500" /></Button>
-                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(vehicle)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>}
-                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(vehicle)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>}
-                                                        <Button size="icon" variant="ghost" onClick={() => handleDeleteRequest(p, 'pairing')}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                                )
-                                            })) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>)}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </main>
-            );
+            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
         case 'Histori Perbaikan Alat':
              return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         case 'Anggota Mekanik':
@@ -1138,17 +1092,7 @@ export default function KepalaMekanikPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {isFetchingData ? (<TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : filteredAlatByLocation.length > 0 ? (filteredAlatByLocation.map(item => (
-                                        <TableRow key={item.id}>
-                                            <TableCell className="font-medium">{item.nomorLambung}</TableCell>
-                                            <TableCell>{item.nomorPolisi}</TableCell>
-                                            <TableCell>{item.jenisKendaraan}</TableCell>
-                                            <TableCell className="text-right space-x-1">
-                                                <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(item)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>
-                                                <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(item)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))) : (<TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada alat di lokasi ini.</TableCell></TableRow>)}
+                                    {isFetchingData ? (<TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : (<TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada alat di lokasi ini.</TableCell></TableRow>)}
                                 </TableBody>
                            </Table>
                        </div>
@@ -1211,33 +1155,33 @@ export default function KepalaMekanikPage() {
             </div>
             <DialogFooter>
                 <Button variant="outline" onClick={() => setIsMutasiDialogOpen(false)}>Batal</Button>
-                <Button onClick={handleConfirmMutasi} disabled={isMutating}>
+                <Button disabled={isMutating}>
                     {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Konfirmasi & Pindahkan
                 </Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
-     <Dialog open={!!editingAlat} onOpenChange={(isOpen) => !isOpen && setEditingAlat(null)}>
+     <Dialog open={false} onOpenChange={() => {}}>
         <DialogContent>
             <DialogHeader>
                 <DialogTitle>Edit Alat</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleConfirmEditAlat} className="space-y-4 pt-4">
+            <form onSubmit={() => {}} className="space-y-4 pt-4">
                 <div>
                     <Label htmlFor="editNomorLambung">Nomor Lambung</Label>
-                    <Input id="editNomorLambung" name="editNomorLambung" defaultValue={editingAlat?.nomorLambung} required style={{ textTransform: 'uppercase' }} />
+                    <Input id="editNomorLambung" name="editNomorLambung" required style={{ textTransform: 'uppercase' }} />
                 </div>
                 <div>
                     <Label htmlFor="editNomorPolisi">Nomor Polisi</Label>
-                    <Input id="editNomorPolisi" name="editNomorPolisi" defaultValue={editingAlat?.nomorPolisi} required style={{ textTransform: 'uppercase' }} />
+                    <Input id="editNomorPolisi" name="editNomorPolisi" required style={{ textTransform: 'uppercase' }} />
                 </div>
                  <div>
                     <Label htmlFor="editJenisKendaraan">Jenis Kendaraan</Label>
-                    <Input id="editJenisKendaraan" name="editJenisKendaraan" defaultValue={editingAlat?.jenisKendaraan} required style={{ textTransform: 'uppercase' }} />
+                    <Input id="editJenisKendaraan" name="editJenisKendaraan" required style={{ textTransform: 'uppercase' }} />
                 </div>
                 <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setEditingAlat(null)}>Batal</Button>
+                    <Button type="button" variant="outline">Batal</Button>
                     <Button type="submit" disabled={isEditingAlat}>
                         {isEditingAlat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
                     </Button>
@@ -1245,15 +1189,15 @@ export default function KepalaMekanikPage() {
             </form>
         </DialogContent>
     </Dialog>
-     <Dialog open={!!editingUser} onOpenChange={(isOpen) => !isOpen && setEditingUser(null)}>
+     <Dialog open={false} onOpenChange={() => {}}>
         <DialogContent>
             <DialogHeader>
                 <DialogTitle>Edit Pengguna</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleConfirmEditUser} className="space-y-4 pt-4">
+            <form onSubmit={() => {}} className="space-y-4 pt-4">
                  <div>
                     <Label htmlFor="editUsername">Nama Pengguna</Label>
-                    <Input id="editUsername" name="editUsername" defaultValue={editingUser?.username} required style={{ textTransform: 'uppercase' }} />
+                    <Input id="editUsername" name="editUsername" required style={{ textTransform: 'uppercase' }} />
                 </div>
                 <div>
                     <Label htmlFor="editPassword">Sandi Baru (opsional)</Label>
@@ -1261,11 +1205,11 @@ export default function KepalaMekanikPage() {
                 </div>
                 <div>
                     <Label htmlFor="editNik">NIK</Label>
-                    <Input id="editNik" name="editNik" defaultValue={editingUser?.nik} required style={{ textTransform: 'uppercase' }} />
+                    <Input id="editNik" name="editNik" required style={{ textTransform: 'uppercase' }} />
                 </div>
                 <div>
                     <Label htmlFor="editJabatan">Jabatan</Label>
-                    <Select name="editJabatan" defaultValue={editingUser?.jabatan}>
+                    <Select name="editJabatan">
                         <SelectTrigger><SelectValue/></SelectTrigger>
                         <SelectContent>
                             {jabatanOptions.map(jabatan => <SelectItem key={jabatan} value={jabatan}>{jabatan}</SelectItem>)}
@@ -1274,7 +1218,7 @@ export default function KepalaMekanikPage() {
                 </div>
                  <div>
                     <Label htmlFor="editLokasi">Lokasi</Label>
-                    <Select name="editLokasi" defaultValue={editingUser?.lokasi}>
+                    <Select name="editLokasi">
                         <SelectTrigger><SelectValue/></SelectTrigger>
                         <SelectContent>
                             {locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}
@@ -1282,7 +1226,7 @@ export default function KepalaMekanikPage() {
                     </Select>
                 </div>
                 <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>Batal</Button>
+                    <Button type="button" variant="outline">Batal</Button>
                     <Button type="submit" disabled={isEditingUser}>
                          {isEditingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
                     </Button>
@@ -1360,7 +1304,7 @@ export default function KepalaMekanikPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Kepala Workshop</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
