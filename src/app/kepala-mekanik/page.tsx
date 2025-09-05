@@ -166,6 +166,9 @@ const CreateWorkOrderDialog = ({ vehicle, report, mechanics, onTaskCreated }: { 
 
         try {
             await addDoc(collection(db, 'mechanic_tasks'), newTask);
+            await updateDoc(doc(db, 'checklist_reports', report.id), {
+                overallStatus: 'perlu perhatian'
+            });
             toast({ title: "Work Order Berhasil Dibuat" });
             form.reset();
             onTaskCreated();
@@ -318,7 +321,7 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     }
 };
 
-const HistoriContent = ({ user, allTasks, allUsers, allAlat, allReports, isFetchingData }: { user: UserData | null; allTasks: MechanicTask[]; allUsers: UserData[]; allAlat: AlatData[], allReports: Report[], isFetchingData: boolean }) => {
+const HistoriContent = ({ user, allTasks, users, allAlat, allReports, isFetchingData }: { user: UserData | null; allTasks: MechanicTask[]; users: UserData[]; allAlat: AlatData[], allReports: Report[], isFetchingData: boolean }) => {
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
     const [date, setDate] = useState<DateRange | undefined>({
@@ -534,8 +537,6 @@ export default function KepalaMekanikPage() {
   
   const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
   const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string; type: 'user' | 'alat' | 'lokasi' } | null>(null);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
@@ -545,6 +546,11 @@ export default function KepalaMekanikPage() {
   // State for completion dialog
   const [taskToComplete, setTaskToComplete] = useState<MechanicTask | null>(null);
   const [completionDescription, setCompletionDescription] = useState('');
+
+  // State for delay dialog
+  const [isDelayDialogOpen, setIsDelayDialogOpen] = useState(false);
+  const [taskToDelay, setTaskToDelay] = useState<MechanicTask | null>(null);
+  const [delayReason, setDelayReason] = useState('');
   
   
 
@@ -773,40 +779,43 @@ export default function KepalaMekanikPage() {
   };
   
   const woList = useMemo(() => {
-    const activeWOHullNumbers = new Set(
+    // 1. Get hull numbers of vehicles with active WOs
+    const activeWoHullNumbers = new Set(
         mechanicTasks
             .filter(task => task.status === 'PENDING' || task.status === 'IN_PROGRESS' || task.status === 'DELAYED')
             .map(task => task.vehicle.hullNumber)
     );
 
+    // 2. Filter reports for vehicles that do NOT have an active WO
     return reports
         .filter(report => 
             (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian') &&
-            !activeWOHullNumbers.has(report.nomorLambung)
+            !activeWoHullNumbers.has(report.nomorLambung)
         )
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }, [reports, mechanicTasks]);
+
 
   const mechanicsInLocation = useMemo(() => 
       users.filter(u => u.jabatan?.toUpperCase().includes('MEKANIK') && u.lokasi === userInfo?.lokasi), 
   [users, userInfo?.lokasi]);
 
   const activeTasks = useMemo(() => {
-    return mechanicTasks.filter(task => task.status !== 'COMPLETED');
-  }, [mechanicTasks]);
+    return mechanicTasks.filter(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === userInfo?.id));
+  }, [mechanicTasks, userInfo?.id]);
   
-  const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status'], repairDescription?: string) => {
+  const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status'], reasonOrDescription?: string) => {
     const taskDocRef = doc(db, 'mechanic_tasks', task.id);
     const updateData: Partial<MechanicTask> = { status: newStatus };
 
     if (newStatus === 'DELAYED') {
-      const reason = prompt("Masukkan alasan menunda pekerjaan:");
-      if (reason) {
-        updateData.delayReason = reason;
+      if (reasonOrDescription) {
+        updateData.delayReason = reasonOrDescription;
         updateData.delayStartedAt = new Date().getTime();
-        updateData.riwayatTunda = [...(task.riwayatTunda || []), { alasan: reason, waktuMulai: Timestamp.now(), waktuSelesai: null! }];
+        updateData.riwayatTunda = [...(task.riwayatTunda || []), { alasan: reasonOrDescription, waktuMulai: Timestamp.now(), waktuSelesai: null! }];
       } else {
-        return; // User cancelled
+        toast({ title: "Aksi Dibatalkan", description: "Alasan menunda pekerjaan wajib diisi.", variant: "destructive" });
+        return;
       }
     }
 
@@ -823,12 +832,12 @@ export default function KepalaMekanikPage() {
     }
     
     if (newStatus === 'COMPLETED') {
-        if (!repairDescription) {
+        if (!reasonOrDescription) {
              toast({ title: "Aksi Dibatalkan", description: "Deskripsi perbaikan wajib diisi untuk menyelesaikan WO.", variant: "destructive" });
              return;
         }
         updateData.completedAt = new Date().getTime();
-        updateData.mechanicRepairDescription = repairDescription;
+        updateData.mechanicRepairDescription = reasonOrDescription;
 
         if (task.vehicle.triggeringReportId) {
             const reportDocRef = doc(db, 'checklist_reports', task.vehicle.triggeringReportId);
@@ -846,14 +855,18 @@ export default function KepalaMekanikPage() {
     }
   };
   
-    const handleStatusSelect = (task: MechanicTask, newStatus: MechanicTask['status']) => {
-        if (newStatus === 'COMPLETED') {
-            setTaskToComplete(task);
-            setCompletionDescription('');
-        } else {
-            handleTaskStatusChange(task, newStatus);
-        }
-    };
+  const handleStatusSelect = (task: MechanicTask, newStatus: MechanicTask['status']) => {
+      if (newStatus === 'COMPLETED') {
+          setTaskToComplete(task);
+          setCompletionDescription('');
+      } else if (newStatus === 'DELAYED') {
+          setTaskToDelay(task);
+          setDelayReason('');
+          setIsDelayDialogOpen(true);
+      } else {
+          handleTaskStatusChange(task, newStatus);
+      }
+  };
     
     const handleConfirmCompletion = () => {
         if (taskToComplete && completionDescription) {
@@ -864,6 +877,17 @@ export default function KepalaMekanikPage() {
              toast({ title: "Deskripsi Kosong", description: "Harap isi deskripsi perbaikan.", variant: "destructive" });
         }
     };
+    
+    const handleConfirmDelay = () => {
+        if (taskToDelay && delayReason) {
+            handleTaskStatusChange(taskToDelay, 'DELAYED', delayReason);
+            setIsDelayDialogOpen(false);
+            setTaskToDelay(null);
+            setDelayReason('');
+        } else {
+            toast({ title: "Alasan Kosong", description: "Harap isi alasan penundaan.", variant: "destructive" });
+        }
+    }
 
 
   const getTaskStatusBadge = (status: MechanicTask['status']) => {
@@ -1300,22 +1324,6 @@ export default function KepalaMekanikPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
-     <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Anda yakin akan menghapus data ini secara permanen? Tindakan ini tidak dapat diurungkan.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={() => {}} disabled={true} className="bg-destructive hover:bg-destructive/90">
-                    Ya, Hapus
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
     
     <Dialog open={!!taskToComplete} onOpenChange={(open) => !open && setTaskToComplete(null)}>
         <DialogContent>
@@ -1343,6 +1351,33 @@ export default function KepalaMekanikPage() {
             </DialogFooter>
         </DialogContent>
     </Dialog>
+
+    <AlertDialog open={isDelayDialogOpen} onOpenChange={setIsDelayDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Tunda Work Order</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Masukkan alasan mengapa pekerjaan untuk kendaraan <strong>{taskToDelay?.vehicle.hullNumber}</strong> perlu ditunda.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-4">
+                 <Label htmlFor="delayReason">Alasan Penundaan</Label>
+                 <Textarea
+                    id="delayReason"
+                    value={delayReason}
+                    onChange={(e) => setDelayReason(e.target.value)}
+                    placeholder="Contoh: Menunggu ketersediaan spare part."
+                    rows={3}
+                />
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setIsDelayDialogOpen(false)}>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmDelay}>
+                    Konfirmasi Tunda
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
 
 
     <SidebarProvider>
