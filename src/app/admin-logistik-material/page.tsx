@@ -194,7 +194,7 @@ export default function AdminLogistikPage() {
 
   }, [userInfo, dateRange]);
 
-  const activeJobs = useMemo(() => jobs.filter(job => job.status === 'Proses' || job.status === 'Menunggu'), [jobs]);
+  const activeJobs = useMemo(() => jobs.filter(job => job.status === 'Proses' || job.status === 'Menunggu' || job.status === 'Tunda'), [jobs]);
 
   const handleNewRencanaChange = (field: keyof RencanaPemasukan, value: any) => {
     setNewRencana(prev => ({ ...prev, [field]: value }));
