@@ -516,7 +516,7 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
 };
 
 
-export default function KepalaMekanikPage() {
+export default function WorkshopPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dashboard');
@@ -535,11 +535,21 @@ export default function KepalaMekanikPage() {
   const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<any>(null);
-
+  const [deleteType, setDeleteType] = useState<'alat' | 'pairing' | 'user' | null>(null);
 
   // State for Sopir & Batangan
   const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
   const [isFetchingPairings, setIsFetchingPairings] = useState(true);
+  const [selectedSopir, setSelectedSopir] = useState<UserData | null>(null);
+  const [selectedAlat, setSelectedAlat] = useState<AlatData | null>(null);
+  const [keterangan, setKeterangan] = useState('');
+  const [editingPairing, setEditingPairing] = useState<SopirBatanganData | null>(null);
+
+  // Mutasi state
+  const [isMutasiDialogOpen, setIsMutasiDialogOpen] = useState(false);
+  const [mutasiTarget, setMutasiTarget] = useState<AlatData | null>(null);
+  const [newLocationForMutasi, setNewLocationForMutasi] = useState('');
+  const [isMutating, setIsMutating] = useState(false);
   
   // Detail List Dialog state
   const [detailListTitle, setDetailListTitle] = useState('');
@@ -578,7 +588,7 @@ export default function KepalaMekanikPage() {
       return;
     }
     const userData = JSON.parse(userString);
-     if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
+     if (userData.jabatan.toUpperCase() !== 'KEPALA WORKSHOP') {
       toast({
         variant: 'destructive',
         title: 'Akses Ditolak',
@@ -679,11 +689,19 @@ export default function KepalaMekanikPage() {
         return () => unsubscribers.forEach(unsub => unsub());
     }, [userInfo, setupListener, dataTransformer, toast]);
 
+  const filteredAlatByLocation = useMemo(() => {
+    if (!userInfo?.lokasi) return alat.filter(item => !item.statusKarantina); 
+    return alat.filter(item => item.lokasi === userInfo.lokasi && !item.statusKarantina);
+  }, [alat, userInfo?.lokasi]);
   
   const usersInLocation = useMemo(() => {
     if (!userInfo?.lokasi) return users;
     return users.filter(user => user.lokasi === userInfo.lokasi);
   }, [users, userInfo?.lokasi]);
+
+  const sopirOptions = useMemo(() => {
+    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
+  }, [users]);
   
   const getLatestReport = (nomorLambung: string, allReports: Report[]): Report | undefined => {
     if (!Array.isArray(allReports)) return undefined;
@@ -789,83 +807,102 @@ export default function KepalaMekanikPage() {
     localStorage.removeItem('user');
     router.push('/login');
   };
-
-  const woList = useMemo(() => {
-    const existingTaskReportIds = new Set(mechanicTasks.map(task => task.vehicle?.triggeringReportId));
-    return reports
-      .filter(report => 
-        (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian') && 
-        !existingTaskReportIds.has(report.id)
-      )
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [reports, mechanicTasks]);
-
-  const mechanicsInLocation = useMemo(() => 
-      users.filter(u => u.jabatan?.toUpperCase().includes('MEKANIK') && u.lokasi === userInfo?.lokasi), 
-  [users, userInfo?.lokasi]);
-
-  const activeTasks = useMemo(() => {
-    return mechanicTasks.filter(task => task.status !== 'COMPLETED');
-  }, [mechanicTasks]);
   
-  const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status']) => {
-    const taskDocRef = doc(db, 'mechanic_tasks', task.id);
-    const updateData: Partial<MechanicTask> = { status: newStatus };
-
-    if (newStatus === 'DELAYED') {
-      const reason = prompt("Masukkan alasan menunda pekerjaan:");
-      if (reason) {
-        updateData.delayReason = reason;
-        updateData.delayStartedAt = new Date().getTime();
-        updateData.riwayatTunda = [...(task.riwayatTunda || []), { alasan: reason, waktuMulai: Timestamp.now(), waktuSelesai: null! }];
-      } else {
-        return; // User cancelled
-      }
+  const handleSavePairing = async () => {
+    if (!selectedSopir || !selectedAlat || !userInfo?.lokasi) {
+        toast({ title: 'Data Tidak Lengkap', description: 'Pilih sopir dan alat terlebih dahulu.', variant: 'destructive' });
+        return;
     }
+    setIsSubmitting(true);
 
-    if (newStatus === 'IN_PROGRESS' && task.status === 'PENDING' && !task.startedAt) {
-      updateData.startedAt = new Date().getTime();
-    } else if (newStatus === 'IN_PROGRESS' && task.status === 'DELAYED') {
-      const lastDelay = task.riwayatTunda?.[task.riwayatTunda.length - 1];
-      if (lastDelay && !lastDelay.waktuSelesai) {
-          lastDelay.waktuSelesai = Timestamp.now();
-          const delayDuration = lastDelay.waktuSelesai.toMillis() - lastDelay.waktuMulai.toMillis();
-          updateData.totalDelayDuration = (task.totalDelayDuration || 0) + delayDuration;
-          updateData.riwayatTunda = task.riwayatTunda;
-      }
-    }
+    const pairingData: Omit<SopirBatanganData, 'id' | 'timestamp'> = {
+        userId: selectedSopir.id,
+        namaSopir: selectedSopir.username,
+        nik: selectedSopir.nik,
+        vehicleId: selectedAlat.id,
+        nomorPolisi: selectedAlat.nomorPolisi,
+        nomorLambung: selectedAlat.nomorLambung,
+        keterangan: keterangan,
+        lokasi: userInfo.lokasi,
+    };
     
-    if (newStatus === 'COMPLETED') {
-        const repairDescription = prompt("Masukkan deskripsi perbaikan yang telah dilakukan:");
-        if (repairDescription) {
-            updateData.completedAt = new Date().getTime();
-            updateData.mechanicRepairDescription = repairDescription;
-        } else {
-            toast({ title: "Aksi Dibatalkan", description: "Deskripsi perbaikan wajib diisi untuk menyelesaikan WO.", variant: "destructive" });
-            return;
-        }
-    }
-
-
     try {
-      await updateDoc(taskDocRef, updateData as any);
-      toast({ title: `Status WO Diperbarui`, description: `Status untuk ${task.vehicle.hullNumber} diubah menjadi ${newStatus}.` });
+        if (editingPairing) {
+            const pairingDocRef = doc(db, 'sopir_batangan', editingPairing.id);
+            await updateDoc(pairingDocRef, pairingData);
+            toast({ title: "Pasangan Diperbarui" });
+        } else {
+            const finalData = { ...pairingData, timestamp: Timestamp.now() };
+            await addDoc(collection(db, 'sopir_batangan'), finalData);
+            toast({ title: 'Pasangan Disimpan' });
+        }
+        // Reset form
+        setSelectedSopir(null);
+        setSelectedAlat(null);
+        setKeterangan('');
+        setEditingPairing(null);
     } catch (error) {
-      console.error("Error updating task status:", error);
-      toast({ title: "Gagal Memperbarui Status", variant: "destructive" });
+        toast({ title: 'Gagal Menyimpan', variant: 'destructive' });
+        console.error(error);
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
+
+  const handleEditPairing = (pairing: SopirBatanganData) => {
+    setEditingPairing(pairing);
+    setSelectedSopir(sopirOptions.find(s => s.id === pairing.userId) || null);
+    setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
+    setKeterangan(pairing.keterangan);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  const handleMutasiRequest = (item: AlatData) => {
+    setMutasiTarget(item);
+    setIsMutasiDialogOpen(true);
+  }
+
+  const handleConfirmMutasi = async () => {
+    if (!mutasiTarget || !newLocationForMutasi) {
+        toast({ title: "Lokasi Tujuan harus dipilih", variant: "destructive" });
+        return;
+    }
+    setIsMutating(true);
+    try {
+        const alatRef = doc(db, 'alat', mutasiTarget.id);
+        await updateDoc(alatRef, { lokasi: newLocationForMutasi });
+        toast({ title: 'Mutasi Berhasil', description: `${mutasiTarget.nomorLambung} dipindahkan ke ${newLocationForMutasi}.` });
+        setIsMutasiDialogOpen(false);
+    } catch (error) {
+        toast({ title: 'Gagal Mutasi', variant: 'destructive' });
+    } finally {
+        setIsMutating(false);
+    }
+  }
+
+  const handleDeleteRequest = (item: AlatData | SopirBatanganData | UserData, type: 'alat' | 'pairing' | 'user') => {
+    setItemToDelete(item);
+    setDeleteType(type);
+    setIsDeleteDialogOpen(true);
+  };
+  
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete || !deleteType) return;
+    setIsSubmitting(true);
+    try {
+        await deleteDoc(doc(db, deleteType === 'pairing' ? 'sopir_batangan' : deleteType, itemToDelete.id));
+        toast({ title: 'Data Dihapus' });
+    } catch (e) {
+        toast({ title: 'Gagal Menghapus', variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+        setIsDeleteDialogOpen(false);
+        setItemToDelete(null);
+        setDeleteType(null);
     }
   };
 
-  const getTaskStatusBadge = (status: MechanicTask['status']) => {
-    switch (status) {
-      case 'PENDING': return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Menunggu</Badge>;
-      case 'IN_PROGRESS': return <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-300 animate-pulse">Dikerjakan</Badge>;
-      case 'DELAYED': return <Badge variant="destructive">Tunda</Badge>;
-      default: return <Badge>{status}</Badge>;
-    }
-  };
-
-    const handleQuarantineRequest = (item: AlatData) => {
+  const handleQuarantineRequest = (item: AlatData) => {
       setQuarantineTarget(item);
       setIsQuarantineConfirmOpen(true);
   }
@@ -912,7 +949,7 @@ export default function KepalaMekanikPage() {
                 operatorId: 'SISTEM',
                 location: quarantineTarget.lokasi,
                 overallStatus: 'rusak',
-                description: 'alat ini dalam kondisi rusak berat, lepas dari karantina untuk mulai perbaikan',
+                description: 'alat ini dalam kondisi rusak berat, lepas karantina untuk mulai perbaikan',
                 photo: '',
             };
             await addDoc(collection(db, 'checklist_reports'), dummyReport);
@@ -930,7 +967,7 @@ export default function KepalaMekanikPage() {
         setQuarantineTarget(null);
     }
   };
-
+  
   const renderLaporanLogistik = () => (
     <Card>
       <CardHeader>
@@ -1018,7 +1055,64 @@ export default function KepalaMekanikPage() {
                 </Card>
             );
         case 'Sopir & Batangan':
-            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
+            return (
+                <main className="space-y-8">
+                    <Card><CardHeader><CardTitle className="flex items-center gap-3"><PlusCircle />{editingPairing ? 'Edit' : 'Tambah'} Pasangan Sopir & Batangan</CardTitle><CardDescription>Pasangkan sopir dengan kendaraan yang akan dioperasikan.</CardDescription></CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                                <div className="md:col-span-2 space-y-2"><Label>Nama Sopir</Label>
+                                    <Select value={selectedSopir?.id || ''} onValueChange={(val) => setSelectedSopir(sopirOptions.find(s => s.id === val) || null)}>
+                                        <SelectTrigger><SelectValue placeholder="Pilih Sopir..." /></SelectTrigger>
+                                        <SelectContent>{sopirOptions.map(s => <SelectItem key={s.id} value={s.id}>{s.username}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>NIK</Label><Input value={selectedSopir?.nik || ''} disabled className="bg-muted" /></div>
+                                <div className="space-y-2"><Label>Nomor Polisi</Label>
+                                     <Select value={selectedAlat?.id || ''} onValueChange={(val) => setSelectedAlat(alat.find(a => a.id === val) || null)}>
+                                        <SelectTrigger><SelectValue placeholder="Pilih Kendaraan..." /></SelectTrigger>
+                                        <SelectContent>{filteredAlatByLocation.map(a => <SelectItem key={a.id} value={a.id}>{a.nomorPolisi}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>Nomor Lambung</Label><Input value={selectedAlat?.nomorLambung || ''} disabled className="bg-muted" /></div>
+                                <div className="md:col-span-3 space-y-2"><Label>Keterangan</Label><Input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Keterangan (jika ada)..." /></div>
+                                <div className="md:col-span-3 flex gap-2">
+                                <Button className="w-full" onClick={handleSavePairing} disabled={isSubmitting}><Save className="mr-2" />{editingPairing ? 'Update' : 'Simpan'}</Button>
+                                    {editingPairing && <Button className="w-full" variant="outline" onClick={() => { setEditingPairing(null); setSelectedSopir(null); setSelectedAlat(null); setKeterangan(''); }}>Batal</Button>}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card><CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <Table><TableHeader><TableRow><TableHead>Nama Sopir</TableHead><TableHead>NIK</TableHead><TableHead>Nomor Polisi</TableHead><TableHead>Nomor Lambung</TableHead><TableHead>Keterangan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {isFetchingPairings ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => {
+                                                const vehicle = alat.find(a => a.id === p.vehicleId);
+                                                return (
+                                                <TableRow key={p.id}>
+                                                    <TableCell>{p.namaSopir}</TableCell>
+                                                    <TableCell>{p.nik}</TableCell>
+                                                    <TableCell>{p.nomorPolisi}</TableCell>
+                                                    <TableCell>{p.nomorLambung}</TableCell>
+                                                    <TableCell>{p.keterangan}</TableCell>
+                                                    <TableCell className="text-right space-x-1">
+                                                        <Button size="icon" variant="ghost" onClick={() => handleEditPairing(p)}><Pencil className="h-4 w-4 text-amber-500" /></Button>
+                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(vehicle)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>}
+                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(vehicle)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>}
+                                                        <Button size="icon" variant="ghost" onClick={() => handleDeleteRequest(p, 'pairing')}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                                )
+                                            })) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>)}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
+            );
         case 'Histori Perbaikan Alat':
              return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         case 'Anggota Mekanik':
@@ -1092,7 +1186,17 @@ export default function KepalaMekanikPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {isFetchingData ? (<TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : (<TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada alat di lokasi ini.</TableCell></TableRow>)}
+                                    {isFetchingData ? (<TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : filteredAlatByLocation.length > 0 ? (filteredAlatByLocation.map(item => (
+                                        <TableRow key={item.id}>
+                                            <TableCell className="font-medium">{item.nomorLambung}</TableCell>
+                                            <TableCell>{item.nomorPolisi}</TableCell>
+                                            <TableCell>{item.jenisKendaraan}</TableCell>
+                                            <TableCell className="text-right space-x-1">
+                                                <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(item)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>
+                                                <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(item)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))) : (<TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada alat di lokasi ini.</TableCell></TableRow>)}
                                 </TableBody>
                            </Table>
                        </div>
@@ -1115,7 +1219,7 @@ export default function KepalaMekanikPage() {
   return (
     <>
      <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
-    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
@@ -1125,7 +1229,7 @@ export default function KepalaMekanikPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={() => {}} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                <AlertDialogAction onClick={handleConfirmDelete} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
                      {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Ya, Hapus
                 </AlertDialogAction>
@@ -1155,83 +1259,11 @@ export default function KepalaMekanikPage() {
             </div>
             <DialogFooter>
                 <Button variant="outline" onClick={() => setIsMutasiDialogOpen(false)}>Batal</Button>
-                <Button disabled={isMutating}>
+                <Button onClick={handleConfirmMutasi} disabled={isMutating}>
                     {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Konfirmasi & Pindahkan
                 </Button>
             </DialogFooter>
-        </DialogContent>
-    </Dialog>
-     <Dialog open={false} onOpenChange={() => {}}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Edit Alat</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={() => {}} className="space-y-4 pt-4">
-                <div>
-                    <Label htmlFor="editNomorLambung">Nomor Lambung</Label>
-                    <Input id="editNomorLambung" name="editNomorLambung" required style={{ textTransform: 'uppercase' }} />
-                </div>
-                <div>
-                    <Label htmlFor="editNomorPolisi">Nomor Polisi</Label>
-                    <Input id="editNomorPolisi" name="editNomorPolisi" required style={{ textTransform: 'uppercase' }} />
-                </div>
-                 <div>
-                    <Label htmlFor="editJenisKendaraan">Jenis Kendaraan</Label>
-                    <Input id="editJenisKendaraan" name="editJenisKendaraan" required style={{ textTransform: 'uppercase' }} />
-                </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline">Batal</Button>
-                    <Button type="submit" disabled={isEditingAlat}>
-                        {isEditingAlat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
-                    </Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
-    </Dialog>
-     <Dialog open={false} onOpenChange={() => {}}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Edit Pengguna</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={() => {}} className="space-y-4 pt-4">
-                 <div>
-                    <Label htmlFor="editUsername">Nama Pengguna</Label>
-                    <Input id="editUsername" name="editUsername" required style={{ textTransform: 'uppercase' }} />
-                </div>
-                <div>
-                    <Label htmlFor="editPassword">Sandi Baru (opsional)</Label>
-                    <Input id="editPassword" name="editPassword" type="password" placeholder="Kosongkan jika tidak ingin diubah" />
-                </div>
-                <div>
-                    <Label htmlFor="editNik">NIK</Label>
-                    <Input id="editNik" name="editNik" required style={{ textTransform: 'uppercase' }} />
-                </div>
-                <div>
-                    <Label htmlFor="editJabatan">Jabatan</Label>
-                    <Select name="editJabatan">
-                        <SelectTrigger><SelectValue/></SelectTrigger>
-                        <SelectContent>
-                            {jabatanOptions.map(jabatan => <SelectItem key={jabatan} value={jabatan}>{jabatan}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
-                 <div>
-                    <Label htmlFor="editLokasi">Lokasi</Label>
-                    <Select name="editLokasi">
-                        <SelectTrigger><SelectValue/></SelectTrigger>
-                        <SelectContent>
-                            {locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline">Batal</Button>
-                    <Button type="submit" disabled={isEditingUser}>
-                         {isEditingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
-                    </Button>
-                </DialogFooter>
-            </form>
         </DialogContent>
     </Dialog>
     
@@ -1304,7 +1336,7 @@ export default function KepalaMekanikPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Kepala Workshop</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
