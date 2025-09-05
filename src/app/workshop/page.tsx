@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -62,6 +63,10 @@ import {
     Fingerprint,
     Briefcase,
     ShieldX,
+    UserPlus,
+    MapPin,
+    Lock,
+    Construction
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { UserData, Report, LocationData, SopirBatanganData, AlatData, MechanicTask } from '@/lib/types';
@@ -95,6 +100,7 @@ const menuItems = [
     { name: 'Anggota Mekanik', icon: Users },
     { name: 'Laporan Logistik', icon: Truck },
     { name: 'Manajemen Pengguna', icon: Users },
+    { name: 'Manajemen Alat', icon: Construction },
     { name: 'Riwayat Penalti', icon: ShieldX },
     { name: 'Komplain dari Sopir', icon: MessageSquareWarning },
     { name: 'Usulan / Saran dari Sopir', icon: Lightbulb },
@@ -109,10 +115,16 @@ type ActiveMenu =
   | 'Anggota Mekanik'
   | 'Laporan Logistik'
   | 'Manajemen Pengguna'
+  | 'Manajemen Alat'
   | 'Riwayat Penalti'
   | 'Komplain dari Sopir'
   | 'Usulan / Saran dari Sopir'
   | 'Pesan Masuk';
+
+const jabatanOptions = [
+    'OPRATOR BP', 'OPRATOR CP', 'OPRATOR LOADER', 'PEKERJA BONGKAR SEMEN', 'SOPIR', 'SOPIR DT', 'ADMIN BP', 'ADMIN LOGISTIK SPARE PART',
+    'ADMIN LOGISTIK MATERIAL', 'SUPER ADMIN', 'QC', 'MARKETING', 'KEPALA MEKANIK', 'KEPALA WORKSHOP', 'OWNER', 'HRD PUSAT', 'HSE K3'
+];
 
 
 const taskFormSchema = z.object({
@@ -1055,10 +1067,6 @@ export default function WorkshopPage() {
       users.filter(u => u.jabatan?.toUpperCase().includes('MEKANIK') && u.lokasi === userInfo?.lokasi), 
   [users, userInfo?.lokasi]);
 
-  const activeTasks = useMemo(() => {
-    return mechanicTasks.filter(task => task.status !== 'COMPLETED');
-  }, [mechanicTasks]);
-  
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1212,7 +1220,7 @@ export default function WorkshopPage() {
                                      <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
                                  ) : mechanicsInLocation.length > 0 ? (
                                      mechanicsInLocation.map(mechanic => {
-                                        const activeTask = activeTasks.find(task => task.mechanics.some(m => m.id === mechanic.id));
+                                        const activeTask = mechanicTasks.find(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === mechanic.id));
                                         return (
                                             <TableRow key={mechanic.id}>
                                                 <TableCell className="font-medium">{mechanic.username}</TableCell>
@@ -1237,6 +1245,46 @@ export default function WorkshopPage() {
             );
         case 'Laporan Logistik':
              return renderLaporanLogistik();
+        case 'Manajemen Pengguna':
+            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
+        case 'Manajemen Alat':
+            return (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Manajemen Alat</CardTitle>
+                        <CardDescription>Daftar semua alat yang terdaftar di lokasi Anda.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Nomor Lambung</TableHead>
+                                    <TableHead>Nomor Polisi</TableHead>
+                                    <TableHead>Jenis Kendaraan</TableHead>
+                                    <TableHead className="text-right">Aksi</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {isFetchingData ? (<TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) :
+                                alat.filter(a => a.lokasi === userInfo?.lokasi).map(item => (
+                                    <TableRow key={item.id}>
+                                        <TableCell className="font-medium">{item.nomorLambung}</TableCell>
+                                        <TableCell>{item.nomorPolisi}</TableCell>
+                                        <TableCell>{item.jenisKendaraan}</TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" onClick={() => handleMutasiRequest(item)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>
+                                            <Button variant="ghost" size="icon" onClick={() => handleQuarantineRequest(item)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {alat.filter(a => a.lokasi === userInfo?.lokasi).length === 0 && (
+                                     <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada alat di lokasi ini.</TableCell></TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
