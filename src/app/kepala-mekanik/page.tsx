@@ -95,7 +95,6 @@ const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard },
     { name: 'Work order saya (WO)', icon: ClipboardList },
     { name: 'Work order aktif', icon: ActivitySquare },
-    { name: 'Sopir & Batangan', icon: Users },
     { name: 'Histori Perbaikan Alat', icon: History },
     { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert },
     { name: 'Anggota Mekanik', icon: Users },
@@ -105,16 +104,9 @@ type ActiveMenu =
   | 'Dashboard'
   | 'Work order saya (WO)'
   | 'Work order aktif'
-  | 'Sopir & Batangan'
   | 'Histori Perbaikan Alat'
   | 'Alat Rusak Berat/Karantina'
-  | 'Anggota Mekanik'
-  | 'Laporan Logistik'
-  | 'Manajemen Pengguna'
-  | 'Riwayat Penalti'
-  | 'Komplain dari Sopir'
-  | 'Usulan / Saran dari Sopir'
-  | 'Pesan Masuk';
+  | 'Anggota Mekanik';
 
 
 const taskFormSchema = z.object({
@@ -516,52 +508,32 @@ const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { u
 };
 
 
-export default function WorkshopPage() {
+export default function KepalaMekanikPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dashboard');
   const [userInfo, setUserInfo] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
+  
   const [alat, setAlat] = useState<AlatData[]>([]);
-  const [locations, setLocations] = useState<LocationData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [mechanicTasks, setMechanicTasks] = useState<MechanicTask[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(true);
+  const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
+  
+  const [isDetailListOpen, setIsDetailListOpen] = useState(false);
+  const [detailListTitle, setDetailListTitle] = useState('');
+  const [detailListData, setDetailListData] = useState<any[]>([]);
   
   const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
   const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<any>(null);
-  const [deleteType, setDeleteType] = useState<'alat' | 'pairing' | 'user' | null>(null);
-
-  // State for Sopir & Batangan
-  const [pairings, setPairings] = useState<SopirBatanganData[]>([]);
-  const [isFetchingPairings, setIsFetchingPairings] = useState(true);
-  const [selectedSopir, setSelectedSopir] = useState<UserData | null>(null);
-  const [selectedAlat, setSelectedAlat] = useState<AlatData | null>(null);
-  const [keterangan, setKeterangan] = useState('');
-  const [editingPairing, setEditingPairing] = useState<SopirBatanganData | null>(null);
-
-  // Mutasi state
-  const [isMutasiDialogOpen, setIsMutasiDialogOpen] = useState(false);
-  const [mutasiTarget, setMutasiTarget] = useState<AlatData | null>(null);
-  const [newLocationForMutasi, setNewLocationForMutasi] = useState('');
-  const [isMutating, setIsMutating] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Detail List Dialog state
-  const [detailListTitle, setDetailListTitle] = useState('');
-  const [detailListData, setDetailListData] = useState<any[]>([]);
-  const [isDetailListOpen, setIsDetailListOpen] = useState(false);
-  
-  // Notification state
   const audioRef = useRef<HTMLAudioElement>(null);
   const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
-
 
 
   const getStatusBadge = (status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
@@ -588,7 +560,7 @@ export default function WorkshopPage() {
       return;
     }
     const userData = JSON.parse(userString);
-     if (userData.jabatan.toUpperCase() !== 'KEPALA WORKSHOP') {
+     if (userData.jabatan.toUpperCase() !== 'KEPALA MEKANIK') {
       toast({
         variant: 'destructive',
         title: 'Akses Ditolak',
@@ -647,20 +619,9 @@ export default function WorkshopPage() {
         const unsubscribers = [
             setupListener('users', setUsers),
             setupListener('alat', setAlat),
-            setupListener('locations', setLocations),
             setupListener('mechanic_tasks', setMechanicTasks),
+            setupListener('sopir_batangan', setPairings)
         ];
-        
-        const pairingUnsub = onSnapshot(query(collection(db, "sopir_batangan")), (snapshot) => {
-            const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() }));
-            setPairings(data);
-            setIsFetchingPairings(false);
-        }, (error) => {
-            console.error(`Error fetching sopir_batangan:`, error);
-            toast({ variant: 'destructive', title: `Gagal Memuat sopir_batangan` });
-            setIsFetchingPairings(false);
-        });
-        unsubscribers.push(pairingUnsub);
         
         const reportsUnsub = onSnapshot(query(collection(db, 'checklist_reports')), (snapshot) => {
             const data = snapshot.docs.map(d => dataTransformer({ id: d.id, ...d.data() })) as Report[];
@@ -688,20 +649,11 @@ export default function WorkshopPage() {
     
         return () => unsubscribers.forEach(unsub => unsub());
     }, [userInfo, setupListener, dataTransformer, toast]);
-
-  const filteredAlatByLocation = useMemo(() => {
-    if (!userInfo?.lokasi) return alat.filter(item => !item.statusKarantina); 
-    return alat.filter(item => item.lokasi === userInfo.lokasi && !item.statusKarantina);
-  }, [alat, userInfo?.lokasi]);
   
   const usersInLocation = useMemo(() => {
     if (!userInfo?.lokasi) return users;
     return users.filter(user => user.lokasi === userInfo.lokasi);
   }, [users, userInfo?.lokasi]);
-
-  const sopirOptions = useMemo(() => {
-    return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'));
-  }, [users]);
   
   const getLatestReport = (nomorLambung: string, allReports: Report[]): Report | undefined => {
     if (!Array.isArray(allReports)) return undefined;
@@ -808,97 +760,78 @@ export default function WorkshopPage() {
     router.push('/login');
   };
   
-  const handleSavePairing = async () => {
-    if (!selectedSopir || !selectedAlat || !userInfo?.lokasi) {
-        toast({ title: 'Data Tidak Lengkap', description: 'Pilih sopir dan alat terlebih dahulu.', variant: 'destructive' });
-        return;
-    }
-    setIsSubmitting(true);
+  const woList = useMemo(() => {
+    const existingTaskReportIds = new Set(mechanicTasks.map(task => task.vehicle?.triggeringReportId));
+    return reports
+      .filter(report => 
+        (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian') && 
+        !existingTaskReportIds.has(report.id)
+      )
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [reports, mechanicTasks]);
 
-    const pairingData: Omit<SopirBatanganData, 'id' | 'timestamp'> = {
-        userId: selectedSopir.id,
-        namaSopir: selectedSopir.username,
-        nik: selectedSopir.nik,
-        vehicleId: selectedAlat.id,
-        nomorPolisi: selectedAlat.nomorPolisi,
-        nomorLambung: selectedAlat.nomorLambung,
-        keterangan: keterangan,
-        lokasi: userInfo.lokasi,
-    };
-    
-    try {
-        if (editingPairing) {
-            const pairingDocRef = doc(db, 'sopir_batangan', editingPairing.id);
-            await updateDoc(pairingDocRef, pairingData);
-            toast({ title: "Pasangan Diperbarui" });
-        } else {
-            const finalData = { ...pairingData, timestamp: Timestamp.now() };
-            await addDoc(collection(db, 'sopir_batangan'), finalData);
-            toast({ title: 'Pasangan Disimpan' });
-        }
-        // Reset form
-        setSelectedSopir(null);
-        setSelectedAlat(null);
-        setKeterangan('');
-        setEditingPairing(null);
-    } catch (error) {
-        toast({ title: 'Gagal Menyimpan', variant: 'destructive' });
-        console.error(error);
-    } finally {
-        setIsSubmitting(false);
-    }
-  }
+  const mechanicsInLocation = useMemo(() => 
+      users.filter(u => u.jabatan?.toUpperCase().includes('MEKANIK') && u.lokasi === userInfo?.lokasi), 
+  [users, userInfo?.lokasi]);
 
-  const handleEditPairing = (pairing: SopirBatanganData) => {
-    setEditingPairing(pairing);
-    setSelectedSopir(sopirOptions.find(s => s.id === pairing.userId) || null);
-    setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
-    setKeterangan(pairing.keterangan);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  const handleMutasiRequest = (item: AlatData) => {
-    setMutasiTarget(item);
-    setIsMutasiDialogOpen(true);
-  }
-
-  const handleConfirmMutasi = async () => {
-    if (!mutasiTarget || !newLocationForMutasi) {
-        toast({ title: "Lokasi Tujuan harus dipilih", variant: "destructive" });
-        return;
-    }
-    setIsMutating(true);
-    try {
-        const alatRef = doc(db, 'alat', mutasiTarget.id);
-        await updateDoc(alatRef, { lokasi: newLocationForMutasi });
-        toast({ title: 'Mutasi Berhasil', description: `${mutasiTarget.nomorLambung} dipindahkan ke ${newLocationForMutasi}.` });
-        setIsMutasiDialogOpen(false);
-    } catch (error) {
-        toast({ title: 'Gagal Mutasi', variant: 'destructive' });
-    } finally {
-        setIsMutating(false);
-    }
-  }
-
-  const handleDeleteRequest = (item: AlatData | SopirBatanganData | UserData, type: 'alat' | 'pairing' | 'user') => {
-    setItemToDelete(item);
-    setDeleteType(type);
-    setIsDeleteDialogOpen(true);
-  };
+  const activeTasks = useMemo(() => {
+    return mechanicTasks.filter(task => task.status !== 'COMPLETED');
+  }, [mechanicTasks]);
   
-  const handleConfirmDelete = async () => {
-    if (!itemToDelete || !deleteType) return;
-    setIsSubmitting(true);
+  const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status']) => {
+    const taskDocRef = doc(db, 'mechanic_tasks', task.id);
+    const updateData: Partial<MechanicTask> = { status: newStatus };
+
+    if (newStatus === 'DELAYED') {
+      const reason = prompt("Masukkan alasan menunda pekerjaan:");
+      if (reason) {
+        updateData.delayReason = reason;
+        updateData.delayStartedAt = new Date().getTime();
+        updateData.riwayatTunda = [...(task.riwayatTunda || []), { alasan: reason, waktuMulai: Timestamp.now(), waktuSelesai: null! }];
+      } else {
+        return; // User cancelled
+      }
+    }
+
+    if (newStatus === 'IN_PROGRESS' && task.status === 'PENDING' && !task.startedAt) {
+      updateData.startedAt = new Date().getTime();
+    } else if (newStatus === 'IN_PROGRESS' && task.status === 'DELAYED') {
+      const lastDelay = task.riwayatTunda?.[task.riwayatTunda.length - 1];
+      if (lastDelay && !lastDelay.waktuSelesai) {
+          lastDelay.waktuSelesai = Timestamp.now();
+          const delayDuration = lastDelay.waktuSelesai.toMillis() - lastDelay.waktuMulai.toMillis();
+          updateData.totalDelayDuration = (task.totalDelayDuration || 0) + delayDuration;
+          updateData.riwayatTunda = task.riwayatTunda;
+      }
+    }
+    
+    if (newStatus === 'COMPLETED') {
+        const repairDescription = prompt("Masukkan deskripsi perbaikan yang telah dilakukan:");
+        if (repairDescription) {
+            updateData.completedAt = new Date().getTime();
+            updateData.mechanicRepairDescription = repairDescription;
+        } else {
+            toast({ title: "Aksi Dibatalkan", description: "Deskripsi perbaikan wajib diisi untuk menyelesaikan WO.", variant: "destructive" });
+            return;
+        }
+    }
+
+
     try {
-        await deleteDoc(doc(db, deleteType === 'pairing' ? 'sopir_batangan' : deleteType, itemToDelete.id));
-        toast({ title: 'Data Dihapus' });
-    } catch (e) {
-        toast({ title: 'Gagal Menghapus', variant: 'destructive' });
-    } finally {
-        setIsSubmitting(false);
-        setIsDeleteDialogOpen(false);
-        setItemToDelete(null);
-        setDeleteType(null);
+      await updateDoc(taskDocRef, updateData as any);
+      toast({ title: `Status WO Diperbarui`, description: `Status untuk ${task.vehicle.hullNumber} diubah menjadi ${newStatus}.` });
+    } catch (error) {
+      console.error("Error updating task status:", error);
+      toast({ title: "Gagal Memperbarui Status", variant: "destructive" });
+    }
+  };
+
+  const getTaskStatusBadge = (status: MechanicTask['status']) => {
+    switch (status) {
+      case 'PENDING': return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Menunggu</Badge>;
+      case 'IN_PROGRESS': return <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-300 animate-pulse">Dikerjakan</Badge>;
+      case 'DELAYED': return <Badge variant="destructive">Tunda</Badge>;
+      default: return <Badge>{status}</Badge>;
     }
   };
 
@@ -949,7 +882,7 @@ export default function WorkshopPage() {
                 operatorId: 'SISTEM',
                 location: quarantineTarget.lokasi,
                 overallStatus: 'rusak',
-                description: 'alat ini dalam kondisi rusak berat, lepas karantina untuk mulai perbaikan',
+                description: 'alat ini dalam kondisi rusak berat, lepas dari karantina untuk mulai perbaikan',
                 photo: '',
             };
             await addDoc(collection(db, 'checklist_reports'), dummyReport);
@@ -967,25 +900,6 @@ export default function WorkshopPage() {
         setQuarantineTarget(null);
     }
   };
-  
-  const renderLaporanLogistik = () => (
-    <Card>
-      <CardHeader>
-        <CardTitle>Laporan Pemakaian Barang</CardTitle>
-        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
-            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
-            <Button>Simpan Laporan</Button>
-        </form>
-        <div className="mt-6 text-center text-muted-foreground">
-            <p>(Fitur masih dalam pengembangan)</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   const renderContent = () => {
     switch (activeMenu) {
@@ -1001,6 +915,170 @@ export default function WorkshopPage() {
                 </div>
               </main>
             );
+        case 'Work order saya (WO)':
+            return (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Daftar Laporan Kerusakan (Work Order)</CardTitle>
+                        <CardDescription>Daftar kendaraan yang dilaporkan rusak dan membutuhkan perbaikan segera.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                       <div className="overflow-x-auto border rounded-lg">
+                           <Table>
+                               <TableHeader>
+                                   <TableRow>
+                                       <TableHead>Waktu Pelaporan</TableHead>
+                                       <TableHead>Sopir/Operator</TableHead>
+                                       <TableHead>Nomor Kendaraan</TableHead>
+                                       <TableHead>Deskripsi Kerusakan</TableHead>
+                                       <TableHead className='text-right'>Aksi</TableHead>
+                                   </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                   {isFetchingData ? (
+                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                   ) : woList.length > 0 ? (
+                                     woList.map(report => {
+                                       const vehicle = alat.find(a => a.nomorLambung === report.nomorLambung);
+                                       const operator = users.find(u => u.id === report.operatorId);
+                                       if (!vehicle) return null;
+                                       return (
+                                         <TableRow key={report.id}>
+                                             <TableCell>{format(new Date(report.timestamp), 'dd MMM, HH:mm', { locale: localeID })}</TableCell>
+                                             <TableCell>
+                                                 <p>{operator?.username || 'N/A'}</p>
+                                                 <p className="text-xs text-muted-foreground">NIK: {operator?.nik || '-'}</p>
+                                             </TableCell>
+                                             <TableCell>
+                                                 <p className="font-semibold">{vehicle.nomorLambung}</p>
+                                                 <p className="text-xs text-muted-foreground">{vehicle.nomorPolisi} ({vehicle.jenisKendaraan})</p>
+                                             </TableCell>
+                                             <TableCell className="max-w-xs truncate">{report.description}</TableCell>
+                                             <TableCell className="text-right">
+                                                 <CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={mechanicsInLocation} onTaskCreated={() => {}} />
+                                             </TableCell>
+                                         </TableRow>
+                                       );
+                                     })
+                                   ) : (
+                                       <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>
+                                   )}
+                               </TableBody>
+                           </Table>
+                       </div>
+                    </CardContent>
+                </Card>
+            );
+        case 'Work order aktif':
+            return (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Work Order Aktif</CardTitle>
+                    <CardDescription>
+                      Daftar semua pekerjaan perbaikan yang sedang menunggu atau dalam proses.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Kendaraan</TableHead>
+                            <TableHead>Pelapor</TableHead>
+                            <TableHead>Deskripsi</TableHead>
+                            <TableHead>Foto</TableHead>
+                            <TableHead>Mekanik Bertugas</TableHead>
+                            <TableHead>Target Selesai</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {isFetchingData ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="h-24 text-center">
+                                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                              </TableCell>
+                            </TableRow>
+                          ) : activeTasks.length > 0 ? (
+                            activeTasks.map((task) => {
+                              const triggeringReport = reports.find(
+                                (r) => r.id === task.vehicle?.triggeringReportId
+                              );
+                              const sopir = users.find(
+                                (u) => u.id === triggeringReport?.operatorId
+                              );
+                              return (
+                                <TableRow key={task.id}>
+                                  <TableCell>
+                                    <p className="font-semibold">
+                                      {task.vehicle.hullNumber}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {task.vehicle.licensePlate}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell>
+                                    <p>{sopir?.username || 'N/A'}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatRelative(new Date(task.createdAt), new Date(), { locale: localeID })}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell className="max-w-[200px] truncate">
+                                    {triggeringReport?.description || 'N/A'}
+                                  </TableCell>
+                                  <TableCell>
+                                    {triggeringReport?.photo && (
+                                        <Dialog>
+                                            <DialogTrigger asChild>
+                                                <Button variant="ghost" size="icon">
+                                                    <Eye className="h-5 w-5" />
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="max-w-3xl">
+                                                <DialogHeader>
+                                                    <DialogTitle>Foto Laporan Kerusakan</DialogTitle>
+                                                </DialogHeader>
+                                                <img src={Array.isArray(triggeringReport.photo) ? triggeringReport.photo[0] : triggeringReport.photo} alt="Foto Kerusakan" className="rounded-lg w-full h-auto" data-ai-hint="mechanic report broken" />
+                                            </DialogContent>
+                                        </Dialog>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    {task.mechanics.map((m) => m.name).join(', ')}
+                                  </TableCell>
+                                  <TableCell>
+                                    {format(new Date(task.vehicle.targetDate), 'dd MMM yyyy')}
+                                    {' @ '}{task.vehicle.targetTime}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Select value={task.status} onValueChange={(newStatus) => handleTaskStatusChange(task, newStatus as MechanicTask['status'])}>
+                                      <SelectTrigger className="w-36">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="PENDING">Menunggu</SelectItem>
+                                        <SelectItem value="IN_PROGRESS">Dikerjakan</SelectItem>
+                                        <SelectItem value="DELAYED">Tunda</SelectItem>
+                                        <SelectItem value="COMPLETED">Selesai</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                                Tidak ada work order yang sedang aktif.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
         case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
@@ -1037,14 +1115,9 @@ export default function WorkshopPage() {
                                             </TableCell>
                                             <TableCell>{getStatusBadge('Karantina')}</TableCell>
                                             <TableCell className='text-right'>
-                                                <div className="flex flex-col items-end gap-2">
-                                                    <div className="space-y-1">
-                                                         <h4 className="font-semibold text-xs text-right">Karantina</h4>
-                                                         <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
-                                                            Lepas Karantina
-                                                        </Button>
-                                                    </div>
-                                                </div>
+                                                <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
+                                                    Lepas Karantina
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     )})) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
@@ -1054,67 +1127,8 @@ export default function WorkshopPage() {
                     </CardContent>
                 </Card>
             );
-        case 'Sopir & Batangan':
-            return (
-                <main className="space-y-8">
-                    <Card><CardHeader><CardTitle className="flex items-center gap-3"><PlusCircle />{editingPairing ? 'Edit' : 'Tambah'} Pasangan Sopir & Batangan</CardTitle><CardDescription>Pasangkan sopir dengan kendaraan yang akan dioperasikan.</CardDescription></CardHeader>
-                        <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
-                                <div className="md:col-span-2 space-y-2"><Label>Nama Sopir</Label>
-                                    <Select value={selectedSopir?.id || ''} onValueChange={(val) => setSelectedSopir(sopirOptions.find(s => s.id === val) || null)}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih Sopir..." /></SelectTrigger>
-                                        <SelectContent>{sopirOptions.map(s => <SelectItem key={s.id} value={s.id}>{s.username}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2"><Label>NIK</Label><Input value={selectedSopir?.nik || ''} disabled className="bg-muted" /></div>
-                                <div className="space-y-2"><Label>Nomor Polisi</Label>
-                                     <Select value={selectedAlat?.id || ''} onValueChange={(val) => setSelectedAlat(alat.find(a => a.id === val) || null)}>
-                                        <SelectTrigger><SelectValue placeholder="Pilih Kendaraan..." /></SelectTrigger>
-                                        <SelectContent>{filteredAlatByLocation.map(a => <SelectItem key={a.id} value={a.id}>{a.nomorPolisi}</SelectItem>)}</SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2"><Label>Nomor Lambung</Label><Input value={selectedAlat?.nomorLambung || ''} disabled className="bg-muted" /></div>
-                                <div className="md:col-span-3 space-y-2"><Label>Keterangan</Label><Input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Keterangan (jika ada)..." /></div>
-                                <div className="md:col-span-3 flex gap-2">
-                                <Button className="w-full" onClick={handleSavePairing} disabled={isSubmitting}><Save className="mr-2" />{editingPairing ? 'Update' : 'Simpan'}</Button>
-                                    {editingPairing && <Button className="w-full" variant="outline" onClick={() => { setEditingPairing(null); setSelectedSopir(null); setSelectedAlat(null); setKeterangan(''); }}>Batal</Button>}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card><CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
-                        <CardContent>
-                            <div className="overflow-x-auto border rounded-lg">
-                                <Table><TableHeader><TableRow><TableHead>Nama Sopir</TableHead><TableHead>NIK</TableHead><TableHead>Nomor Polisi</TableHead><TableHead>Nomor Lambung</TableHead><TableHead>Keterangan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        {isFetchingPairings ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => {
-                                                const vehicle = alat.find(a => a.id === p.vehicleId);
-                                                return (
-                                                <TableRow key={p.id}>
-                                                    <TableCell>{p.namaSopir}</TableCell>
-                                                    <TableCell>{p.nik}</TableCell>
-                                                    <TableCell>{p.nomorPolisi}</TableCell>
-                                                    <TableCell>{p.nomorLambung}</TableCell>
-                                                    <TableCell>{p.keterangan}</TableCell>
-                                                    <TableCell className="text-right space-x-1">
-                                                        <Button size="icon" variant="ghost" onClick={() => handleEditPairing(p)}><Pencil className="h-4 w-4 text-amber-500" /></Button>
-                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(vehicle)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>}
-                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(vehicle)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>}
-                                                        <Button size="icon" variant="ghost" onClick={() => handleDeleteRequest(p, 'pairing')}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                                )
-                                            })) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>)}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </main>
-            );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} users={users} allAlat={alat} allReports={reports} />;
         case 'Anggota Mekanik':
              return (
                 <Card>
@@ -1163,46 +1177,6 @@ export default function WorkshopPage() {
                     </CardContent>
                 </Card>
             );
-        case 'Laporan Logistik':
-             return renderLaporanLogistik();
-        case 'Manajemen Pengguna':
-            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
-        case 'Manajemen Alat':
-            return (
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Manajemen Alat di Lokasi {userInfo?.lokasi}</CardTitle>
-                        <CardDescription>Daftar semua alat yang terdaftar di lokasi Anda.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto border rounded-lg">
-                           <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>No. Lambung</TableHead>
-                                        <TableHead>No. Polisi</TableHead>
-                                        <TableHead>Jenis Kendaraan</TableHead>
-                                        <TableHead className="text-right">Aksi</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isFetchingData ? (<TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : filteredAlatByLocation.length > 0 ? (filteredAlatByLocation.map(item => (
-                                        <TableRow key={item.id}>
-                                            <TableCell className="font-medium">{item.nomorLambung}</TableCell>
-                                            <TableCell>{item.nomorPolisi}</TableCell>
-                                            <TableCell>{item.jenisKendaraan}</TableCell>
-                                            <TableCell className="text-right space-x-1">
-                                                <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(item)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>
-                                                <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(item)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))) : (<TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada alat di lokasi ini.</TableCell></TableRow>)}
-                                </TableBody>
-                           </Table>
-                       </div>
-                    </CardContent>
-                </Card>
-            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1219,54 +1193,6 @@ export default function WorkshopPage() {
   return (
     <>
      <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Anda yakin akan menghapus data ini secara permanen? Tindakan ini tidak dapat diurungkan.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirmDelete} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
-                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Ya, Hapus
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
-     <Dialog open={isMutasiDialogOpen} onOpenChange={setIsMutasiDialogOpen}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Konfirmasi Mutasi Alat: {mutasiTarget?.nomorLambung}</DialogTitle>
-                <DialogDescription>
-                    Pindahkan alat dari lokasi <strong>{mutasiTarget?.lokasi}</strong> ke lokasi baru. Pastikan Anda yakin sebelum melanjutkan.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-                <Label htmlFor="mutasi-location">Pilih Lokasi Tujuan</Label>
-                <Select value={newLocationForMutasi} onValueChange={setNewLocationForMutasi}>
-                    <SelectTrigger id="mutasi-location">
-                        <SelectValue placeholder="Pilih lokasi..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {locations.filter(l => l.name !== mutasiTarget?.lokasi).map(loc => (
-                            <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-            <DialogFooter>
-                <Button variant="outline" onClick={() => setIsMutasiDialogOpen(false)}>Batal</Button>
-                <Button onClick={handleConfirmMutasi} disabled={isMutating}>
-                    {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Konfirmasi & Pindahkan
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-    
       <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
@@ -1323,7 +1249,8 @@ export default function WorkshopPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirmQuarantine}>
+                <AlertDialogAction onClick={handleConfirmQuarantine} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : null}
                     Ya, Konfirmasi
                 </AlertDialogAction>
             </AlertDialogFooter>
@@ -1336,7 +1263,7 @@ export default function WorkshopPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Kepala Workshop</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
@@ -1348,7 +1275,7 @@ export default function WorkshopPage() {
                     >
                         <item.icon className="h-4 w-4" />
                         <span className="text-sm">{item.name}</span>
-                         {item.name === 'Pesan Masuk' && hasNewMessage && (
+                         {item.name === 'Work order saya (WO)' && hasNewMessage && (
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
                          )}
                     </SidebarMenuButton>
