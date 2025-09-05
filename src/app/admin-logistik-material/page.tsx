@@ -22,7 +22,7 @@ import { format, startOfDay, endOfDay, isWithinInterval, formatDistanceStrict, i
 import { id as localeID } from 'date-fns/locale';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { cn, printElement } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter, AlertDialogDescription as AlertDialogDescriptionComponent } from '@/components/ui/alert-dialog';
 import LaporanPemasukanPrintLayout from '@/components/laporan-pemasukan-print-layout';
 import { DateRange } from 'react-day-picker';
@@ -91,8 +91,6 @@ export default function AdminLogistikPage() {
   const [filteredPemasukan, setFilteredPemasukan] = useState<PemasukanLogEntry[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
-  
-  const [printData, setPrintData] = useState<{data: PemasukanLogEntry[], period: DateRange | undefined} | null>(null);
 
    useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -478,27 +476,6 @@ export default function AdminLogistikPage() {
         const statusInfo = status ? statusMap[status] : { text: 'Unknown', className: 'bg-gray-200' };
         return <Badge className={statusInfo.className}>{statusInfo.text}</Badge>;
     };
-  
-    const handlePrint = () => {
-        // Give time for the DOM to update with the new printData
-        setTimeout(() => {
-            window.print();
-            setPrintData(null); // Clean up after printing
-        }, 500);
-    };
-
-    const handlePrintReport = (type: 'today' | 'history') => {
-      const dataToPrint = type === 'today' ? dailyLog : filteredPemasukan;
-      const period = type === 'today' ? undefined : dateRange;
-  
-      if (dataToPrint.length === 0) {
-        toast({ title: "Tidak ada data untuk dicetak", variant: 'destructive' });
-        return;
-      }
-      
-      setPrintData({ data: dataToPrint, period });
-      handlePrint();
-    };
 
   const clearHistoryFilter = () => {
     setDateRange(undefined);
@@ -535,13 +512,20 @@ export default function AdminLogistikPage() {
   return (
     <>
         <div className="hidden">
-          {printData && (
+          <div id="pemasukan-harian-print-area">
               <LaporanPemasukanPrintLayout
-                  data={printData.data}
+                  data={dailyLog}
                   location={userInfo?.lokasi || ''}
-                  period={printData.period}
+                  period={undefined}
               />
-          )}
+          </div>
+           <div id="riwayat-pemasukan-print-area">
+              <LaporanPemasukanPrintLayout
+                  data={filteredPemasukan}
+                  location={userInfo?.lokasi || ''}
+                  period={dateRange}
+              />
+          </div>
         </div>
        <AlertDialog open={isConfirmArrivalOpen} onOpenChange={setIsConfirmArrivalOpen}>
             <AlertDialogContent>
@@ -713,7 +697,7 @@ export default function AdminLogistikPage() {
             </DropdownMenu>
         </SidebarFooter></SidebarContent></Sidebar>
             <SidebarInset><main className="flex-1 p-6 lg:p-10 no-print">
-                    <header className="flex items-center justify-between gap-4 mb-8"><div className='flex items-center gap-4'><SidebarTrigger /><div><h1 className="text-2xl font-bold tracking-wider">{activeMenu === 'pemasukan' ? 'Pemasukan Material' : activeMenu === 'riwayat' ? 'Riwayat Pemasukan Material' : activeMenu === 'rencana' ? 'Rencana Pemasukan Material' : activeMenu === 'riwayat-bongkar' ? 'Riwayat Bongkar Material' : activeMenu === 'status' ? 'Status Bongkaran Hari Ini' : activeMenu === 'daftar-kendaraan' ? 'Daftar Kendaraan Aktif' : 'Bongkar Batu & Pasir Hari Ini (WO-Sopir DT)'}</h1><p className="text-muted-foreground">Lokasi: <span className='font-semibold text-primary'>{userInfo.lokasi}</span></p></div></div>{activeMenu === 'pemasukan' && (<Button variant="outline" onClick={() => handlePrintReport('today')}><Printer className="mr-2 h-4 w-4" /> Cetak Laporan Hari Ini</Button>)}</header>
+                    <header className="flex items-center justify-between gap-4 mb-8"><div className='flex items-center gap-4'><SidebarTrigger /><div><h1 className="text-2xl font-bold tracking-wider">{activeMenu === 'pemasukan' ? 'Pemasukan Material' : activeMenu === 'riwayat' ? 'Riwayat Pemasukan Material' : activeMenu === 'rencana' ? 'Rencana Pemasukan Material' : activeMenu === 'riwayat-bongkar' ? 'Riwayat Bongkar Material' : activeMenu === 'status' ? 'Status Bongkaran Hari Ini' : activeMenu === 'daftar-kendaraan' ? 'Daftar Kendaraan Aktif' : 'Bongkar Batu & Pasir Hari Ini (WO-Sopir DT)'}</h1><p className="text-muted-foreground">Lokasi: <span className='font-semibold text-primary'>{userInfo.lokasi}</span></p></div></div>{activeMenu === 'pemasukan' && (<Button variant="outline" onClick={() => printElement('pemasukan-harian-print-area')}><Printer className="mr-2 h-4 w-4" /> Cetak Laporan Hari Ini</Button>)}</header>
                     
                     {activeMenu === 'status' && (<div className='space-y-6'>
                             <Card>
@@ -821,7 +805,7 @@ export default function AdminLogistikPage() {
                                 {newRencana.jenisMaterial === 'SEMEN' && <div className="pt-4 mt-4 border-t"><Label className="font-semibold">Rincian Muatan & SPB per Tangki Kapal</Label><div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-2">{Array.from({length: SHIP_TANK_COUNT}).map((_, i) => { const tankId = `tank-${i + 1}`; return (<div key={tankId} className="space-y-2 p-3 border rounded-md bg-muted/30"><Label htmlFor={tankId} className="flex items-center gap-2 text-xs"><Anchor size={14} />{tankId.replace('-', ' ')}</Label><Input data-row={i} data-col={0} onKeyDown={handleRencanaKeyDown} id={`${tankId}-spb`} value={newRencana.spbPerTank?.[tankId] || ''} onChange={(e) => handleRencanaSpbChange(tankId, e.target.value)} placeholder="Nomor SPB..." /><Input data-row={i} data-col={1} onKeyDown={handleRencanaKeyDown} id={`${tankId}-muatan`} type="number" value={newRencana.tankLoads?.[tankId] || ''} onChange={(e) => handleRencanaMuatanChange(tankId, e.target.value)} placeholder="Jumlah (KG)..." /></div>)})}</div></div>}
                                 <div className="flex justify-end pt-4"><Button onClick={handleSaveRencana} disabled={isSubmittingRencana}>{isSubmittingRencana ? <Loader2 className="animate-spin" /> : 'Simpan Rencana'}</Button></div>
                             </CardContent></Card>
-                            <Card><CardHeader><CardTitle className="flex items-center gap-3"><ListOrdered />List Rencana Pemasukan Material</CardTitle></CardHeader><CardContent><div className="border rounded-md overflow-auto"><Table><TableHeader><TableRow><TableHead>ETA</TableHead><TableHead>Kapal/Truk</TableHead><TableHead>Suplier</TableHead><TableHead>Material</TableHead><TableHead>SPB</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{rencanaPemasukan.length > 0 ? rencanaPemasukan.map(r => (<TableRow key={r.id}><TableCell>{safeFormatDate(r.eta, "dd MMM, HH:mm")}</TableCell><TableCell>{r.namaKapal}</TableCell><TableCell>{r.namaSuplier || '-'}</TableCell><TableCell>{r.jenisMaterial}</TableCell><TableCell>{r.noSpb || 'Lihat Rincian'}</TableCell><TableCell>{getRencanaStatusBadge(r.status as any)}</TableCell><TableCell className="text-right">{r.status === 'Dalam Perjalanan' && (<Button variant="outline" size="sm" onClick={() => { setSelectedRencana(r); setIsConfirmArrivalOpen(true); }}>Konfirmasi Tiba</Button>)}{r.status === 'Memenuhi Syarat' && (<Button size="sm" onClick={() => { setSelectedRencanaForJob(r); setJobCreationData({ bbmPerRit: 5, totalVolume: r.estimasiMuatan || 0 }); setIsCreateJobDialogOpen(true); }}>Terbitkan WO</Button>)}{r.jenisMaterial === 'SEMEN' && r.status === 'Menunggu Inspeksi QC' && <Button variant="secondary" size="sm" onClick={() => handleManualQCPass(r)}>Luluskan QC Manual</Button>}{r.status === 'Menunggu Inspeksi QC' && r.jenisMaterial !== 'SEMEN' && <span className='text-xs text-muted-foreground'>Menunggu QC...</span>}{r.status === 'Siap Untuk Dibongkar' && r.jenisMaterial !== 'SEMEN' && <span className='text-xs text-muted-foreground'>Menunggu Sopir...</span>}{r.status === 'Siap Untuk Dibongkar' && r.jenisMaterial === 'SEMEN' && <span className='text-xs text-muted-foreground'>Menunggu Pekerja...</span>}</TableCell></TableRow>)) : <TableRow><TableCell colSpan={7} className="text-center h-24 text-muted-foreground">Tidak ada rencana pemasukan.</TableCell></TableRow>}</TableBody></Table></div></CardContent></Card>
+                            <Card><CardHeader><CardTitle className="flex items-center gap-3"><ListOrdered />List Rencana Pemasukan Material</CardTitle></CardHeader><CardContent><div className="border rounded-md overflow-auto"><Table><TableHeader><TableRow><TableHead>ETA</TableHead><TableHead>Kapal/Truk</TableHead><TableHead>Suplier</TableHead><TableHead>Material</TableHead><TableHead>SPB</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{rencanaPemasukan.length > 0 ? rencanaPemasukan.map(r => (<TableRow key={r.id}><TableCell>{safeFormatDate(r.eta, "dd MMM, HH:mm")}</TableCell><TableCell>{r.namaKapal}</TableCell><TableCell>{r.namaSuplier || '-'}</TableCell><TableCell>{r.jenisMaterial}</TableCell><TableCell>{r.noSpb || 'Lihat Rincian'}</TableCell><TableCell>{getRencanaStatusBadge(r.status as any)}</TableCell><TableCell className="text-right">{r.status === 'Dalam Perjalanan' && (<Button variant="outline" size="sm" onClick={() => { setSelectedRencana(r); setIsConfirmArrivalOpen(true); }}>Konfirmasi Tiba</Button>)}{r.status === 'Memenuhi Syarat' && (<Button size="sm" onClick={() => { setSelectedRencanaForJob(r); setJobCreationData({ bbmPerRit: 5, totalVolume: r.estimasiMuatan || 0 }); setIsCreateJobDialogOpen(true); }}>Terbitkan WO</Button>)}{r.jenisMaterial === 'SEMEN' && r.status === 'Menunggu Inspeksi QC' && <Button variant="secondary" size="sm" onClick={() => handleManualQCPass(r)}>Luluskan QC Manual</Button>)}{r.status === 'Menunggu Inspeksi QC' && r.jenisMaterial !== 'SEMEN' && <span className='text-xs text-muted-foreground'>Menunggu QC...</span>}{r.status === 'Siap Untuk Dibongkar' && r.jenisMaterial !== 'SEMEN' && <span className='text-xs text-muted-foreground'>Menunggu Sopir...</span>}{r.status === 'Siap Untuk Dibongkar' && r.jenisMaterial === 'SEMEN' && <span className='text-xs text-muted-foreground'>Menunggu Pekerja...</span>}</TableCell></TableRow>)) : <TableRow><TableCell colSpan={7} className="text-center h-24 text-muted-foreground">Tidak ada rencana pemasukan.</TableCell></TableRow>}</TableBody></Table></div></CardContent></Card>
                         </div>
                     )}
 
@@ -884,7 +868,7 @@ export default function AdminLogistikPage() {
                         <Card><CardHeader><CardTitle className="flex items-center gap-3"><ListOrdered /> Log Pemasukan Hari Ini</CardTitle><CardDescription>Daftar semua material yang dicatat masuk pada hari ini.</CardDescription></CardHeader><CardContent><div className="border rounded-md max-h-96 overflow-auto"><Table><TableHeader className="sticky top-0 bg-muted"><TableRow><TableHead>Waktu</TableHead><TableHead>Material</TableHead><TableHead>No. SPB</TableHead><TableHead>Kapal/Truk</TableHead><TableHead>Jumlah</TableHead><TableHead>Keterangan</TableHead></TableRow></TableHeader><TableBody>{dailyLog.length > 0 ? (dailyLog.map(entry => (<TableRow key={entry.id}><TableCell>{safeFormatDate(entry.timestamp, 'HH:mm:ss')}</TableCell><TableCell>{entry.material}</TableCell><TableCell>{entry.noSpb}</TableCell><TableCell>{entry.namaKapal}</TableCell><TableCell>{entry.jumlah.toLocaleString('id-ID')} {entry.unit}</TableCell><TableCell>{entry.keterangan || '-'}</TableCell></TableRow>))) : (<TableRow><TableCell colSpan={6} className="text-center h-24 text-muted-foreground">Belum ada pemasukan material hari ini.</TableCell></TableRow>)}</TableBody></Table></div></CardContent></Card></div>
                     )}
                     
-                    {activeMenu === 'riwayat' && (<Card><CardHeader><CardTitle>Filter Riwayat Pemasukan</CardTitle><CardDescription>Cari data pemasukan material berdasarkan rentang tanggal.</CardDescription></CardHeader><CardContent className="flex flex-col md:flex-row items-center gap-4"><Popover><PopoverTrigger asChild><Button id="date" variant={"outline"} className={cn("w-[300px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}><CalendarIconLucide className="mr-2 h-4 w-4" />{dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}</Button></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2}/></PopoverContent></Popover><Button onClick={handleSearchHistory} disabled={isFetchingHistory}>{isFetchingHistory ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Search className="mr-2 h-4 w-4"/>}Cari Riwayat</Button><Button variant="ghost" onClick={clearHistoryFilter}><FilterX className="mr-2 h-4 w-4"/>Reset</Button></CardContent><CardContent><CardHeader className="px-0 flex-row items-center justify-between"><div><CardTitle>Hasil Pencarian</CardTitle><CardDescription>Menampilkan {filteredPemasukan.length} dari {allPemasukan.length} total data riwayat.</CardDescription></div><Button variant="outline" onClick={() => handlePrintReport('history')} disabled={filteredPemasukan.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak Hasil</Button></CardHeader><div className="border rounded-md max-h-96 overflow-auto"><Table><TableHeader className="sticky top-0 bg-muted"><TableRow><TableHead>Waktu</TableHead><TableHead>Material</TableHead><TableHead>No. SPB</TableHead><TableHead>Kapal/Truk</TableHead><TableHead>Jumlah</TableHead><TableHead>Keterangan</TableHead></TableRow></TableHeader><TableBody>{isFetchingHistory ? (<TableRow><TableCell colSpan={6} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></TableCell></TableRow>) : filteredPemasukan.length > 0 ? (filteredPemasukan.map(entry => (<TableRow key={entry.id}><TableCell>{safeFormatDate(entry.timestamp, 'dd/MM/yy HH:mm')}</TableCell><TableCell>{entry.material}</TableCell><TableCell>{entry.noSpb}</TableCell><TableCell>{entry.namaKapal}</TableCell><TableCell>{entry.jumlah.toLocaleString('id-ID')} {entry.unit}</TableCell><TableCell>{entry.keterangan || '-'}</TableCell></TableRow>))) : (<TableRow><TableCell colSpan={6} className="h-48 text-center text-muted-foreground">Tidak ada data untuk filter yang dipilih.</TableCell></TableRow>)}</TableBody></Table></div></CardContent></Card>
+                    {activeMenu === 'riwayat' && (<Card><CardHeader><CardTitle>Filter Riwayat Pemasukan</CardTitle><CardDescription>Cari data pemasukan material berdasarkan rentang tanggal.</CardDescription></CardHeader><CardContent className="flex flex-col md:flex-row items-center gap-4"><Popover><PopoverTrigger asChild><Button id="date" variant={"outline"} className={cn("w-[300px] justify-start text-left font-normal", !dateRange && "text-muted-foreground")}><CalendarIconLucide className="mr-2 h-4 w-4" />{dateRange?.from ? (dateRange.to ? (<>{format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}</>) : (format(dateRange.from, "LLL dd, y"))) : (<span>Pilih rentang tanggal</span>)}</Button></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar initialFocus mode="range" defaultMonth={dateRange?.from} selected={dateRange} onSelect={setDateRange} numberOfMonths={2}/></PopoverContent></Popover><Button onClick={handleSearchHistory} disabled={isFetchingHistory}>{isFetchingHistory ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Search className="mr-2 h-4 w-4"/>}Cari Riwayat</Button><Button variant="ghost" onClick={clearHistoryFilter}><FilterX className="mr-2 h-4 w-4"/>Reset</Button></CardContent><CardContent><CardHeader className="px-0 flex-row items-center justify-between"><div><CardTitle>Hasil Pencarian</CardTitle><CardDescription>Menampilkan {filteredPemasukan.length} dari {allPemasukan.length} total data riwayat.</CardDescription></div><Button variant="outline" onClick={() => printElement('riwayat-pemasukan-print-area')} disabled={filteredPemasukan.length === 0}><Printer className="mr-2 h-4 w-4"/>Cetak Hasil</Button></CardHeader><div className="border rounded-md max-h-96 overflow-auto"><Table><TableHeader className="sticky top-0 bg-muted"><TableRow><TableHead>Waktu</TableHead><TableHead>Material</TableHead><TableHead>No. SPB</TableHead><TableHead>Kapal/Truk</TableHead><TableHead>Jumlah</TableHead><TableHead>Keterangan</TableHead></TableRow></TableHeader><TableBody>{isFetchingHistory ? (<TableRow><TableCell colSpan={6} className="h-48 text-center"><Loader2 className="h-8 w-8 animate-spin mx-auto"/></TableCell></TableRow>) : filteredPemasukan.length > 0 ? (filteredPemasukan.map(entry => (<TableRow key={entry.id}><TableCell>{safeFormatDate(entry.timestamp, 'dd/MM/yy HH:mm')}</TableCell><TableCell>{entry.material}</TableCell><TableCell>{entry.noSpb}</TableCell><TableCell>{entry.namaKapal}</TableCell><TableCell>{entry.jumlah.toLocaleString('id-ID')} {entry.unit}</TableCell><TableCell>{entry.keterangan || '-'}</TableCell></TableRow>))) : (<TableRow><TableCell colSpan={6} className="h-48 text-center text-muted-foreground">Tidak ada data untuk filter yang dipilih.</TableCell></TableRow>)}</TableBody></Table></div></CardContent></Card>
                     )}
                 </main>
             </SidebarInset>
@@ -894,3 +878,4 @@ export default function AdminLogistikPage() {
 }
 
     
+
