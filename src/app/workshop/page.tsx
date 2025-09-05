@@ -569,6 +569,7 @@ export default function WorkshopPage() {
   const isInitialLoad = useRef(true);
 
 
+
   const getStatusBadge = (status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
     switch (status) {
       case 'baik':
@@ -1050,6 +1051,14 @@ export default function WorkshopPage() {
       </CardContent>
     </Card>
   );
+
+  const mechanicsInLocation = useMemo(() => 
+      users.filter(u => u.jabatan?.toUpperCase().includes('MEKANIK') && u.lokasi === userInfo?.lokasi), 
+  [users, userInfo?.lokasi]);
+
+  const activeTasks = useMemo(() => {
+    return mechanicTasks.filter(task => task.status !== 'COMPLETED');
+  }, [mechanicTasks]);
   
   const renderContent = () => {
     switch (activeMenu) {
@@ -1179,58 +1188,56 @@ export default function WorkshopPage() {
             );
         case 'Histori Perbaikan Alat':
              return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+        case 'Anggota Mekanik':
+             return (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Anggota Tim Mekanik</CardTitle>
+                        <CardDescription>
+                            Daftar semua mekanik di lokasi Anda.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                       <div className="overflow-x-auto border rounded-lg">
+                           <Table>
+                               <TableHeader>
+                                   <TableRow>
+                                       <TableHead>Nama</TableHead>
+                                       <TableHead>NIK</TableHead>
+                                       <TableHead>Tugas Aktif</TableHead>
+                                       <TableHead>Status</TableHead>
+                                   </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                 {isFetchingData ? (
+                                     <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                 ) : mechanicsInLocation.length > 0 ? (
+                                     mechanicsInLocation.map(mechanic => {
+                                        const activeTask = activeTasks.find(task => task.mechanics.some(m => m.id === mechanic.id));
+                                        return (
+                                            <TableRow key={mechanic.id}>
+                                                <TableCell className="font-medium">{mechanic.username}</TableCell>
+                                                <TableCell>{mechanic.nik}</TableCell>
+                                                <TableCell>{activeTask ? `${activeTask.vehicle.hullNumber} - ${activeTask.vehicle.repairDescription}` : '-'}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={activeTask ? 'destructive' : 'default'} className={!activeTask ? 'bg-green-600' : ''}>
+                                                        {activeTask ? 'Bertugas' : 'Standby'}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                     })
+                                 ) : (
+                                      <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada mekanik di lokasi ini.</TableCell></TableRow>
+                                 )}
+                               </TableBody>
+                           </Table>
+                       </div>
+                    </CardContent>
+                </Card>
+            );
         case 'Laporan Logistik':
              return renderLaporanLogistik();
-        case 'Manajemen Pengguna':
-            return (
-                <main>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Manajemen Pengguna</CardTitle>
-                            <CardDescription>Daftar semua pengguna yang terdaftar di lokasi Anda.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="overflow-x-auto border rounded-lg">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Nama</TableHead>
-                                            <TableHead>Username</TableHead>
-                                            <TableHead>NIK</TableHead>
-                                            <TableHead>Jabatan</TableHead>
-                                            <TableHead>Lokasi</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {isFetchingData ? (
-                                            <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                        ) : usersInLocation.length > 0 ? (
-                                            usersInLocation.map(user => (
-                                                <TableRow key={user.id}>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-3">
-                                                            <Avatar>
-                                                                <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
-                                                            </Avatar>
-                                                            <span className="font-medium">{user.username}</span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>{user.username}</TableCell>
-                                                    <TableCell>{user.nik}</TableCell>
-                                                    <TableCell>{user.jabatan}</TableCell>
-                                                    <TableCell>{user.lokasi}</TableCell>
-                                                </TableRow>
-                                            ))
-                                        ) : (
-                                            <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada data pengguna.</TableCell></TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </main>
-            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1391,7 +1398,7 @@ export default function WorkshopPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Workshop</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Kepala Workshop</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
@@ -1412,7 +1419,8 @@ export default function WorkshopPage() {
             </SidebarMenu>
             <SidebarFooter className="p-2 space-y-2">
                  <div className="text-center p-4 border rounded-lg">
-                    <h3 className="font-bold text-lg">Logo PT Farika Riau Perkasa</h3>
+                     <p className='font-bold'>{userInfo.username}</p>
+                     <p className='text-xs text-muted-foreground'>{userInfo.nik} - {userInfo.jabatan}</p>
                  </div>
                 <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-muted-foreground">
                     <LogOut className="mr-2 h-4 w-4" />
