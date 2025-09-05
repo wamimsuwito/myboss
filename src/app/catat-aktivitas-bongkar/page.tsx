@@ -6,10 +6,11 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Play, Pause, Square, Ship, Warehouse, Anchor, Clock, Loader2, Building, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Square, Ship, Warehouse, Anchor, Clock, Loader2, Building, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { differenceInMilliseconds, format } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -60,6 +61,8 @@ export default function CatatAktivitasBongkarPage() {
   // Dialog states
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isPauseDialogOpen, setIsPauseDialogOpen] = useState(false);
+  const [isCapacityWarningOpen, setIsCapacityWarningOpen] = useState(false);
+
   const [selectedSourceTank, setSelectedSourceTank] = useState<{ id: string; amount: number } | null>(null);
   const [selectedDestination, setSelectedDestination] = useState({ type: '', id: '', unit: '' });
   const [pauseReason, setPauseReason] = useState("");
@@ -67,7 +70,7 @@ export default function CatatAktivitasBongkarPage() {
   
   const [_, setTick] = useState(0); // Forcing re-render
   
-  const [activeSilosForUnits, setActiveSilosForUnits] = useState<Record<string, SiloData>>({});
+  const [allSiloData, setAllSiloData] = useState<Record<string, SiloData>>({});
   
   useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -90,19 +93,25 @@ export default function CatatAktivitasBongkarPage() {
     if (!userInfo?.lokasi) return;
 
     const unsubscribers: (() => void)[] = [];
+    const allStockTypes = [
+        ...['BP-1', 'BP-2', 'BP-3'].map(unit => ({ path: `locations/${userInfo.lokasi}/stock_cement_silo_${unit}/main`, keyPrefix: unit })),
+        { path: `locations/${userInfo.lokasi}/stock_buffer_silo/main`, keyPrefix: 'BufferSilo' },
+        { path: `locations/${userInfo.lokasi}/stock_buffer_tank/main`, keyPrefix: 'BufferTank' }
+    ];
 
-    ['BP-1', 'BP-2', 'BP-3'].forEach(unit => {
-        const stockDocRef = doc(db, `locations/${userInfo.lokasi}/stock_cement_silo_${unit}`, 'main');
-        const unsub = onSnapshot(stockDocRef, (docSnap) => {
+    allStockTypes.forEach(stockType => {
+        const docRef = doc(db, stockType.path);
+        const unsub = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
-                const stockData = docSnap.data() as CementSiloStock;
-                setActiveSilosForUnits(prev => ({
-                    ...prev,
-                    ...Object.entries(stockData.silos || {}).reduce((acc, [siloId, data]) => {
-                        acc[`${unit}-${siloId}`] = data;
-                        return acc;
-                    }, {} as Record<string, SiloData>)
-                }));
+                const stockData = docSnap.data();
+                const items = stockData.silos || stockData.tanks || {};
+                setAllSiloData(prev => {
+                    const updatedSilos = { ...prev };
+                    Object.entries(items).forEach(([siloId, data]) => {
+                        updatedSilos[`${stockType.keyPrefix}-${siloId}`] = data as SiloData;
+                    });
+                    return updatedSilos;
+                });
             }
         });
         unsubscribers.push(unsub);
@@ -194,30 +203,49 @@ export default function CatatAktivitasBongkarPage() {
     setIsConfirmDialogOpen(true);
   };
 
-  const handleStartConfirm = async () => {
-    if (!selectedSourceTank || !selectedDestination.type || !selectedDestination.id || !activeJob) return;
-    
-    const newActivity: CementActivity = {
-      id: `${selectedSourceTank.id}-to-${selectedDestination.id}`,
-      sourceTankId: selectedSourceTank.id,
-      destinationType: selectedDestination.type as any,
-      destinationId: selectedDestination.id,
-      destinationUnit: selectedDestination.type === 'silo' ? selectedDestination.unit : '',
-      status: 'berjalan',
-      startTime: new Date().toISOString(),
-      endTime: null,
-      pauseHistory: [],
-      totalPauseDuration: 0,
-    };
+  const executeStart = async () => {
+      if (!selectedSourceTank || !selectedDestination.type || !selectedDestination.id || !activeJob) return;
 
-    const newActivities = [...activities, newActivity];
-    try {
-        await persistState(activeJob.id, newActivities, completedActivities);
-        setActivities(newActivities);
-        setIsConfirmDialogOpen(false);
-        setSelectedSourceTank(null);
-    } catch(e) {
-        toast({ title: "Gagal Memulai", description: "Gagal menyimpan aktivitas baru.", variant: "destructive" });
+      const newActivity: CementActivity = {
+        id: `${selectedSourceTank.id}-to-${selectedDestination.id}`,
+        sourceTankId: selectedSourceTank.id,
+        destinationType: selectedDestination.type as any,
+        destinationId: selectedDestination.id,
+        destinationUnit: selectedDestination.type === 'silo' ? selectedDestination.unit : '',
+        status: 'berjalan',
+        startTime: new Date().toISOString(),
+        endTime: null,
+        pauseHistory: [],
+        totalPauseDuration: 0,
+      };
+
+      const newActivities = [...activities, newActivity];
+      try {
+          await persistState(activeJob.id, newActivities, completedActivities);
+          setActivities(newActivities);
+          setIsConfirmDialogOpen(false);
+          setSelectedSourceTank(null);
+      } catch (e) {
+          toast({ title: "Gagal Memulai", description: "Gagal menyimpan aktivitas baru.", variant: "destructive" });
+      }
+  }
+
+  const handleStartConfirm = async () => {
+    if (!selectedSourceTank || !selectedDestination.type || !selectedDestination.id) return;
+    
+    // Check capacity before starting
+    const destPrefix = selectedDestination.type === 'silo' ? selectedDestination.unit : selectedDestination.type === 'buffer-silo' ? 'BufferSilo' : 'BufferTank';
+    const destKey = `${destPrefix}-${selectedDestination.id}`;
+    
+    const siloInfo = allSiloData[destKey];
+    const currentStock = siloInfo?.stock || 0;
+    const capacity = siloInfo?.capacity || 90000;
+    const amountToAdd = selectedSourceTank.amount;
+
+    if ((currentStock + amountToAdd) > capacity) {
+        setIsCapacityWarningOpen(true);
+    } else {
+        await executeStart();
     }
   };
   
@@ -453,6 +481,23 @@ export default function CatatAktivitasBongkarPage() {
   return (
     <>
     <UnitSelectionDialog isOpen={isUnitDialogOpen} onUnitSelect={handleUnitSelect}/>
+    <AlertDialog open={isCapacityWarningOpen} onOpenChange={setIsCapacityWarningOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive"/>Peringatan Kapasitas</AlertDialogTitle>
+                <AlertDialogDescription>Silo tidak dapat menampung isi semen dalam tangki karena kapasitas silo hampir penuh.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setIsCapacityWarningOpen(false)}>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={async () => {
+                    setIsCapacityWarningOpen(false);
+                    await executeStart();
+                }}>
+                    Tetap Bongkar
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
         <DialogContent><DialogHeader><DialogTitle>Konfirmasi Tujuan Bongkar</DialogTitle></DialogHeader>
             <div className="py-4 space-y-4"><p>Pindahkan muatan dari <span className="font-bold">{selectedSourceTank?.id.replace('-', ' ').toUpperCase()}</span> ke:</p>
@@ -471,7 +516,7 @@ export default function CatatAktivitasBongkarPage() {
                      <Select value={selectedDestination.id} onValueChange={(v) => setSelectedDestination(p => ({...p, id: v}))} disabled={selectedDestination.type === 'silo' && !selectedDestination.unit}>
                          <SelectTrigger><SelectValue placeholder="Pilih Nomor Tujuan..." /></SelectTrigger>
                          <SelectContent>
-                            {selectedDestination.type === 'silo' && selectedDestination.unit && Array.from({length: getSiloCountForUnit(userInfo?.lokasi, selectedDestination.unit)}, (_,i) => { const destId = `silo-${i+1}`; const key = `${selectedDestination.unit}-${destId}`; const siloData = activeSilosForUnits[key]; const isActive = siloData?.status === 'aktif'; return <SelectItem key={destId} value={destId} disabled={activeDestinations.includes(destId) || !isActive}>Silo {i+1}{!isActive && ' (Non-Aktif)'}</SelectItem> })}
+                            {selectedDestination.type === 'silo' && selectedDestination.unit && Array.from({length: getSiloCountForUnit(userInfo?.lokasi, selectedDestination.unit)}, (_,i) => { const destId = `silo-${i+1}`; const key = `${selectedDestination.unit}-${destId}`; const siloData = allSiloData[key]; const isActive = siloData?.status === 'aktif'; return <SelectItem key={destId} value={destId} disabled={activeDestinations.includes(destId) || !isActive}>Silo {i+1}{!isActive && ' (Non-Aktif)'}</SelectItem> })}
                             {selectedDestination.type === 'buffer-silo' && Array.from({length: BUFFER_SILO_COUNT}, (_,i) => { const destId = `silo-${i+1}`; return <SelectItem key={destId} value={destId} disabled={activeDestinations.includes(destId)}>Buffer Silo {i+1}</SelectItem> })}
                             {selectedDestination.type === 'buffer-tank' && Array.from({length: BUFFER_TANK_COUNT}, (_,i) => { const destId = `tank-${i+1}`; return <SelectItem key={destId} value={destId} disabled={activeDestinations.includes(destId)}>Buffer Tangki {i+1}</SelectItem> })}
                          </SelectContent>
