@@ -896,7 +896,7 @@ export default function WorkshopPage() {
     }
   };
 
-  const handleQuarantineRequest = (item: AlatData) => {
+    const handleQuarantineRequest = (item: AlatData) => {
       setQuarantineTarget(item);
       setIsQuarantineConfirmOpen(true);
   }
@@ -959,6 +959,113 @@ export default function WorkshopPage() {
         setIsSubmitting(false);
         setIsQuarantineConfirmOpen(false);
         setQuarantineTarget(null);
+    }
+  };
+
+  const handleSavePairing = async () => {
+    if (!selectedSopir || !selectedAlat || !userInfo) return;
+
+    setIsSubmitting(true);
+    const pairingData: Omit<SopirBatanganData, 'id'> = {
+        userId: selectedSopir.id,
+        namaSopir: selectedSopir.username,
+        nik: selectedSopir.nik,
+        vehicleId: selectedAlat.id,
+        nomorPolisi: selectedAlat.nomorPolisi,
+        nomorLambung: selectedAlat.nomorLambung,
+        lokasi: userInfo.lokasi,
+        keterangan: keterangan,
+        timestamp: Timestamp.now(),
+    };
+
+    try {
+        if (editingPairing) {
+            await updateDoc(doc(db, 'sopir_batangan', editingPairing.id), pairingData);
+            toast({ title: 'Pasangan Diperbarui' });
+        } else {
+            await addDoc(collection(db, 'sopir_batangan'), pairingData);
+            toast({ title: 'Pasangan Disimpan' });
+        }
+        setEditingPairing(null);
+        setSelectedSopir(null);
+        setSelectedAlat(null);
+        setKeterangan('');
+    } catch (error) {
+        toast({ title: 'Gagal Menyimpan', variant: 'destructive' });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
+  const handleEditPairing = (pairing: SopirBatanganData) => {
+    setEditingPairing(pairing);
+    setSelectedSopir(users.find(u => u.id === pairing.userId) || null);
+    setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
+    setKeterangan(pairing.keterangan || '');
+  };
+
+  const handleDeleteRequest = (item: AlatData | SopirBatanganData, type: 'alat' | 'pairing') => {
+      setItemToDelete(item);
+      setDeleteType(type);
+      setIsDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+      if (!itemToDelete || !deleteType) return;
+      setIsSubmitting(true);
+      try {
+          if (deleteType === 'alat') {
+              await deleteDoc(doc(db, 'alat', itemToDelete.id));
+              toast({ title: 'Alat Dihapus' });
+          } else if (deleteType === 'pairing') {
+              await deleteDoc(doc(db, 'sopir_batangan', itemToDelete.id));
+              toast({ title: 'Pasangan Dihapus' });
+          }
+      } catch (error) {
+          toast({ title: 'Gagal Menghapus', variant: 'destructive' });
+      } finally {
+          setIsSubmitting(false);
+          setIsDeleteDialogOpen(false);
+      }
+  };
+  
+  const handleMutasiRequest = (item: AlatData) => {
+    setMutasiTarget(item);
+    setIsMutasiDialogOpen(true);
+  };
+  
+  const handleConfirmMutasi = async () => {
+    if (!mutasiTarget || !newLocationForMutasi) return;
+    setIsMutating(true);
+    try {
+        await updateDoc(doc(db, 'alat', mutasiTarget.id), { lokasi: newLocationForMutasi });
+        toast({ title: 'Mutasi Berhasil' });
+    } catch (error) {
+        toast({ title: 'Gagal Mutasi', variant: 'destructive' });
+    } finally {
+        setIsMutating(false);
+        setIsMutasiDialogOpen(false);
+    }
+  };
+  
+  const handleConfirmEditAlat = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingAlat) return;
+    setIsEditingAlat(true);
+    const formData = new FormData(e.currentTarget);
+    const updatedData = {
+        nomorLambung: formData.get('editNomorLambung') as string,
+        nomorPolisi: formData.get('editNomorPolisi') as string,
+        jenisKendaraan: formData.get('editJenisKendaraan') as string,
+    };
+    try {
+        await updateDoc(doc(db, 'alat', editingAlat.id), updatedData);
+        toast({ title: 'Alat Diperbarui' });
+    } catch (error) {
+        toast({ title: 'Gagal Memperbarui', variant: 'destructive' });
+    } finally {
+        setIsEditingAlat(false);
+        setEditingAlat(null);
     }
   };
   
