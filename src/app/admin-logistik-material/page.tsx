@@ -547,6 +547,7 @@ export default function AdminLogistikPage() {
   
   return (
     <>
+       <div id="pemasukan-report-print-area" className="hidden"></div>
        <AlertDialog open={isConfirmArrivalOpen} onOpenChange={setIsConfirmArrivalOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader><AlertDialogTitle>Konfirmasi Kedatangan: {selectedRencana?.namaKapal}</AlertDialogTitle><AlertDialogDescriptionComponent>Pastikan kendaraan sudah tiba di lokasi sebelum melanjutkan.</AlertDialogDescriptionComponent></AlertDialogHeader>
