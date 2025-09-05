@@ -329,15 +329,16 @@ const HistoriContent = ({ user, allTasks, users, allAlat, allReports, isFetching
     });
 
     const sopirOptions = useMemo(() => {
+        if (!users) return [];
         return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'))
             .filter(u => user?.lokasi ? u.lokasi === user.lokasi : true)
             .sort((a,b) => a.username.localeCompare(b.username));
     }, [users, user]);
   
     const filteredTasks = useMemo(() => {
-      if (!allAlat || allAlat.length === 0 || !allTasks || allTasks.length === 0) {
-          return [];
-      }
+        if (!allAlat || allAlat.length === 0 || !allTasks || allTasks.length === 0) {
+            return [];
+        }
       const fromDate = date?.from ? startOfDay(date.from) : null;
       const toDate = date?.to ? endOfDay(date.to) : null;
   
@@ -541,6 +542,13 @@ export default function KepalaMekanikPage() {
   const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
+  
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
+  const [isMutasiDialogOpen, setIsMutasiDialogOpen] = useState(false);
+  const [mutasiTarget, setMutasiTarget] = useState<AlatData | null>(null);
+  const [newLocationForMutasi, setNewLocationForMutasi] = useState('');
+  const [isMutating, setIsMutating] = useState(false);
 
 
   const getStatusBadge = (status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
@@ -842,7 +850,7 @@ export default function KepalaMekanikPage() {
     }
   };
 
-  const handleQuarantineRequest = (item: AlatData) => {
+    const handleQuarantineRequest = (item: AlatData) => {
       setQuarantineTarget(item);
       setIsQuarantineConfirmOpen(true);
   }
@@ -1268,6 +1276,45 @@ export default function KepalaMekanikPage() {
         </AlertDialogContent>
     </AlertDialog>
 
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Anda yakin akan menghapus data ini secara permanen? Tindakan ini tidak dapat diurungkan.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={() => {}} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Ya, Hapus
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+    
+    <Dialog open={isMutasiDialogOpen} onOpenChange={setIsMutasiDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Konfirmasi Mutasi Alat: {mutasiTarget?.nomorLambung}</DialogTitle>
+                <DialogDescription>
+                    Pindahkan alat dari lokasi <strong>{mutasiTarget?.lokasi}</strong> ke lokasi baru. Pastikan Anda yakin sebelum melanjutkan.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Label htmlFor="mutasi-location">Pilih Lokasi Tujuan</Label>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setIsMutasiDialogOpen(false)}>Batal</Button>
+                <Button onClick={() => {}} disabled={isMutating}>
+                    {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Konfirmasi & Pindahkan
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
 
     <SidebarProvider>
       <div className="flex min-h-screen bg-background text-foreground">
@@ -1330,6 +1377,3 @@ export default function KepalaMekanikPage() {
     </>
   );
 }
-
-
-    
