@@ -522,7 +522,6 @@ export default function KepalaMekanikPage() {
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dashboard');
   const [userInfo, setUserInfo] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [alat, setAlat] = useState<AlatData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
@@ -825,6 +824,12 @@ export default function KepalaMekanikPage() {
         if (repairDescription) {
             updateData.completedAt = new Date().getTime();
             updateData.mechanicRepairDescription = repairDescription;
+
+            if (task.vehicle.triggeringReportId) {
+                const reportDocRef = doc(db, 'checklist_reports', task.vehicle.triggeringReportId);
+                await updateDoc(reportDocRef, { overallStatus: 'baik' });
+            }
+
         } else {
             toast({ title: "Aksi Dibatalkan", description: "Deskripsi perbaikan wajib diisi untuk menyelesaikan WO.", variant: "destructive" });
             return;
@@ -857,7 +862,7 @@ export default function KepalaMekanikPage() {
 
   const handleConfirmQuarantine = async () => {
     if (!quarantineTarget) return;
-    setIsSubmitting(true);
+    const isSubmitting = true;
     const newStatus = !quarantineTarget.statusKarantina;
     
     try {
@@ -910,7 +915,7 @@ export default function KepalaMekanikPage() {
         console.error("Error toggling quarantine status:", error);
         toast({ title: 'Gagal Memperbarui Status', variant: 'destructive' });
     } finally {
-        setIsSubmitting(false);
+        const isSubmitting = false;
         setIsQuarantineConfirmOpen(false);
         setQuarantineTarget(null);
     }
@@ -1286,8 +1291,7 @@ export default function KepalaMekanikPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={() => {}} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
-                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <AlertDialogAction disabled={false} className="bg-destructive hover:bg-destructive/90">
                     Ya, Hapus
                 </AlertDialogAction>
             </AlertDialogFooter>
@@ -1307,7 +1311,7 @@ export default function KepalaMekanikPage() {
             </div>
             <DialogFooter>
                 <Button variant="outline" onClick={() => setIsMutasiDialogOpen(false)}>Batal</Button>
-                <Button onClick={() => {}} disabled={isMutating}>
+                <Button disabled={isMutating}>
                     {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Konfirmasi & Pindahkan
                 </Button>
@@ -1377,3 +1381,4 @@ export default function KepalaMekanikPage() {
     </>
   );
 }
+
