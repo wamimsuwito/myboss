@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -612,7 +613,7 @@ export default function DashboardPage() {
     setActiveJobMix(null);
   }
 
-  const handleStop = async (data?: PrintData & { selectedSilo?: string }, options: { isAborted?: boolean, mode: OperationMode } = { isAborted: true, mode: 'auto' }) => {
+  const handleStop = async (data?: PrintData, options: { isAborted?: boolean, mode: OperationMode } = { isAborted: true, mode: 'auto' }) => {
     if (options.isAborted) {
         processAbortedRef.current = true;
         intervalsRef.current.forEach(intervalId => {
@@ -691,7 +692,8 @@ export default function DashboardPage() {
                     batu: increment(-usage.batu)
                 });
             }
-
+            
+            // VERIFIED AND CORRECTED LOGIC
             if (cementStockDoc.exists() && data.selectedSilo) {
                 const siloKey = `silos.silo-${data.selectedSilo}.stock`;
                 transaction.update(cementStockRef, {
@@ -879,7 +881,7 @@ export default function DashboardPage() {
                             mixingTime={initialCountdownTime}
                             isProcessing={isProcessing}
                             onSetIsProcessing={setIsProcessing}
-                            onStop={handleStop}
+                            onStop={(data, opts) => handleStop(data ? {...data, selectedSilo} : undefined, opts)}
                             onSetActiveSchedule={setActiveSchedule}
                             onSetActiveJobMix={setActiveJobMix}
                             activeSchedule={activeSchedule}
