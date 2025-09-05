@@ -1392,7 +1392,7 @@ export default function KepalaMekanikPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Workshop</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
