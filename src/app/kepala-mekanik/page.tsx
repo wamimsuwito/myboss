@@ -328,7 +328,7 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     }
 };
 
-const HistoriContent = ({ user, mechanicTasks, users, alat, allReports }: { user: UserData | null; mechanicTasks: MechanicTask[]; users: UserData[]; alat: AlatData[], allReports: Report[] }) => {
+const HistoryComponent = ({ user, allTasks, allUsers, allAlat, allReports }: { user: UserData | null; allTasks: MechanicTask[]; allUsers: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
     const [date, setDate] = useState<DateRange | undefined>({
@@ -337,21 +337,21 @@ const HistoriContent = ({ user, mechanicTasks, users, alat, allReports }: { user
     });
 
     const sopirOptions = useMemo(() => {
-        return users.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'))
+        return allUsers.filter(u => u.jabatan?.toUpperCase().includes('SOPIR') || u.jabatan?.toUpperCase().includes('OPRATOR'))
             .filter(u => user?.lokasi ? u.lokasi === user.lokasi : true)
             .sort((a,b) => a.username.localeCompare(b.username));
-    }, [users, user]);
+    }, [allUsers, user]);
   
     const filteredTasks = useMemo(() => {
       const fromDate = date?.from ? startOfDay(date.from) : null;
       const toDate = date?.to ? endOfDay(date.to) : null;
   
-      return mechanicTasks
+      return allTasks
         .filter((task) => {
           if (task.status !== 'COMPLETED' || !task.completedAt) return false;
           
           if (user?.lokasi) {
-            const taskLocation = alat.find(v => v.nomorLambung === task.vehicle?.hullNumber)?.lokasi;
+            const taskLocation = allAlat.find(v => v.nomorLambung === task.vehicle?.hullNumber)?.lokasi;
             if (taskLocation !== user.lokasi) return false;
           }
   
@@ -378,13 +378,13 @@ const HistoriContent = ({ user, mechanicTasks, users, alat, allReports }: { user
           return true;
         })
         .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime());
-    }, [mechanicTasks, date, selectedOperatorId, user, alat, allReports, searchNoPol]);
+    }, [allTasks, date, selectedOperatorId, user, allAlat, allReports, searchNoPol]);
 
     return (
         <>
             <div className='hidden'>
                 <div id="history-print-area">
-                    <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={users} location={user?.lokasi} />
+                    <HistoryPrintLayout data={filteredTasks} allReports={allReports} users={allUsers} location={user?.lokasi} />
                 </div>
             </div>
             <Card>
@@ -446,7 +446,7 @@ const HistoriContent = ({ user, mechanicTasks, users, alat, allReports }: { user
                         {filteredTasks.length > 0 ? (
                         filteredTasks.map((task) => {
                             const triggeringReport = allReports.find(r => r.id === task.vehicle?.triggeringReportId);
-                            const sopir = users.find(u => u.id === triggeringReport?.operatorId);
+                            const sopir = allUsers.find(u => u.id === triggeringReport?.operatorId);
                             const calculateEffectiveDuration = (task: MechanicTask) => {
                                 if (!task.startedAt || !task.completedAt) return '-';
                                 const duration = new Date(task.completedAt).getTime() - new Date(task.startedAt).getTime() - (task.totalDelayDuration || 0);
@@ -1070,6 +1070,63 @@ export default function KepalaMekanikPage() {
     return mechanicTasks.filter(task => task.status !== 'COMPLETED');
   }, [mechanicTasks]);
   
+  const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status']) => {
+    const taskDocRef = doc(db, 'mechanic_tasks', task.id);
+    const updateData: Partial<MechanicTask> = { status: newStatus };
+
+    if (newStatus === 'DELAYED') {
+      const reason = prompt("Masukkan alasan menunda pekerjaan:");
+      if (reason) {
+        updateData.delayReason = reason;
+        updateData.delayStartedAt = new Date().getTime();
+        updateData.riwayatTunda = [...(task.riwayatTunda || []), { alasan: reason, waktuMulai: Timestamp.now(), waktuSelesai: null! }];
+      } else {
+        return; // User cancelled
+      }
+    }
+
+    if (newStatus === 'IN_PROGRESS' && task.status === 'PENDING' && !task.startedAt) {
+      updateData.startedAt = new Date().getTime();
+    } else if (newStatus === 'IN_PROGRESS' && task.status === 'DELAYED') {
+      const lastDelay = task.riwayatTunda?.[task.riwayatTunda.length - 1];
+      if (lastDelay && !lastDelay.waktuSelesai) {
+          lastDelay.waktuSelesai = Timestamp.now();
+          const delayDuration = lastDelay.waktuSelesai.toMillis() - lastDelay.waktuMulai.toMillis();
+          updateData.totalDelayDuration = (task.totalDelayDuration || 0) + delayDuration;
+          updateData.riwayatTunda = task.riwayatTunda;
+      }
+    }
+    
+    if (newStatus === 'COMPLETED') {
+        const repairDescription = prompt("Masukkan deskripsi perbaikan yang telah dilakukan:");
+        if (repairDescription) {
+            updateData.completedAt = new Date().getTime();
+            updateData.mechanicRepairDescription = repairDescription;
+        } else {
+            toast({ title: "Aksi Dibatalkan", description: "Deskripsi perbaikan wajib diisi untuk menyelesaikan WO.", variant: "destructive" });
+            return;
+        }
+    }
+
+
+    try {
+      await updateDoc(taskDocRef, updateData as any);
+      toast({ title: `Status WO Diperbarui`, description: `Status untuk ${task.vehicle.hullNumber} diubah menjadi ${newStatus}.` });
+    } catch (error) {
+      console.error("Error updating task status:", error);
+      toast({ title: "Gagal Memperbarui Status", variant: "destructive" });
+    }
+  };
+
+  const getTaskStatusBadge = (status: MechanicTask['status']) => {
+    switch (status) {
+      case 'PENDING': return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Menunggu</Badge>;
+      case 'IN_PROGRESS': return <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-300 animate-pulse">Dikerjakan</Badge>;
+      case 'DELAYED': return <Badge variant="destructive">Tunda</Badge>;
+      default: return <Badge>{status}</Badge>;
+    }
+  };
+  
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1148,10 +1205,106 @@ export default function KepalaMekanikPage() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                     <p className="text-center text-muted-foreground py-10">(Fitur masih dalam pengembangan)</p>
+                    <div className="overflow-x-auto border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Kendaraan</TableHead>
+                            <TableHead>Pelapor</TableHead>
+                            <TableHead>Deskripsi</TableHead>
+                            <TableHead>Foto</TableHead>
+                            <TableHead>Mekanik Bertugas</TableHead>
+                            <TableHead>Target Selesai</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {isFetchingData ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="h-24 text-center">
+                                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                              </TableCell>
+                            </TableRow>
+                          ) : activeTasks.length > 0 ? (
+                            activeTasks.map((task) => {
+                              const triggeringReport = reports.find(
+                                (r) => r.id === task.vehicle?.triggeringReportId
+                              );
+                              const sopir = users.find(
+                                (u) => u.id === triggeringReport?.operatorId
+                              );
+                              return (
+                                <TableRow key={task.id}>
+                                  <TableCell>
+                                    <p className="font-semibold">
+                                      {task.vehicle.hullNumber}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {task.vehicle.licensePlate}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell>
+                                    <p>{sopir?.username || 'N/A'}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatRelative(new Date(task.createdAt), new Date(), { locale: localeID })}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell className="max-w-[200px] truncate">
+                                    {triggeringReport?.description || 'N/A'}
+                                  </TableCell>
+                                  <TableCell>
+                                    {triggeringReport?.photo && (
+                                        <Dialog>
+                                            <DialogTrigger asChild>
+                                                <Button variant="ghost" size="icon">
+                                                    <Eye className="h-5 w-5" />
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="max-w-3xl">
+                                                <DialogHeader>
+                                                    <DialogTitle>Foto Laporan Kerusakan</DialogTitle>
+                                                </DialogHeader>
+                                                <img src={Array.isArray(triggeringReport.photo) ? triggeringReport.photo[0] : triggeringReport.photo} alt="Foto Kerusakan" className="rounded-lg w-full h-auto" data-ai-hint="mechanic report broken" />
+                                            </DialogContent>
+                                        </Dialog>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    {task.mechanics.map((m) => m.name).join(', ')}
+                                  </TableCell>
+                                  <TableCell>
+                                    {format(new Date(task.vehicle.targetDate), 'dd MMM yyyy')}
+                                    {' @ '}{task.vehicle.targetTime}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Select value={task.status} onValueChange={(newStatus) => handleTaskStatusChange(task, newStatus as MechanicTask['status'])}>
+                                      <SelectTrigger className="w-36">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="PENDING">Menunggu</SelectItem>
+                                        <SelectItem value="IN_PROGRESS">Dikerjakan</SelectItem>
+                                        <SelectItem value="DELAYED">Tunda</SelectItem>
+                                        <SelectItem value="COMPLETED">Selesai</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                                Tidak ada work order yang sedang aktif.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </CardContent>
                 </Card>
-              );
+            );
         case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
@@ -1265,7 +1418,7 @@ export default function KepalaMekanikPage() {
                 </main>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
         case 'Laporan Logistik':
              return renderLaporanLogistik();
         case 'Manajemen Pengguna':
