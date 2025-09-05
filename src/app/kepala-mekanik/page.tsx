@@ -712,11 +712,11 @@ export default function KepalaMekanikPage() {
 
     const getLatestReportForAlat = (nomorLambung: string) => getLatestReport(nomorLambung, validReports);
     
-    const alatBaikList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'baik');
-    const perluPerhatianList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'perlu perhatian');
-    const alatRusakList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'rusak');
+    const alatBaikList = alatInLocation.filter(a => !a.statusKarantina && getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'baik');
+    const perluPerhatianList = alatInLocation.filter(a => !a.statusKarantina && getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'perlu perhatian');
+    const alatRusakList = alatInLocation.filter(a => !a.statusKarantina && getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'rusak');
 
-    const alatRusakBeratList = alat.filter(a => a.statusKarantina === true);
+    const alatRusakBeratList = alatInLocation.filter(a => a.statusKarantina === true);
     const alatTdkAdaOperatorList = alatInLocation.filter(a => !pairings.some(p => p.nomorLambung === a.nomorLambung) && !a.statusKarantina);
 
 
@@ -739,7 +739,7 @@ export default function KepalaMekanikPage() {
     };
 
     return {
-      totalAlat: { count: String(alatInLocation.length), list: mapToDetailFormat(alatInLocation, 'latest') },
+      totalAlat: { count: String(alatInLocation.filter(a => !a.statusKarantina).length), list: mapToDetailFormat(alatInLocation.filter(a => !a.statusKarantina), 'latest') },
       sudahChecklist: { count: String(checkedVehicleIdsToday.size), list: mapToDetailFormat(alatInLocation.filter(a => checkedVehicleIdsToday.has(a.nomorLambung)), 'latest') },
       belumChecklist: { count: String(alatBelumChecklistList.length), list: mapToDetailFormat(alatBelumChecklistList, 'belum') },
       alatBaik: { count: String(alatBaikList.length), list: mapToDetailFormat(alatBaikList, 'latest') },
@@ -787,7 +787,7 @@ export default function KepalaMekanikPage() {
     localStorage.removeItem('user');
     router.push('/login');
   };
-  
+
   const woList = useMemo(() => {
     const existingTaskReportIds = new Set(mechanicTasks.map(task => task.vehicle?.triggeringReportId));
     return reports
@@ -854,7 +854,7 @@ export default function KepalaMekanikPage() {
     }
   };
 
-    const handleQuarantineRequest = (item: AlatData) => {
+  const handleQuarantineRequest = (item: AlatData) => {
       setQuarantineTarget(item);
       setIsQuarantineConfirmOpen(true);
   }
@@ -876,6 +876,19 @@ export default function KepalaMekanikPage() {
                 await deleteDoc(doc(db, "sopir_batangan", pairingDoc.id));
                 toast({ title: 'Sopir Dilepaskan', description: `Sopir untuk ${quarantineTarget.nomorLambung} telah dilepaskan.` });
             }
+            
+            const dummyReport: Omit<Report, 'id' | 'timestamp'> & { timestamp: any } = {
+                timestamp: Timestamp.now(),
+                nomorLambung: quarantineTarget.nomorLambung,
+                operatorName: 'SISTEM',
+                operatorId: 'SISTEM',
+                location: quarantineTarget.lokasi,
+                overallStatus: 'rusak',
+                description: 'Alat ini dalam kondisi rusak berat dan dimasukkan ke dalam karantina.',
+                photo: '',
+            };
+            await addDoc(collection(db, 'checklist_reports'), dummyReport);
+            
              toast({
                 title: `Alat Dikarantina`,
                 description: `${quarantineTarget.nomorLambung} telah dimasukkan ke karantina.`
@@ -888,7 +901,7 @@ export default function KepalaMekanikPage() {
                 operatorId: 'SISTEM',
                 location: quarantineTarget.lokasi,
                 overallStatus: 'rusak',
-                description: 'Alat ini baru dilepas dari karantina dan membutuhkan pengecekan serta perbaikan menyeluruh.',
+                description: 'alat ini dalam kondisi rusak berat, lepas dari karantina untuk mulai perbaikan',
                 photo: '',
             };
             await addDoc(collection(db, 'checklist_reports'), dummyReport);
@@ -906,7 +919,26 @@ export default function KepalaMekanikPage() {
         setQuarantineTarget(null);
     }
   };
-  
+
+  const renderLaporanLogistik = () => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Laporan Pemakaian Barang</CardTitle>
+        <CardDescription>Catat pemakaian spare part untuk setiap perbaikan.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="md:col-span-2 space-y-2"><Label>Nama Barang/Spare Part</Label><Input placeholder="cth: Filter Oli" /></div>
+            <div className="space-y-2"><Label>Jumlah</Label><Input type="number" placeholder="0" /></div>
+            <Button>Simpan Laporan</Button>
+        </form>
+        <div className="mt-6 text-center text-muted-foreground">
+            <p>(Fitur masih dalam pengembangan)</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -921,170 +953,6 @@ export default function KepalaMekanikPage() {
                 </div>
               </main>
             );
-        case 'Work order saya (WO)':
-            return (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Daftar Laporan Kerusakan (Work Order)</CardTitle>
-                        <CardDescription>Daftar kendaraan yang dilaporkan rusak dan membutuhkan perbaikan segera.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                       <div className="overflow-x-auto border rounded-lg">
-                           <Table>
-                               <TableHeader>
-                                   <TableRow>
-                                       <TableHead>Waktu Pelaporan</TableHead>
-                                       <TableHead>Sopir/Operator</TableHead>
-                                       <TableHead>Nomor Kendaraan</TableHead>
-                                       <TableHead>Deskripsi Kerusakan</TableHead>
-                                       <TableHead className='text-right'>Aksi</TableHead>
-                                   </TableRow>
-                               </TableHeader>
-                               <TableBody>
-                                   {isFetchingData ? (
-                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                   ) : woList.length > 0 ? (
-                                     woList.map(report => {
-                                       const vehicle = alat.find(a => a.nomorLambung === report.nomorLambung);
-                                       const operator = users.find(u => u.id === report.operatorId);
-                                       if (!vehicle) return null;
-                                       return (
-                                         <TableRow key={report.id}>
-                                             <TableCell>{format(new Date(report.timestamp), 'dd MMM, HH:mm', { locale: localeID })}</TableCell>
-                                             <TableCell>
-                                                 <p>{operator?.username || 'N/A'}</p>
-                                                 <p className="text-xs text-muted-foreground">NIK: {operator?.nik || '-'}</p>
-                                             </TableCell>
-                                             <TableCell>
-                                                 <p className="font-semibold">{vehicle.nomorLambung}</p>
-                                                 <p className="text-xs text-muted-foreground">{vehicle.nomorPolisi} ({vehicle.jenisKendaraan})</p>
-                                             </TableCell>
-                                             <TableCell className="max-w-xs truncate">{report.description}</TableCell>
-                                             <TableCell className="text-right">
-                                                 <CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={mechanicsInLocation} onTaskCreated={() => {}} />
-                                             </TableCell>
-                                         </TableRow>
-                                       );
-                                     })
-                                   ) : (
-                                       <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>
-                                   )}
-                               </TableBody>
-                           </Table>
-                       </div>
-                    </CardContent>
-                </Card>
-            );
-        case 'Work order aktif':
-            return (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Work Order Aktif</CardTitle>
-                    <CardDescription>
-                      Daftar semua pekerjaan perbaikan yang sedang menunggu atau dalam proses.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto border rounded-lg">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Kendaraan</TableHead>
-                            <TableHead>Pelapor</TableHead>
-                            <TableHead>Deskripsi</TableHead>
-                            <TableHead>Foto</TableHead>
-                            <TableHead>Mekanik Bertugas</TableHead>
-                            <TableHead>Target Selesai</TableHead>
-                            <TableHead>Status</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {isFetchingData ? (
-                            <TableRow>
-                              <TableCell colSpan={7} className="h-24 text-center">
-                                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
-                              </TableCell>
-                            </TableRow>
-                          ) : activeTasks.length > 0 ? (
-                            activeTasks.map((task) => {
-                              const triggeringReport = reports.find(
-                                (r) => r.id === task.vehicle?.triggeringReportId
-                              );
-                              const sopir = users.find(
-                                (u) => u.id === triggeringReport?.operatorId
-                              );
-                              return (
-                                <TableRow key={task.id}>
-                                  <TableCell>
-                                    <p className="font-semibold">
-                                      {task.vehicle.hullNumber}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {task.vehicle.licensePlate}
-                                    </p>
-                                  </TableCell>
-                                  <TableCell>
-                                    <p>{sopir?.username || 'N/A'}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {formatRelative(new Date(task.createdAt), new Date(), { locale: localeID })}
-                                    </p>
-                                  </TableCell>
-                                  <TableCell className="max-w-[200px] truncate">
-                                    {triggeringReport?.description || 'N/A'}
-                                  </TableCell>
-                                  <TableCell>
-                                    {triggeringReport?.photo && (
-                                        <Dialog>
-                                            <DialogTrigger asChild>
-                                                <Button variant="ghost" size="icon">
-                                                    <Eye className="h-5 w-5" />
-                                                </Button>
-                                            </DialogTrigger>
-                                            <DialogContent className="max-w-3xl">
-                                                <DialogHeader>
-                                                    <DialogTitle>Foto Laporan Kerusakan</DialogTitle>
-                                                </DialogHeader>
-                                                <img src={Array.isArray(triggeringReport.photo) ? triggeringReport.photo[0] : triggeringReport.photo} alt="Foto Kerusakan" className="rounded-lg w-full h-auto" data-ai-hint="mechanic report broken" />
-                                            </DialogContent>
-                                        </Dialog>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    {task.mechanics.map((m) => m.name).join(', ')}
-                                  </TableCell>
-                                  <TableCell>
-                                    {format(new Date(task.vehicle.targetDate), 'dd MMM yyyy')}
-                                    {' @ '}{task.vehicle.targetTime}
-                                  </TableCell>
-                                  <TableCell>
-                                    <Select value={task.status} onValueChange={(newStatus) => handleTaskStatusChange(task, newStatus as MechanicTask['status'])}>
-                                      <SelectTrigger className="w-36">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="PENDING">Menunggu</SelectItem>
-                                        <SelectItem value="IN_PROGRESS">Dikerjakan</SelectItem>
-                                        <SelectItem value="DELAYED">Tunda</SelectItem>
-                                        <SelectItem value="COMPLETED">Selesai</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                                Tidak ada work order yang sedang aktif.
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
         case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
@@ -1138,10 +1006,69 @@ export default function KepalaMekanikPage() {
                     </CardContent>
                 </Card>
             );
-        case 'Histori Perbaikan Alat':
-             return <HistoryComponent user={userInfo} allTasks={mechanicTasks} allUsers={users} allAlat={alat} allReports={reports} />;
-        case 'Anggota Mekanik':
+        case 'Sopir & Batangan':
             return (
+                <main className="space-y-8">
+                    <Card><CardHeader><CardTitle className="flex items-center gap-3"><PlusCircle />{editingPairing ? 'Edit' : 'Tambah'} Pasangan Sopir & Batangan</CardTitle><CardDescription>Pasangkan sopir dengan kendaraan yang akan dioperasikan.</CardDescription></CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+                                <div className="md:col-span-2 space-y-2"><Label>Nama Sopir</Label>
+                                    <Select value={selectedSopir?.id || ''} onValueChange={(val) => setSelectedSopir(sopirOptions.find(s => s.id === val) || null)}>
+                                        <SelectTrigger><SelectValue placeholder="Pilih Sopir..." /></SelectTrigger>
+                                        <SelectContent>{sopirOptions.map(s => <SelectItem key={s.id} value={s.id}>{s.username}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>NIK</Label><Input value={selectedSopir?.nik || ''} disabled className="bg-muted" /></div>
+                                <div className="space-y-2"><Label>Nomor Polisi</Label>
+                                     <Select value={selectedAlat?.id || ''} onValueChange={(val) => setSelectedAlat(alat.find(a => a.id === val) || null)}>
+                                        <SelectTrigger><SelectValue placeholder="Pilih Kendaraan..." /></SelectTrigger>
+                                        <SelectContent>{filteredAlatByLocation.map(a => <SelectItem key={a.id} value={a.id}>{a.nomorPolisi}</SelectItem>)}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2"><Label>Nomor Lambung</Label><Input value={selectedAlat?.nomorLambung || ''} disabled className="bg-muted" /></div>
+                                <div className="md:col-span-3 space-y-2"><Label>Keterangan</Label><Input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="Keterangan (jika ada)..." /></div>
+                                <div className="md:col-span-3 flex gap-2">
+                                <Button className="w-full" onClick={handleSavePairing} disabled={isSubmitting}><Save className="mr-2" />{editingPairing ? 'Update' : 'Simpan'}</Button>
+                                    {editingPairing && <Button className="w-full" variant="outline" onClick={() => { setEditingPairing(null); setSelectedSopir(null); setSelectedAlat(null); setKeterangan(''); }}>Batal</Button>}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card><CardHeader><CardTitle>Daftar Sopir & Batangan Aktif</CardTitle></CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto border rounded-lg">
+                                <Table><TableHeader><TableRow><TableHead>Nama Sopir</TableHead><TableHead>NIK</TableHead><TableHead>Nomor Polisi</TableHead><TableHead>Nomor Lambung</TableHead><TableHead>Keterangan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        {isFetchingPairings ? (<TableRow><TableCell colSpan={6} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : pairings.filter(p => p.lokasi === userInfo?.lokasi).length > 0 ? (pairings.filter(p => p.lokasi === userInfo?.lokasi).map(p => {
+                                                const vehicle = alat.find(a => a.id === p.vehicleId);
+                                                return (
+                                                <TableRow key={p.id}>
+                                                    <TableCell>{p.namaSopir}</TableCell>
+                                                    <TableCell>{p.nik}</TableCell>
+                                                    <TableCell>{p.nomorPolisi}</TableCell>
+                                                    <TableCell>{p.nomorLambung}</TableCell>
+                                                    <TableCell>{p.keterangan}</TableCell>
+                                                    <TableCell className="text-right space-x-1">
+                                                        <Button size="icon" variant="ghost" onClick={() => handleEditPairing(p)}><Pencil className="h-4 w-4 text-amber-500" /></Button>
+                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(vehicle)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>}
+                                                        {vehicle && <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(vehicle)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>}
+                                                        <Button size="icon" variant="ghost" onClick={() => handleDeleteRequest(p, 'pairing')}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                                )
+                                            })) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Belum ada pasangan sopir & batangan.</TableCell></TableRow>)}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </main>
+            );
+        case 'Histori Perbaikan Alat':
+             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+        case 'Anggota Mekanik':
+             return (
                 <Card>
                     <CardHeader>
                         <CardTitle>Anggota Tim Mekanik</CardTitle>
@@ -1163,9 +1090,9 @@ export default function KepalaMekanikPage() {
                                <TableBody>
                                  {isFetchingData ? (
                                      <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                 ) : mechanicsInLocation.length > 0 ? (
-                                     mechanicsInLocation.map(mechanic => {
-                                        const activeTask = activeTasks.find(task => task.mechanics.some(m => m.id === mechanic.id));
+                                 ) : usersInLocation.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK")).length > 0 ? (
+                                     usersInLocation.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK")).map(mechanic => {
+                                        const activeTask = mechanicTasks.find(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === mechanic.id));
                                         return (
                                             <TableRow key={mechanic.id}>
                                                 <TableCell className="font-medium">{mechanic.username}</TableCell>
@@ -1188,6 +1115,46 @@ export default function KepalaMekanikPage() {
                     </CardContent>
                 </Card>
             );
+        case 'Laporan Logistik':
+             return renderLaporanLogistik();
+        case 'Manajemen Pengguna':
+            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
+        case 'Manajemen Alat':
+            return (
+                 <Card>
+                    <CardHeader>
+                        <CardTitle>Manajemen Alat di Lokasi {userInfo?.lokasi}</CardTitle>
+                        <CardDescription>Daftar semua alat yang terdaftar di lokasi Anda.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="overflow-x-auto border rounded-lg">
+                           <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>No. Lambung</TableHead>
+                                        <TableHead>No. Polisi</TableHead>
+                                        <TableHead>Jenis Kendaraan</TableHead>
+                                        <TableHead className="text-right">Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isFetchingData ? (<TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) : filteredAlatByLocation.length > 0 ? (filteredAlatByLocation.map(item => (
+                                        <TableRow key={item.id}>
+                                            <TableCell className="font-medium">{item.nomorLambung}</TableCell>
+                                            <TableCell>{item.nomorPolisi}</TableCell>
+                                            <TableCell>{item.jenisKendaraan}</TableCell>
+                                            <TableCell className="text-right space-x-1">
+                                                <Button size="icon" variant="ghost" onClick={() => handleMutasiRequest(item)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>
+                                                <Button size="icon" variant="ghost" onClick={() => handleQuarantineRequest(item)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))) : (<TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada alat di lokasi ini.</TableCell></TableRow>)}
+                                </TableBody>
+                           </Table>
+                       </div>
+                    </CardContent>
+                </Card>
+            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1204,6 +1171,126 @@ export default function KepalaMekanikPage() {
   return (
     <>
      <audio ref={audioRef} src="/sounds/notification.mp3" preload="auto" />
+    <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Konfirmasi Hapus</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Anda yakin akan menghapus data ini secara permanen? Tindakan ini tidak dapat diurungkan.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={() => {}} disabled={isSubmitting} className="bg-destructive hover:bg-destructive/90">
+                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Ya, Hapus
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+     <Dialog open={isMutasiDialogOpen} onOpenChange={setIsMutasiDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Konfirmasi Mutasi Alat: {mutasiTarget?.nomorLambung}</DialogTitle>
+                <DialogDescription>
+                    Pindahkan alat dari lokasi <strong>{mutasiTarget?.lokasi}</strong> ke lokasi baru. Pastikan Anda yakin sebelum melanjutkan.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Label htmlFor="mutasi-location">Pilih Lokasi Tujuan</Label>
+                <Select value={newLocationForMutasi} onValueChange={setNewLocationForMutasi}>
+                    <SelectTrigger id="mutasi-location">
+                        <SelectValue placeholder="Pilih lokasi..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {locations.filter(l => l.name !== mutasiTarget?.lokasi).map(loc => (
+                            <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setIsMutasiDialogOpen(false)}>Batal</Button>
+                <Button onClick={handleConfirmMutasi} disabled={isMutating}>
+                    {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Konfirmasi & Pindahkan
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+     <Dialog open={!!editingAlat} onOpenChange={(isOpen) => !isOpen && setEditingAlat(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Edit Alat</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleConfirmEditAlat} className="space-y-4 pt-4">
+                <div>
+                    <Label htmlFor="editNomorLambung">Nomor Lambung</Label>
+                    <Input id="editNomorLambung" name="editNomorLambung" defaultValue={editingAlat?.nomorLambung} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <div>
+                    <Label htmlFor="editNomorPolisi">Nomor Polisi</Label>
+                    <Input id="editNomorPolisi" name="editNomorPolisi" defaultValue={editingAlat?.nomorPolisi} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                 <div>
+                    <Label htmlFor="editJenisKendaraan">Jenis Kendaraan</Label>
+                    <Input id="editJenisKendaraan" name="editJenisKendaraan" defaultValue={editingAlat?.jenisKendaraan} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setEditingAlat(null)}>Batal</Button>
+                    <Button type="submit" disabled={isEditingAlat}>
+                        {isEditingAlat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+     <Dialog open={!!editingUser} onOpenChange={(isOpen) => !isOpen && setEditingUser(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Edit Pengguna</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleConfirmEditUser} className="space-y-4 pt-4">
+                 <div>
+                    <Label htmlFor="editUsername">Nama Pengguna</Label>
+                    <Input id="editUsername" name="editUsername" defaultValue={editingUser?.username} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <div>
+                    <Label htmlFor="editPassword">Sandi Baru (opsional)</Label>
+                    <Input id="editPassword" name="editPassword" type="password" placeholder="Kosongkan jika tidak ingin diubah" />
+                </div>
+                <div>
+                    <Label htmlFor="editNik">NIK</Label>
+                    <Input id="editNik" name="editNik" defaultValue={editingUser?.nik} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <div>
+                    <Label htmlFor="editJabatan">Jabatan</Label>
+                    <Select name="editJabatan" defaultValue={editingUser?.jabatan}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                            {jabatanOptions.map(jabatan => <SelectItem key={jabatan} value={jabatan}>{jabatan}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                 <div>
+                    <Label htmlFor="editLokasi">Lokasi</Label>
+                    <Select name="editLokasi" defaultValue={editingUser?.lokasi}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                            {locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>Batal</Button>
+                    <Button type="submit" disabled={isEditingUser}>
+                         {isEditingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+    
       <Dialog open={isDetailListOpen} onOpenChange={setIsDetailListOpen}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
@@ -1273,7 +1360,7 @@ export default function KepalaMekanikPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Kepala Workshop</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
