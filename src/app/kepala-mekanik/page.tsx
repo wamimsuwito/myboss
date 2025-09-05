@@ -64,8 +64,6 @@ import {
     Briefcase,
     ShieldX,
     Eye,
-    Play,
-    MoreVertical,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { UserData, Report, LocationData, SopirBatanganData, AlatData, MechanicTask } from '@/lib/types';
@@ -543,6 +541,11 @@ export default function KepalaMekanikPage() {
   const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
   const [hasNewMessage, setHasNewMessage] = useState(false);
   const isInitialLoad = useRef(true);
+
+  // State for completion dialog
+  const [taskToComplete, setTaskToComplete] = useState<MechanicTask | null>(null);
+  const [completionDescription, setCompletionDescription] = useState('');
+  
   
 
   const getStatusBadge = (status: Report['overallStatus'] | 'Belum Checklist' | 'Tanpa Operator' | 'Karantina') => {
@@ -792,7 +795,7 @@ export default function KepalaMekanikPage() {
     return mechanicTasks.filter(task => task.status !== 'COMPLETED');
   }, [mechanicTasks]);
   
-  const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status']) => {
+  const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status'], repairDescription?: string) => {
     const taskDocRef = doc(db, 'mechanic_tasks', task.id);
     const updateData: Partial<MechanicTask> = { status: newStatus };
 
@@ -820,19 +823,16 @@ export default function KepalaMekanikPage() {
     }
     
     if (newStatus === 'COMPLETED') {
-        const repairDescription = prompt("Masukkan deskripsi perbaikan yang telah dilakukan:");
-        if (repairDescription) {
-            updateData.completedAt = new Date().getTime();
-            updateData.mechanicRepairDescription = repairDescription;
+        if (!repairDescription) {
+             toast({ title: "Aksi Dibatalkan", description: "Deskripsi perbaikan wajib diisi untuk menyelesaikan WO.", variant: "destructive" });
+             return;
+        }
+        updateData.completedAt = new Date().getTime();
+        updateData.mechanicRepairDescription = repairDescription;
 
-            if (task.vehicle.triggeringReportId) {
-                const reportDocRef = doc(db, 'checklist_reports', task.vehicle.triggeringReportId);
-                await updateDoc(reportDocRef, { overallStatus: 'baik' });
-            }
-
-        } else {
-            toast({ title: "Aksi Dibatalkan", description: "Deskripsi perbaikan wajib diisi untuk menyelesaikan WO.", variant: "destructive" });
-            return;
+        if (task.vehicle.triggeringReportId) {
+            const reportDocRef = doc(db, 'checklist_reports', task.vehicle.triggeringReportId);
+            await updateDoc(reportDocRef, { overallStatus: 'baik' });
         }
     }
 
@@ -845,6 +845,26 @@ export default function KepalaMekanikPage() {
       toast({ title: "Gagal Memperbarui Status", variant: "destructive" });
     }
   };
+  
+    const handleStatusSelect = (task: MechanicTask, newStatus: MechanicTask['status']) => {
+        if (newStatus === 'COMPLETED') {
+            setTaskToComplete(task);
+            setCompletionDescription('');
+        } else {
+            handleTaskStatusChange(task, newStatus);
+        }
+    };
+    
+    const handleConfirmCompletion = () => {
+        if (taskToComplete && completionDescription) {
+            handleTaskStatusChange(taskToComplete, 'COMPLETED', completionDescription);
+            setTaskToComplete(null);
+            setCompletionDescription('');
+        } else {
+             toast({ title: "Deskripsi Kosong", description: "Harap isi deskripsi perbaikan.", variant: "destructive" });
+        }
+    };
+
 
   const getTaskStatusBadge = (status: MechanicTask['status']) => {
     switch (status) {
@@ -1071,7 +1091,7 @@ export default function KepalaMekanikPage() {
                                     {' @ '}{task.vehicle.targetTime}
                                   </TableCell>
                                   <TableCell>
-                                    <Select value={task.status} onValueChange={(newStatus) => handleTaskStatusChange(task, newStatus as MechanicTask['status'])}>
+                                    <Select value={task.status} onValueChange={(newStatus) => handleStatusSelect(task, newStatus as MechanicTask['status'])}>
                                       <SelectTrigger className="w-36">
                                         <SelectValue />
                                       </SelectTrigger>
@@ -1296,6 +1316,33 @@ export default function KepalaMekanikPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+    
+    <Dialog open={!!taskToComplete} onOpenChange={(open) => !open && setTaskToComplete(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Selesaikan Work Order</DialogTitle>
+                <DialogDescription>
+                    Masukkan deskripsi perbaikan yang telah dilakukan untuk kendaraan <strong>{taskToComplete?.vehicle.hullNumber}</strong>.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Label htmlFor="completionDescription">Deskripsi Perbaikan</Label>
+                <Textarea
+                    id="completionDescription"
+                    value={completionDescription}
+                    onChange={(e) => setCompletionDescription(e.target.value)}
+                    placeholder="Contoh: Mengganti oli mesin dan filter oli."
+                    rows={4}
+                />
+            </div>
+            <DialogFooter>
+                <Button variant="outline" onClick={() => setTaskToComplete(null)}>Batal</Button>
+                <Button onClick={handleConfirmCompletion}>
+                    Selesaikan Pekerjaan
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 
 
     <SidebarProvider>
