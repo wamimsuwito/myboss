@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import * as React from 'react';
@@ -1189,7 +1188,7 @@ export default function WorkshopPage() {
         case 'Histori Perbaikan Alat':
              return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         case 'Anggota Mekanik':
-             return (
+            return (
                 <Card>
                     <CardHeader>
                         <CardTitle>Anggota Tim Mekanik</CardTitle>
