@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import * as React from 'react';
@@ -27,7 +28,6 @@ import LaporanPemasukanPrintLayout from '@/components/laporan-pemasukan-print-la
 import { printElement } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import ReactDOM from 'react-dom/client';
 
 const materialConfig = [
     { key: 'semen', name: 'SEMEN' },
@@ -92,6 +92,18 @@ export default function AdminLogistikPage() {
   const [filteredPemasukan, setFilteredPemasukan] = useState<PemasukanLogEntry[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+  
+  const [printData, setPrintData] = useState<{data: PemasukanLogEntry[], period: DateRange | undefined} | null>(null);
+
+  useEffect(() => {
+    if (printData) {
+      const timer = setTimeout(() => {
+        window.print();
+        setPrintData(null); 
+      }, 200); 
+      return () => clearTimeout(timer);
+    }
+  }, [printData]);
 
 
    useEffect(() => {
@@ -480,37 +492,15 @@ export default function AdminLogistikPage() {
     };
   
     const handlePrintReport = (type: 'today' | 'history') => {
-        const dataToPrint = type === 'today' ? dailyLog : filteredPemasukan;
-        const period = type === 'today' ? undefined : dateRange;
-        
-        if (dataToPrint.length === 0) {
-            toast({ title: "Tidak ada data untuk dicetak", variant: 'destructive' });
-            return;
-        }
-
-        const printContentId = "pemasukan-report-print-area";
-        let printArea = document.getElementById(printContentId);
-
-        if (!printArea) {
-            printArea = document.createElement('div');
-            printArea.id = printContentId;
-            document.body.appendChild(printArea);
-        }
-
-        const printRoot = ReactDOM.createRoot(printArea);
-        printRoot.render(
-            <React.StrictMode>
-                <LaporanPemasukanPrintLayout
-                    data={dataToPrint}
-                    location={userInfo?.lokasi || ''}
-                    period={period}
-                />
-            </React.StrictMode>
-        );
-
-        setTimeout(() => {
-            printElement(printContentId);
-        }, 100);
+      const dataToPrint = type === 'today' ? dailyLog : filteredPemasukan;
+      const period = type === 'today' ? undefined : dateRange;
+  
+      if (dataToPrint.length === 0) {
+        toast({ title: "Tidak ada data untuk dicetak", variant: 'destructive' });
+        return;
+      }
+      
+      setPrintData({ data: dataToPrint, period });
     };
 
   const clearHistoryFilter = () => {
@@ -547,7 +537,15 @@ export default function AdminLogistikPage() {
   
   return (
     <>
-       <div id="pemasukan-report-print-area" className="hidden"></div>
+        <div className="print-only">
+          {printData && (
+              <LaporanPemasukanPrintLayout
+                  data={printData.data}
+                  location={userInfo?.lokasi || ''}
+                  period={printData.period}
+              />
+          )}
+        </div>
        <AlertDialog open={isConfirmArrivalOpen} onOpenChange={setIsConfirmArrivalOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader><AlertDialogTitle>Konfirmasi Kedatangan: {selectedRencana?.namaKapal}</AlertDialogTitle><AlertDialogDescriptionComponent>Pastikan kendaraan sudah tiba di lokasi sebelum melanjutkan.</AlertDialogDescriptionComponent></AlertDialogHeader>
@@ -717,7 +715,7 @@ export default function AdminLogistikPage() {
                 </DropdownMenuContent>
             </DropdownMenu>
         </SidebarFooter></SidebarContent></Sidebar>
-            <SidebarInset><main className="flex-1 p-6 lg:p-10">
+            <SidebarInset><main className="flex-1 p-6 lg:p-10 no-print">
                     <header className="flex items-center justify-between gap-4 mb-8"><div className='flex items-center gap-4'><SidebarTrigger /><div><h1 className="text-2xl font-bold tracking-wider">{activeMenu === 'pemasukan' ? 'Pemasukan Material' : activeMenu === 'riwayat' ? 'Riwayat Pemasukan Material' : activeMenu === 'rencana' ? 'Rencana Pemasukan Material' : activeMenu === 'riwayat-bongkar' ? 'Riwayat Bongkar Material' : activeMenu === 'status' ? 'Status Bongkaran Hari Ini' : activeMenu === 'daftar-kendaraan' ? 'Daftar Kendaraan Aktif' : 'Bongkar Batu & Pasir Hari Ini (WO-Sopir DT)'}</h1><p className="text-muted-foreground">Lokasi: <span className='font-semibold text-primary'>{userInfo.lokasi}</span></p></div></div>{activeMenu === 'pemasukan' && (<Button variant="outline" onClick={() => handlePrintReport('today')}><Printer className="mr-2 h-4 w-4" /> Cetak Laporan Hari Ini</Button>)}</header>
                     
                     {activeMenu === 'status' && (<div className='space-y-6'>
