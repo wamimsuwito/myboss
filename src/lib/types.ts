@@ -126,6 +126,7 @@ export interface PrintData {
     nomorRitasi?: number;
     totalVolumeTerkirim?: number;
     unitBp?: string;
+    selectedSilo?: string;
 }
 
 export interface ProductionData {
