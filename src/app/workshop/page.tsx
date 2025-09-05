@@ -99,7 +99,7 @@ const menuItems = [
     { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert },
     { name: 'Anggota Mekanik', icon: Users },
     { name: 'Laporan Logistik', icon: Truck },
-    { name: 'Manajemen Pengguna', icon: Users },
+    { name: 'Manajemen Pengguna', icon: UserPlus },
     { name: 'Manajemen Alat', icon: Construction },
     { name: 'Riwayat Penalti', icon: ShieldX },
     { name: 'Komplain dari Sopir', icon: MessageSquareWarning },
@@ -557,12 +557,16 @@ export default function WorkshopPage() {
 
   // Delete state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<AlatData | SopirBatanganData | null>(null);
-  const [deleteType, setDeleteType] = useState<'alat' | 'pairing' | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<AlatData | SopirBatanganData | UserData | null>(null);
+  const [deleteType, setDeleteType] = useState<'alat' | 'pairing' | 'user' | null>(null);
 
   // Edit Alat state
   const [editingAlat, setEditingAlat] = useState<AlatData | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditingAlat, setIsEditingAlat] = useState(false);
+
+  // Edit User state
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
+  const [isEditingUser, setIsEditingUser] = useState(false);
   
   // Detail List Dialog state
   const [detailListTitle, setDetailListTitle] = useState('');
@@ -887,7 +891,7 @@ export default function WorkshopPage() {
     }
   };
 
-  const handleDeleteRequest = (item: AlatData | SopirBatanganData, type: 'alat' | 'pairing') => {
+  const handleDeleteRequest = (item: AlatData | SopirBatanganData | UserData, type: 'alat' | 'pairing' | 'user') => {
     setItemToDelete(item);
     setDeleteType(type);
     setIsDeleteDialogOpen(true);
@@ -897,7 +901,7 @@ export default function WorkshopPage() {
     if (!itemToDelete || !deleteType) return;
     setIsSubmitting(true);
     try {
-        const collectionName = deleteType === 'alat' ? 'alat' : 'sopir_batangan';
+        const collectionName = deleteType === 'alat' ? 'alat' : deleteType === 'pairing' ? 'sopir_batangan' : 'users';
         const docRef = doc(db, collectionName, itemToDelete.id);
         await deleteDoc(docRef);
         toast({ title: 'Data Dihapus' });
@@ -911,14 +915,14 @@ export default function WorkshopPage() {
     }
   };
 
-  const handleEditRequest = (alatToEdit: AlatData) => {
+  const handleEditAlatRequest = (alatToEdit: AlatData) => {
     setEditingAlat(alatToEdit);
   };
 
-  const handleConfirmEdit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleConfirmEditAlat = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editingAlat) return;
-    setIsEditing(true);
+    setIsEditingAlat(true);
 
     const form = event.currentTarget;
     const formData = new FormData(form);
@@ -937,9 +941,45 @@ export default function WorkshopPage() {
     } catch (error) {
         toast({ title: 'Error', variant: 'destructive' });
     } finally {
-        setIsEditing(false);
+        setIsEditingAlat(false);
     }
   };
+
+  const handleEditUserRequest = (userToEdit: UserData) => {
+      setEditingUser(userToEdit);
+  }
+  
+  const handleConfirmEditUser = async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      if(!editingUser) return;
+      setIsEditingUser(true);
+
+      const form = event.currentTarget;
+      const formData = new FormData(form);
+
+      const updatedUserData: Partial<UserData> = {
+        username: (formData.get('editUsername') as string).toUpperCase(),
+        nik: (formData.get('editNik') as string).toUpperCase(),
+        jabatan: formData.get('editJabatan') as string,
+        lokasi: formData.get('editLokasi') as string,
+      };
+      const newPassword = formData.get('editPassword') as string;
+      if (newPassword) {
+        updatedUserData.password = newPassword;
+      }
+
+      try {
+          const userDocRef = doc(db, 'users', editingUser.id);
+          await updateDoc(userDocRef, updatedUserData);
+          toast({ title: 'Pengguna Diperbarui' });
+          setEditingUser(null);
+      } catch(e) {
+          toast({ title: 'Gagal Memperbarui', variant: 'destructive' });
+      } finally {
+          setIsEditingUser(false);
+      }
+  }
+
 
   // Sopir & Batangan Handlers
   const handleSavePairing = async () => {
@@ -1013,6 +1053,19 @@ export default function WorkshopPage() {
                 await deleteDoc(doc(db, "sopir_batangan", pairingDoc.id));
                 toast({ title: 'Sopir Dilepaskan', description: `Sopir untuk ${quarantineTarget.nomorLambung} telah dilepaskan.` });
             }
+            
+            const dummyReport: Omit<Report, 'id' | 'timestamp'> & { timestamp: any } = {
+                timestamp: Timestamp.now(),
+                nomorLambung: quarantineTarget.nomorLambung,
+                operatorName: 'SISTEM',
+                operatorId: 'SISTEM',
+                location: quarantineTarget.lokasi,
+                overallStatus: 'rusak',
+                description: 'Alat ini dalam kondisi rusak berat dan dimasukkan ke dalam karantina.',
+                photo: '',
+            };
+            await addDoc(collection(db, 'checklist_reports'), dummyReport);
+            
              toast({
                 title: `Alat Dikarantina`,
                 description: `${quarantineTarget.nomorLambung} telah dimasukkan ke karantina.`
@@ -1196,50 +1249,48 @@ export default function WorkshopPage() {
         case 'Histori Perbaikan Alat':
              return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         case 'Anggota Mekanik':
-            return (
+             return (
                 <Card>
                     <CardHeader>
                         <CardTitle>Anggota Tim Mekanik</CardTitle>
-                        <CardDescription>
-                            Daftar semua mekanik di lokasi Anda.
-                        </CardDescription>
+                        <CardDescription>Daftar semua mekanik di lokasi Anda.</CardDescription>
                     </CardHeader>
                     <CardContent>
-                       <div className="overflow-x-auto border rounded-lg">
-                           <Table>
-                               <TableHeader>
-                                   <TableRow>
-                                       <TableHead>Nama</TableHead>
-                                       <TableHead>NIK</TableHead>
-                                       <TableHead>Tugas Aktif</TableHead>
-                                       <TableHead>Status</TableHead>
-                                   </TableRow>
-                               </TableHeader>
-                               <TableBody>
-                                 {isFetchingData ? (
-                                     <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                 ) : mechanicsInLocation.length > 0 ? (
-                                     mechanicsInLocation.map(mechanic => {
-                                        const activeTask = mechanicTasks.find(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === mechanic.id));
-                                        return (
-                                            <TableRow key={mechanic.id}>
-                                                <TableCell className="font-medium">{mechanic.username}</TableCell>
-                                                <TableCell>{mechanic.nik}</TableCell>
-                                                <TableCell>{activeTask ? `${activeTask.vehicle.hullNumber} - ${activeTask.vehicle.repairDescription}` : '-'}</TableCell>
-                                                <TableCell>
-                                                    <Badge variant={activeTask ? 'destructive' : 'default'} className={!activeTask ? 'bg-green-600' : ''}>
-                                                        {activeTask ? 'Bertugas' : 'Standby'}
-                                                    </Badge>
-                                                </TableCell>
-                                            </TableRow>
-                                        )
-                                     })
-                                 ) : (
-                                      <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada mekanik di lokasi ini.</TableCell></TableRow>
-                                 )}
-                               </TableBody>
-                           </Table>
-                       </div>
+                        <div className="overflow-x-auto border rounded-lg">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Nama</TableHead>
+                                        <TableHead>NIK</TableHead>
+                                        <TableHead>Tugas Aktif</TableHead>
+                                        <TableHead>Status</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isFetchingData ? (
+                                        <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                    ) : mechanicsInLocation.length > 0 ? (
+                                        mechanicsInLocation.map(mechanic => {
+                                            const activeTask = mechanicTasks.find(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === mechanic.id));
+                                            return (
+                                                <TableRow key={mechanic.id}>
+                                                    <TableCell className="font-medium">{mechanic.username}</TableCell>
+                                                    <TableCell>{mechanic.nik}</TableCell>
+                                                    <TableCell>{activeTask ? `${activeTask.vehicle.hullNumber} - ${activeTask.vehicle.repairDescription}` : '-'}</TableCell>
+                                                    <TableCell>
+                                                        <Badge variant={activeTask ? 'destructive' : 'default'} className={!activeTask ? 'bg-green-600' : ''}>
+                                                            {activeTask ? 'Bertugas' : 'Standby'}
+                                                        </Badge>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        })
+                                    ) : (
+                                        <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada mekanik di lokasi ini.</TableCell></TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </CardContent>
                 </Card>
             );
@@ -1248,43 +1299,7 @@ export default function WorkshopPage() {
         case 'Manajemen Pengguna':
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
         case 'Manajemen Alat':
-            return (
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>Manajemen Alat</CardTitle>
-                        <CardDescription>Daftar semua alat yang terdaftar di lokasi Anda.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Nomor Lambung</TableHead>
-                                    <TableHead>Nomor Polisi</TableHead>
-                                    <TableHead>Jenis Kendaraan</TableHead>
-                                    <TableHead className="text-right">Aksi</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {isFetchingData ? (<TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) :
-                                alat.filter(a => a.lokasi === userInfo?.lokasi && !a.statusKarantina).map(item => (
-                                    <TableRow key={item.id}>
-                                        <TableCell className="font-medium">{item.nomorLambung}</TableCell>
-                                        <TableCell>{item.nomorPolisi}</TableCell>
-                                        <TableCell>{item.jenisKendaraan}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" onClick={() => handleMutasiRequest(item)}><ArrowRightLeft className="h-4 w-4 text-blue-500" /></Button>
-                                            <Button variant="ghost" size="icon" onClick={() => handleQuarantineRequest(item)}><ShieldAlert className="h-4 w-4 text-destructive" /></Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                {alat.filter(a => a.lokasi === userInfo?.lokasi).length === 0 && (
-                                     <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada alat di lokasi ini.</TableCell></TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            );
+            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1353,7 +1368,7 @@ export default function WorkshopPage() {
             <DialogHeader>
                 <DialogTitle>Edit Alat</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleConfirmEdit} className="space-y-4 pt-4">
+            <form onSubmit={handleConfirmEditAlat} className="space-y-4 pt-4">
                 <div>
                     <Label htmlFor="editNomorLambung">Nomor Lambung</Label>
                     <Input id="editNomorLambung" name="editNomorLambung" defaultValue={editingAlat?.nomorLambung} required style={{ textTransform: 'uppercase' }} />
@@ -1368,8 +1383,53 @@ export default function WorkshopPage() {
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => setEditingAlat(null)}>Batal</Button>
-                    <Button type="submit" disabled={isEditing}>
-                        {isEditing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
+                    <Button type="submit" disabled={isEditingAlat}>
+                        {isEditingAlat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </DialogContent>
+    </Dialog>
+     <Dialog open={!!editingUser} onOpenChange={(isOpen) => !isOpen && setEditingUser(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Edit Pengguna</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleConfirmEditUser} className="space-y-4 pt-4">
+                 <div>
+                    <Label htmlFor="editUsername">Nama Pengguna</Label>
+                    <Input id="editUsername" name="editUsername" defaultValue={editingUser?.username} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <div>
+                    <Label htmlFor="editPassword">Sandi Baru (opsional)</Label>
+                    <Input id="editPassword" name="editPassword" type="password" placeholder="Kosongkan jika tidak ingin diubah" />
+                </div>
+                <div>
+                    <Label htmlFor="editNik">NIK</Label>
+                    <Input id="editNik" name="editNik" defaultValue={editingUser?.nik} required style={{ textTransform: 'uppercase' }} />
+                </div>
+                <div>
+                    <Label htmlFor="editJabatan">Jabatan</Label>
+                    <Select name="editJabatan" defaultValue={editingUser?.jabatan}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                            {jabatanOptions.map(jabatan => <SelectItem key={jabatan} value={jabatan}>{jabatan}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                 <div>
+                    <Label htmlFor="editLokasi">Lokasi</Label>
+                    <Select name="editLokasi" defaultValue={editingUser?.lokasi}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                            {locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>Batal</Button>
+                    <Button type="submit" disabled={isEditingUser}>
+                         {isEditingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
                     </Button>
                 </DialogFooter>
             </form>
