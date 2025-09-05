@@ -26,6 +26,16 @@ export default function LaporanPemasukanPrintLayout({ data, location, period }: 
   const periodTitle = period?.from 
     ? format(period.from, "d MMMM yyyy", { locale: id }) + (period.to ? " - " + format(period.to, "d MMMM yyyy", { locale: id }) : "") 
     : "Semua Waktu";
+    
+  const summary = data.reduce((acc, item) => {
+    const materialKey = item.material.toUpperCase();
+    if (!acc[materialKey]) {
+        acc[materialKey] = { total: 0, unit: item.unit };
+    }
+    acc[materialKey].total += item.jumlah;
+    return acc;
+  }, {} as Record<string, { total: number; unit: string }>);
+
 
   return (
     <div className="bg-white text-black p-4 font-sans printable-area">
@@ -41,7 +51,7 @@ export default function LaporanPemasukanPrintLayout({ data, location, period }: 
             <div style={{ clear: 'both' }}></div>
         </header>
         <hr className="border-t-2 border-black my-2" />
-        <h2 className="text-center font-bold text-lg uppercase my-4">Laporan Pemasukan Material</h2>
+        <h2 className="text-center font-bold text-lg uppercase my-4">LAPORAN PEMASUKAN MATERIAL</h2>
         <p className="report-date text-center text-sm mb-4">
           Lokasi: {location} - Periode: {periodTitle}
         </p>
@@ -67,7 +77,7 @@ export default function LaporanPemasukanPrintLayout({ data, location, period }: 
                 <td className="border border-black p-1 text-center text-xs">{entry.noSpb}</td>
                 <td className="border border-black p-1 text-center text-xs">{entry.namaKapal}</td>
                 <td className="border border-black p-1 text-center text-xs">{entry.namaSopir}</td>
-                <td className="border border-black p-1 text-center text-xs">{entry.jumlah.toLocaleString('id-ID')} {entry.unit}</td>
+                <td className="border border-black p-1 text-right text-xs">{entry.jumlah.toLocaleString('id-ID')} {entry.unit}</td>
                 <td className="border border-black p-1 text-center text-xs">{entry.keterangan || '-'}</td>
               </tr>
             ))}
@@ -76,6 +86,22 @@ export default function LaporanPemasukanPrintLayout({ data, location, period }: 
             )}
           </tbody>
         </table>
+        
+        <div className="mt-4 flex justify-end">
+            <div className="w-1/2">
+                <h3 className="font-bold text-sm mb-1">Ringkasan Total Pemasukan:</h3>
+                <table className="w-full material-table text-xs">
+                    <tbody>
+                        {Object.entries(summary).map(([material, { total, unit }]) => (
+                            <tr key={material}>
+                                <td className="font-semibold border border-black p-1">Total {material}</td>
+                                <td className="text-right border border-black p-1">{total.toLocaleString('id-ID')} {unit}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
       </main>
     </div>
   );
