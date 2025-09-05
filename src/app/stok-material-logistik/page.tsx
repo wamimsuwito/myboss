@@ -19,8 +19,8 @@ import { id as localeID } from 'date-fns/locale';
 import { db, collection, getDocs, doc, setDoc, addDoc } from '@/lib/firebase';
 
 const materialConfig = [
-    { key: 'pasir', name: 'PASIR', unit: 'KG' },
-    { key: 'batu', name: 'BATU', unit: 'KG' },
+    { key: 'pasir', name: 'PASIR', unit: 'M³' },
+    { key: 'batu', name: 'BATU', unit: 'M³' },
     { key: 'air', name: 'AIR', unit: 'KG' },
     { key: 'sikaVz', name: 'SIKA VZ', unit: 'LT' },
     { key: 'sikaNn', 'name': 'SIKA NN', 'unit': 'LT' },

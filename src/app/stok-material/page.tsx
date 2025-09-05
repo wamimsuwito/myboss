@@ -16,8 +16,6 @@ import { cn } from '@/lib/utils';
 // --- Constants ---
 const SAND_CAPACITY_M3 = 10000;
 const STONE_CAPACITY_M3 = 15000;
-const SAND_DENSITY_KG_PER_M3 = 1225;
-const STONE_DENSITY_KG_PER_M3 = 1400;
 
 const ALL_UNITS = ['BP-1', 'BP-2', 'BP-3'];
 
@@ -101,9 +99,8 @@ const Silo = ({ name, data }: { name: string; data: SiloData; }) => {
   );
 };
 
-const AggregateStock = ({ name, levelInKg, density, capacityInM3, colorClass, unit, icon: Icon }: { name: string; levelInKg: number; density: number; capacityInM3: number; colorClass: string; unit: string; icon: React.ElementType }) => {
-  const levelInM3 = levelInKg / density;
-  const displayLevel = capacityInM3 > 0 ? Math.max(0, Math.min(100, Math.round((levelInM3 / capacityInM3) * 100))) : 0;
+const AggregateStock = ({ name, level, capacityInM3, colorClass, unit, icon: Icon }: { name: string; level: number; capacityInM3: number; colorClass: string; unit: string; icon: React.ElementType }) => {
+  const displayLevel = capacityInM3 > 0 ? Math.max(0, Math.min(100, Math.round((level / capacityInM3) * 100))) : 0;
   
   const clipId = `clip-pile-${name.replace(/[^a-zA-Z0-9-]/g, '')}`;
 
@@ -121,7 +118,7 @@ const AggregateStock = ({ name, levelInKg, density, capacityInM3, colorClass, un
         </div>
       </div>
       <div className='text-center my-1'>
-        <p className='text-xl font-bold text-foreground'>{levelInM3.toLocaleString('id-ID', { maximumFractionDigits: 2 })} {unit}</p>
+        <p className='text-xl font-bold text-foreground'>{level.toLocaleString('id-ID', { maximumFractionDigits: 2 })} {unit}</p>
         <p className='text-xs text-muted-foreground'>/ {capacityInM3.toLocaleString('id-ID')} {unit}</p>
       </div>
     </div>
@@ -243,8 +240,7 @@ export default function StokMaterialPage() {
                       <div className="flex flex-wrap justify-center items-start gap-8 p-6 rounded-lg bg-muted/30">
                           <AggregateStock
                               name="STOK PASIR"
-                              levelInKg={Number(aggregateStock?.pasir || 0)}
-                              density={SAND_DENSITY_KG_PER_M3}
+                              level={Number(aggregateStock?.pasir || 0)}
                               capacityInM3={SAND_CAPACITY_M3}
                               unit="M³"
                               colorClass="text-yellow-400"
@@ -252,8 +248,7 @@ export default function StokMaterialPage() {
                           />
                           <AggregateStock
                               name="STOK BATU"
-                              levelInKg={Number(aggregateStock?.batu || 0)}
-                              density={STONE_DENSITY_KG_PER_M3}
+                              level={Number(aggregateStock?.batu || 0)}
                               capacityInM3={STONE_CAPACITY_M3}
                               unit="M³"
                               colorClass="text-gray-400"
