@@ -320,7 +320,7 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     }
 };
 
-const HistoriContent = ({ user, allTasks, users, allAlat, allReports }: { user: UserData | null; allTasks: MechanicTask[]; users: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
+const HistoriContent = ({ user, allTasks, users, allAlat, allReports, isFetchingData }: { user: UserData | null; allTasks: MechanicTask[]; users: UserData[]; allAlat: AlatData[], allReports: Report[], isFetchingData: boolean }) => {
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
     const [date, setDate] = useState<DateRange | undefined>({
@@ -335,6 +335,9 @@ const HistoriContent = ({ user, allTasks, users, allAlat, allReports }: { user: 
     }, [users, user]);
   
     const filteredTasks = useMemo(() => {
+      if (!allAlat || allAlat.length === 0 || !allTasks || allTasks.length === 0) {
+          return [];
+      }
       const fromDate = date?.from ? startOfDay(date.from) : null;
       const toDate = date?.to ? endOfDay(date.to) : null;
   
@@ -421,6 +424,9 @@ const HistoriContent = ({ user, allTasks, users, allAlat, allReports }: { user: 
                     <Button variant="ghost" onClick={() => { setSearchNoPol(''); setSelectedOperatorId('all'); setDate({ from: subDays(new Date(), 29), to: new Date() }); }}><FilterX className="mr-2 h-4 w-4"/>Reset</Button>
                     <Button variant="outline" className="ml-auto" onClick={() => printElement('history-print-area')}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
                 </div>
+                 {isFetchingData ? (
+                        <div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
+                    ) : (
                 <div className="border rounded-md overflow-x-auto">
                     <Table>
                     <TableHeader>
@@ -501,6 +507,7 @@ const HistoriContent = ({ user, allTasks, users, allAlat, allReports }: { user: 
                     </TableBody>
                     </Table>
                 </div>
+                    )}
                 </CardContent>
             </Card>
         </>
@@ -514,6 +521,7 @@ export default function KepalaMekanikPage() {
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>('Dashboard');
   const [userInfo, setUserInfo] = useState<UserData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [alat, setAlat] = useState<AlatData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
@@ -525,12 +533,9 @@ export default function KepalaMekanikPage() {
   const [isDetailListOpen, setIsDetailListOpen] = useState(false);
   const [detailListTitle, setDetailListTitle] = useState('');
   const [detailListData, setDetailListData] = useState<any[]>([]);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<any>(null);
   
   const [isQuarantineConfirmOpen, setIsQuarantineConfirmOpen] = useState(false);
   const [quarantineTarget, setQuarantineTarget] = useState<AlatData | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement>(null);
   const [seenDamagedReports, setSeenDamagedReports] = useState<Set<string>>(new Set());
@@ -859,6 +864,19 @@ export default function KepalaMekanikPage() {
                 await deleteDoc(doc(db, "sopir_batangan", pairingDoc.id));
                 toast({ title: 'Sopir Dilepaskan', description: `Sopir untuk ${quarantineTarget.nomorLambung} telah dilepaskan.` });
             }
+            
+            const dummyReport: Omit<Report, 'id' | 'timestamp'> & { timestamp: any } = {
+                timestamp: Timestamp.now(),
+                nomorLambung: quarantineTarget.nomorLambung,
+                operatorName: 'SISTEM',
+                operatorId: 'SISTEM',
+                location: quarantineTarget.lokasi,
+                overallStatus: 'rusak',
+                description: 'Alat ini dalam kondisi rusak berat dan dimasukkan ke dalam karantina.',
+                photo: '',
+            };
+            await addDoc(collection(db, 'checklist_reports'), dummyReport);
+            
              toast({
                 title: `Alat Dikarantina`,
                 description: `${quarantineTarget.nomorLambung} telah dimasukkan ke karantina.`
@@ -1122,7 +1140,55 @@ export default function KepalaMekanikPage() {
                 </Card>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} allAlat={alat} allReports={reports} isFetchingData={isFetchingData} />;
+        case 'Anggota Mekanik':
+             return (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Anggota Tim Mekanik</CardTitle>
+                        <CardDescription>
+                            Daftar semua mekanik di lokasi Anda.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                       <div className="overflow-x-auto border rounded-lg">
+                           <Table>
+                               <TableHeader>
+                                   <TableRow>
+                                       <TableHead>Nama</TableHead>
+                                       <TableHead>NIK</TableHead>
+                                       <TableHead>Tugas Aktif</TableHead>
+                                       <TableHead>Status</TableHead>
+                                   </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                 {isFetchingData ? (
+                                     <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                 ) : usersInLocation.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK")).length > 0 ? (
+                                     usersInLocation.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK")).map(mechanic => {
+                                        const activeTask = mechanicTasks.find(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === mechanic.id));
+                                        return (
+                                            <TableRow key={mechanic.id}>
+                                                <TableCell className="font-medium">{mechanic.username}</TableCell>
+                                                <TableCell>{mechanic.nik}</TableCell>
+                                                <TableCell>{activeTask ? `${activeTask.vehicle.hullNumber} - ${activeTask.vehicle.repairDescription}` : '-'}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={activeTask ? 'destructive' : 'default'} className={!activeTask ? 'bg-green-600' : ''}>
+                                                        {activeTask ? 'Bertugas' : 'Standby'}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                     })
+                                 ) : (
+                                      <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada mekanik di lokasi ini.</TableCell></TableRow>
+                                 )}
+                               </TableBody>
+                           </Table>
+                       </div>
+                    </CardContent>
+                </Card>
+            );
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1208,7 +1274,7 @@ export default function KepalaMekanikPage() {
         <Sidebar>
           <SidebarContent className="flex flex-col">
             <SidebarHeader>
-              <h2 className="text-lg font-semibold text-primary px-2">Kepala Mekanik</h2>
+              <h2 className="text-lg font-semibold text-primary px-2">Dasbor Mekanik</h2>
             </SidebarHeader>
             <SidebarMenu className="flex-1">
               {menuItems.map((item) => (
@@ -1264,3 +1330,6 @@ export default function KepalaMekanikPage() {
     </>
   );
 }
+
+
+    
