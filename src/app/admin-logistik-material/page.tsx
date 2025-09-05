@@ -25,7 +25,6 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter, AlertDialogDescription as AlertDialogDescriptionComponent } from '@/components/ui/alert-dialog';
 import LaporanPemasukanPrintLayout from '@/components/laporan-pemasukan-print-layout';
-import { printElement } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -94,17 +93,6 @@ export default function AdminLogistikPage() {
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   
   const [printData, setPrintData] = useState<{data: PemasukanLogEntry[], period: DateRange | undefined} | null>(null);
-
-  useEffect(() => {
-    if (printData) {
-      const timer = setTimeout(() => {
-        window.print();
-        setPrintData(null); 
-      }, 200); 
-      return () => clearTimeout(timer);
-    }
-  }, [printData]);
-
 
    useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -491,6 +479,14 @@ export default function AdminLogistikPage() {
         return <Badge className={statusInfo.className}>{statusInfo.text}</Badge>;
     };
   
+    const handlePrint = () => {
+        // Give time for the DOM to update with the new printData
+        setTimeout(() => {
+            window.print();
+            setPrintData(null); // Clean up after printing
+        }, 500);
+    };
+
     const handlePrintReport = (type: 'today' | 'history') => {
       const dataToPrint = type === 'today' ? dailyLog : filteredPemasukan;
       const period = type === 'today' ? undefined : dateRange;
@@ -501,6 +497,7 @@ export default function AdminLogistikPage() {
       }
       
       setPrintData({ data: dataToPrint, period });
+      handlePrint();
     };
 
   const clearHistoryFilter = () => {
@@ -537,7 +534,7 @@ export default function AdminLogistikPage() {
   
   return (
     <>
-        <div className="print-only">
+        <div className="hidden">
           {printData && (
               <LaporanPemasukanPrintLayout
                   data={printData.data}
