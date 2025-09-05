@@ -1052,6 +1052,24 @@ export default function KepalaMekanikPage() {
     </Card>
   );
   
+  const woList = useMemo(() => {
+    const existingTaskReportIds = new Set(mechanicTasks.map(task => task.vehicle?.triggeringReportId));
+    return reports
+      .filter(report => 
+        (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian') && 
+        !existingTaskReportIds.has(report.id)
+      )
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [reports, mechanicTasks]);
+
+  const mechanicsInLocation = useMemo(() => 
+      users.filter(u => u.jabatan?.toUpperCase().includes('MEKANIK') && u.lokasi === userInfo?.lokasi), 
+  [users, userInfo?.lokasi]);
+
+  const activeTasks = useMemo(() => {
+    return mechanicTasks.filter(task => task.status !== 'COMPLETED');
+  }, [mechanicTasks]);
+  
   const renderContent = () => {
     switch (activeMenu) {
         case 'Dashboard':
@@ -1066,6 +1084,74 @@ export default function KepalaMekanikPage() {
                 </div>
               </main>
             );
+        case 'Work order saya (WO)':
+            return (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Daftar Laporan Kerusakan (Work Order)</CardTitle>
+                        <CardDescription>Daftar kendaraan yang dilaporkan rusak dan membutuhkan perbaikan segera.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                       <div className="overflow-x-auto border rounded-lg">
+                           <Table>
+                               <TableHeader>
+                                   <TableRow>
+                                       <TableHead>Waktu Pelaporan</TableHead>
+                                       <TableHead>Sopir/Operator</TableHead>
+                                       <TableHead>Nomor Kendaraan</TableHead>
+                                       <TableHead>Deskripsi Kerusakan</TableHead>
+                                       <TableHead className='text-right'>Aksi</TableHead>
+                                   </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                   {isFetchingData ? (
+                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                   ) : woList.length > 0 ? (
+                                     woList.map(report => {
+                                       const vehicle = alat.find(a => a.nomorLambung === report.nomorLambung);
+                                       const operator = users.find(u => u.id === report.operatorId);
+                                       if (!vehicle) return null;
+                                       return (
+                                         <TableRow key={report.id}>
+                                             <TableCell>{format(new Date(report.timestamp), 'dd MMM, HH:mm', { locale: localeID })}</TableCell>
+                                             <TableCell>
+                                                 <p>{operator?.username || 'N/A'}</p>
+                                                 <p className="text-xs text-muted-foreground">NIK: {operator?.nik || '-'}</p>
+                                             </TableCell>
+                                             <TableCell>
+                                                 <p className="font-semibold">{vehicle.nomorLambung}</p>
+                                                 <p className="text-xs text-muted-foreground">{vehicle.nomorPolisi} ({vehicle.jenisKendaraan})</p>
+                                             </TableCell>
+                                             <TableCell className="max-w-xs truncate">{report.description}</TableCell>
+                                             <TableCell className="text-right">
+                                                 <CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={mechanicsInLocation} onTaskCreated={() => {}} />
+                                             </TableCell>
+                                         </TableRow>
+                                       );
+                                     })
+                                   ) : (
+                                       <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>
+                                   )}
+                               </TableBody>
+                           </Table>
+                       </div>
+                    </CardContent>
+                </Card>
+            );
+        case 'Work order aktif':
+            return (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Work Order Aktif</CardTitle>
+                    <CardDescription>
+                      Daftar semua pekerjaan perbaikan yang sedang menunggu atau dalam proses.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                     <p className="text-center text-muted-foreground py-10">(Fitur masih dalam pengembangan)</p>
+                  </CardContent>
+                </Card>
+              );
         case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
