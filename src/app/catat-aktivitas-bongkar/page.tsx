@@ -286,17 +286,20 @@ export default function CatatAktivitasBongkarPage() {
           return total;
         }, 0);
 
-        const newActivities = activities.filter(act => act.id !== activityId);
-        const newCompletedActivities = [...completedActivities, finalActivityState];
-        
         try {
+            await updateStockAfterFinish(finalActivityState);
+            const newActivities = activities.filter(act => act.id !== activityId);
+            const newCompletedActivities = [...completedActivities, finalActivityState];
             await persistState(activeJob.id, newActivities, newCompletedActivities);
             setActivities(newActivities);
             setCompletedActivities(newCompletedActivities);
-            await updateStockAfterFinish(finalActivityState);
-        } catch (error) {
+        } catch (error: any) {
             console.error("State persistence or stock update failed:", error);
-            toast({ title: "Gagal Menyimpan Progres", description: "Terjadi kesalahan saat menyimpan data ke server.", variant: "destructive" });
+            if (error.message.includes("Kapasitas Silo Penuh")) {
+                 toast({ title: "Gagal Menyelesaikan", description: error.message, variant: "destructive" });
+            } else {
+                 toast({ title: "Gagal Menyelesaikan", description: "Terjadi kesalahan saat menyimpan data ke server.", variant: "destructive" });
+            }
         }
     };
 
@@ -330,10 +333,18 @@ export default function CatatAktivitasBongkarPage() {
                 const allItems = (currentData as any)[dataKey] || {};
                 const existingItemData: SiloData | undefined = allItems[siloKey];
     
+                const currentStock = existingItemData?.stock || 0;
+                const capacity = existingItemData?.capacity || 90000;
+                const newStock = currentStock + amountToAdd;
+
+                if (newStock > capacity) {
+                    throw new Error("Kapasitas Silo Penuh. Bongkar Muatan Tidak Bisa Dilanjutkan.");
+                }
+
                 const updatedItemData: SiloData = {
-                    stock: (existingItemData?.stock || 0) + amountToAdd,
+                    stock: newStock,
                     status: existingItemData?.status || 'aktif',
-                    capacity: existingItemData?.capacity || 0,
+                    capacity: capacity,
                 };
     
                 transaction.set(stockDocRef, {
@@ -342,8 +353,11 @@ export default function CatatAktivitasBongkarPage() {
             });
         } catch (error) {
             console.error("Error updating stock in transaction:", error);
+            if ((error as Error).message.includes("Kapasitas Silo Penuh")) {
+                throw error;
+            }
             toast({ title: "Gagal Memperbarui Stok", variant: "destructive", description: "Terjadi kesalahan saat transaksi database." });
-            throw error;
+            throw new Error("Gagal Memperbarui Stok");
         }
     };
 
