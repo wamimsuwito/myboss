@@ -736,7 +736,7 @@ export default function WorkshopPage() {
     if (isFetchingData || !userInfo?.lokasi) {
         return { totalAlat: defaultStats, sudahChecklist: defaultStats, belumChecklist: defaultStats, alatBaik: defaultStats, perluPerhatian: defaultStats, alatRusak: defaultStats, alatRusakBerat: defaultStats, alatTdkAdaOperator: defaultStats };
     }
-    const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
+    const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi && !a.statusKarantina);
     const existingAlatIds = new Set(alatInLocation.map(a => a.nomorLambung));
 
     const validReports = reports.filter(r => r.nomorLambung && existingAlatIds.has(r.nomorLambung));
@@ -753,7 +753,7 @@ export default function WorkshopPage() {
     const perluPerhatianList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'perlu perhatian');
     const alatRusakList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'rusak');
 
-    const alatRusakBeratList = alat.filter(a => a.statusKarantina === true);
+    const alatRusakBeratList = alat.filter(a => a.lokasi === userInfo.lokasi && a.statusKarantina === true);
     const alatTdkAdaOperatorList = alatInLocation.filter(a => !pairings.some(p => p.nomorLambung === a.nomorLambung) && !a.statusKarantina);
 
 
