@@ -192,7 +192,7 @@ export default function AdminLogistikPage() {
 
   }, [userInfo, dateRange]);
 
-  const activeJobs = useMemo(() => jobs.filter(job => job.status === 'Proses' || job.status === 'Menunggu' || job.status === 'Tunda'), [jobs]);
+  const activeJobs = useMemo(() => jobs.filter(job => job.status === 'Proses' || job.status === 'Menunggu'), [jobs]);
 
   const handleNewRencanaChange = (field: keyof RencanaPemasukan, value: any) => {
     setNewRencana(prev => ({ ...prev, [field]: value }));
@@ -312,66 +312,52 @@ export default function AdminLogistikPage() {
   const handleJobStatusChange = async (jobId: string, newStatus: Job['status']) => {
     const jobRef = doc(db, 'available_jobs', jobId);
     const jobData = jobs.find(j => j.id === jobId);
-    if (!jobData || !userInfo?.lokasi) return;
+    if (!jobData) return;
   
     let updateData: Partial<Job> = { status: newStatus };
   
     if (newStatus === 'Proses' && !jobData.jamMulai) {
-        updateData.jamMulai = new Date().toISOString();
+      updateData.jamMulai = new Date().toISOString();
     } else if (newStatus === 'Selesai' && !jobData.jamSelesai) {
-        updateData.jamSelesai = new Date().toISOString();
+      updateData.jamSelesai = new Date().toISOString();
   
-        // Update stock
-        try {
-            const stockRef = doc(db, `locations/${userInfo.lokasi}/stock`, 'aggregates');
-            const materialKey = jobData.material.toLowerCase() as 'batu' | 'pasir';
-            await updateDoc(stockRef, {
-                [materialKey]: increment(jobData.totalVolume)
-            });
-            toast({ title: "Stok Material Diperbarui", description: `Stok ${jobData.material} bertambah ${jobData.totalVolume} M³.` });
-        } catch (stockError) {
-            console.error("Failed to update stock:", stockError);
-            toast({ title: "Gagal Memperbarui Stok", variant: "destructive", description: "Silakan perbarui stok secara manual." });
+      // Log to history
+      if (jobData.rencanaId) {
+        const rencanaDocRef = doc(db, 'rencana_pemasukan', jobData.rencanaId);
+        const rencanaDocSnap = await getDoc(rencanaDocRef);
+        if (rencanaDocSnap.exists()) {
+          const rencanaData = rencanaDocSnap.data() as RencanaPemasukan;
+          const logEntry: Omit<PemasukanLogEntry, 'id'> = {
+            timestamp: new Date().toISOString(),
+            material: jobData.material,
+            noSpb: rencanaData.noSpb,
+            namaKapal: jobData.namaKapal,
+            namaSopir: rencanaData.namaSopir || '',
+            jumlah: jobData.totalVolume,
+            unit: 'M³',
+            keterangan: `Selesai bongkar otomatis dari WO.`,
+            lokasi: userInfo?.lokasi,
+          };
+          await addDoc(collection(db, 'arsip_pemasukan_material_semua'), logEntry);
+          await updateDoc(rencanaDocRef, { status: 'Selesai Bongkar' });
+          toast({ title: "Pemasukan Material Dicatat", description: `${jobData.totalVolume} M³ ${jobData.material} telah dicatat.` });
         }
-  
-        // Log to history
-        if (jobData.rencanaId) {
-            const rencanaDocRef = doc(db, 'rencana_pemasukan', jobData.rencanaId);
-            const rencanaDocSnap = await getDoc(rencanaDocRef);
-            if (rencanaDocSnap.exists()) {
-                const rencanaData = rencanaDocSnap.data() as RencanaPemasukan;
-                const logEntry: Omit<PemasukanLogEntry, 'id'> = {
-                    timestamp: new Date().toISOString(),
-                    material: jobData.material,
-                    noSpb: rencanaData.noSpb,
-                    namaKapal: jobData.namaKapal,
-                    namaSopir: rencanaData.namaSopir || '',
-                    jumlah: jobData.totalVolume,
-                    unit: 'M³',
-                    keterangan: `Selesai bongkar otomatis dari WO.`,
-                    lokasi: userInfo?.lokasi,
-                };
-                await addDoc(collection(db, 'arsip_pemasukan_material_semua'), logEntry);
-                await updateDoc(rencanaDocRef, { status: 'Selesai Bongkar' });
-                toast({ title: "Pemasukan Material Dicatat", description: `${jobData.totalVolume} M³ ${jobData.material} telah dicatat.` });
-            }
-        }
-  
+      }
     } else if (newStatus === 'Tunda') {
-        const reason = prompt("Masukkan alasan menunda pekerjaan:");
-        if (reason) {
-            updateData.riwayatTunda = [...(jobData.riwayatTunda || []), { alasan: reason, waktuMulai: new Date().toISOString() }];
-        } else {
-            return; // User cancelled
-        }
+      const reason = prompt("Masukkan alasan menunda pekerjaan:");
+      if (reason) {
+        updateData.riwayatTunda = [...(jobData.riwayatTunda || []), { alasan: reason, waktuMulai: new Date().toISOString() }];
+      } else {
+        return; // User cancelled
+      }
     } else if (newStatus === 'Proses' && jobData.status === 'Tunda') {
-        const lastTunda = jobData.riwayatTunda?.[jobData.riwayatTunda.length - 1];
-        if (lastTunda && !lastTunda.waktuSelesai) {
-            lastTunda.waktuSelesai = new Date().toISOString();
-            const tundaDuration = new Date(lastTunda.waktuSelesai).getTime() - new Date(lastTunda.waktuMulai).getTime();
-            updateData.totalWaktuTunda = (jobData.totalWaktuTunda || 0) + tundaDuration;
-            updateData.riwayatTunda = jobData.riwayatTunda;
-        }
+      const lastTunda = jobData.riwayatTunda?.[jobData.riwayatTunda.length - 1];
+      if (lastTunda && !lastTunda.waktuSelesai) {
+        lastTunda.waktuSelesai = new Date().toISOString();
+        const tundaDuration = new Date(lastTunda.waktuSelesai).getTime() - new Date(lastTunda.waktuMulai).getTime();
+        updateData.totalWaktuTunda = (jobData.totalWaktuTunda || 0) + tundaDuration;
+        updateData.riwayatTunda = jobData.riwayatTunda;
+      }
     }
     
     await updateDoc(jobRef, updateData);
@@ -511,23 +497,23 @@ export default function AdminLogistikPage() {
   
   return (
     <>
-        <div className="hidden">
-          <div id="pemasukan-harian-print-area">
-              <LaporanPemasukanPrintLayout
-                  data={dailyLog}
-                  location={userInfo?.lokasi || ''}
-                  period={undefined}
-              />
-          </div>
-           <div id="riwayat-pemasukan-print-area">
-              <LaporanPemasukanPrintLayout
-                  data={filteredPemasukan}
-                  location={userInfo?.lokasi || ''}
-                  period={dateRange}
-              />
-          </div>
+      <div className="hidden">
+        <div id="pemasukan-harian-print-area">
+          <LaporanPemasukanPrintLayout
+              data={dailyLog}
+              location={userInfo.lokasi || ''}
+              period={undefined}
+          />
         </div>
-       <AlertDialog open={isConfirmArrivalOpen} onOpenChange={setIsConfirmArrivalOpen}>
+        <div id="riwayat-pemasukan-print-area">
+            <LaporanPemasukanPrintLayout
+                data={filteredPemasukan}
+                location={userInfo.lokasi || ''}
+                period={dateRange}
+            />
+        </div>
+      </div>
+      <AlertDialog open={isConfirmArrivalOpen} onOpenChange={setIsConfirmArrivalOpen}>
             <AlertDialogContent>
                 <AlertDialogHeader><AlertDialogTitle>Konfirmasi Kedatangan: {selectedRencana?.namaKapal}</AlertDialogTitle><AlertDialogDescriptionComponent>Pastikan kendaraan sudah tiba di lokasi sebelum melanjutkan.</AlertDialogDescriptionComponent></AlertDialogHeader>
                 <AlertDialogFooter><AlertDialogCancel>Batal</AlertDialogCancel><AlertDialogAction onClick={() => selectedRencana && handleConfirmArrival(selectedRencana)}>Ya, Sudah Tiba</AlertDialogAction></AlertDialogFooter>
@@ -878,4 +864,3 @@ export default function AdminLogistikPage() {
 }
 
     
-
