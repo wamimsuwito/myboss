@@ -736,7 +736,7 @@ export default function WorkshopPage() {
     if (isFetchingData || !userInfo?.lokasi) {
         return { totalAlat: defaultStats, sudahChecklist: defaultStats, belumChecklist: defaultStats, alatBaik: defaultStats, perluPerhatian: defaultStats, alatRusak: defaultStats, alatRusakBerat: defaultStats, alatTdkAdaOperator: defaultStats };
     }
-    const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi && !a.statusKarantina);
+    const alatInLocation = alat.filter(a => a.lokasi === userInfo.lokasi);
     const existingAlatIds = new Set(alatInLocation.map(a => a.nomorLambung));
 
     const validReports = reports.filter(r => r.nomorLambung && existingAlatIds.has(r.nomorLambung));
@@ -749,11 +749,11 @@ export default function WorkshopPage() {
 
     const getLatestReportForAlat = (nomorLambung: string) => getLatestReport(nomorLambung, validReports);
     
-    const alatBaikList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'baik');
-    const perluPerhatianList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'perlu perhatian');
-    const alatRusakList = alatInLocation.filter(a => getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'rusak');
+    const alatBaikList = alatInLocation.filter(a => !a.statusKarantina && getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'baik');
+    const perluPerhatianList = alatInLocation.filter(a => !a.statusKarantina && getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'perlu perhatian');
+    const alatRusakList = alatInLocation.filter(a => !a.statusKarantina && getLatestReportForAlat(a.nomorLambung)?.overallStatus === 'rusak');
 
-    const alatRusakBeratList = alat.filter(a => a.lokasi === userInfo.lokasi && a.statusKarantina === true);
+    const alatRusakBeratList = alatInLocation.filter(a => a.statusKarantina === true);
     const alatTdkAdaOperatorList = alatInLocation.filter(a => !pairings.some(p => p.nomorLambung === a.nomorLambung) && !a.statusKarantina);
 
 
@@ -776,7 +776,7 @@ export default function WorkshopPage() {
     };
 
     return {
-      totalAlat: { count: String(alatInLocation.length), list: mapToDetailFormat(alatInLocation, 'latest') },
+      totalAlat: { count: String(alatInLocation.filter(a => !a.statusKarantina).length), list: mapToDetailFormat(alatInLocation.filter(a => !a.statusKarantina), 'latest') },
       sudahChecklist: { count: String(checkedVehicleIdsToday.size), list: mapToDetailFormat(alatInLocation.filter(a => checkedVehicleIdsToday.has(a.nomorLambung)), 'latest') },
       belumChecklist: { count: String(alatBelumChecklistList.length), list: mapToDetailFormat(alatBelumChecklistList, 'belum') },
       alatBaik: { count: String(alatBaikList.length), list: mapToDetailFormat(alatBaikList, 'latest') },
@@ -1025,7 +1025,7 @@ export default function WorkshopPage() {
                 operatorId: 'SISTEM',
                 location: quarantineTarget.lokasi,
                 overallStatus: 'rusak',
-                description: 'Alat ini baru dilepas dari karantina dan membutuhkan pengecekan serta perbaikan menyeluruh.',
+                description: 'alat ini dalam kondisi rusak berat, lepas karantina untuk mulai perbaikan',
                 photo: '',
             };
             await addDoc(collection(db, 'checklist_reports'), dummyReport);
@@ -1266,7 +1266,7 @@ export default function WorkshopPage() {
                             </TableHeader>
                             <TableBody>
                                 {isFetchingData ? (<TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>) :
-                                alat.filter(a => a.lokasi === userInfo?.lokasi).map(item => (
+                                alat.filter(a => a.lokasi === userInfo?.lokasi && !a.statusKarantina).map(item => (
                                     <TableRow key={item.id}>
                                         <TableCell className="font-medium">{item.nomorLambung}</TableCell>
                                         <TableCell>{item.nomorPolisi}</TableCell>
@@ -1501,3 +1501,4 @@ export default function WorkshopPage() {
     </>
   );
 }
+
