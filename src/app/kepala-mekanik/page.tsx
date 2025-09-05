@@ -320,7 +320,7 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     }
 };
 
-const HistoryComponent = ({ user, allTasks, users, allAlat, allReports }: { user: UserData | null; allTasks: MechanicTask[]; users: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
+const HistoriContent = ({ user, allTasks, users, allAlat, allReports }: { user: UserData | null; allTasks: MechanicTask[]; users: UserData[]; allAlat: AlatData[], allReports: Report[] }) => {
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
     const [date, setDate] = useState<DateRange | undefined>({
@@ -859,19 +859,6 @@ export default function KepalaMekanikPage() {
                 await deleteDoc(doc(db, "sopir_batangan", pairingDoc.id));
                 toast({ title: 'Sopir Dilepaskan', description: `Sopir untuk ${quarantineTarget.nomorLambung} telah dilepaskan.` });
             }
-            
-            const dummyReport: Omit<Report, 'id' | 'timestamp'> & { timestamp: any } = {
-                timestamp: Timestamp.now(),
-                nomorLambung: quarantineTarget.nomorLambung,
-                operatorName: 'SISTEM',
-                operatorId: 'SISTEM',
-                location: quarantineTarget.lokasi,
-                overallStatus: 'rusak',
-                description: 'Alat ini dalam kondisi rusak berat dan dimasukkan ke dalam karantina.',
-                photo: '',
-            };
-            await addDoc(collection(db, 'checklist_reports'), dummyReport);
-            
              toast({
                 title: `Alat Dikarantina`,
                 description: `${quarantineTarget.nomorLambung} telah dimasukkan ke karantina.`
@@ -917,6 +904,170 @@ export default function KepalaMekanikPage() {
                 </div>
               </main>
             );
+        case 'Work order saya (WO)':
+            return (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Daftar Laporan Kerusakan (Work Order)</CardTitle>
+                        <CardDescription>Daftar kendaraan yang dilaporkan rusak dan membutuhkan perbaikan segera.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                       <div className="overflow-x-auto border rounded-lg">
+                           <Table>
+                               <TableHeader>
+                                   <TableRow>
+                                       <TableHead>Waktu Pelaporan</TableHead>
+                                       <TableHead>Sopir/Operator</TableHead>
+                                       <TableHead>Nomor Kendaraan</TableHead>
+                                       <TableHead>Deskripsi Kerusakan</TableHead>
+                                       <TableHead className='text-right'>Aksi</TableHead>
+                                   </TableRow>
+                               </TableHeader>
+                               <TableBody>
+                                   {isFetchingData ? (
+                                     <TableRow><TableCell colSpan={5} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
+                                   ) : woList.length > 0 ? (
+                                     woList.map(report => {
+                                       const vehicle = alat.find(a => a.nomorLambung === report.nomorLambung);
+                                       const operator = users.find(u => u.id === report.operatorId);
+                                       if (!vehicle) return null;
+                                       return (
+                                         <TableRow key={report.id}>
+                                             <TableCell>{format(new Date(report.timestamp), 'dd MMM, HH:mm', { locale: localeID })}</TableCell>
+                                             <TableCell>
+                                                 <p>{operator?.username || 'N/A'}</p>
+                                                 <p className="text-xs text-muted-foreground">NIK: {operator?.nik || '-'}</p>
+                                             </TableCell>
+                                             <TableCell>
+                                                 <p className="font-semibold">{vehicle.nomorLambung}</p>
+                                                 <p className="text-xs text-muted-foreground">{vehicle.nomorPolisi} ({vehicle.jenisKendaraan})</p>
+                                             </TableCell>
+                                             <TableCell className="max-w-xs truncate">{report.description}</TableCell>
+                                             <TableCell className="text-right">
+                                                 <CreateWorkOrderDialog vehicle={vehicle} report={report} mechanics={mechanicsInLocation} onTaskCreated={() => {}} />
+                                             </TableCell>
+                                         </TableRow>
+                                       );
+                                     })
+                                   ) : (
+                                       <TableRow><TableCell colSpan={5} className="h-24 text-center text-muted-foreground">Tidak ada laporan kerusakan baru.</TableCell></TableRow>
+                                   )}
+                               </TableBody>
+                           </Table>
+                       </div>
+                    </CardContent>
+                </Card>
+            );
+        case 'Work order aktif':
+            return (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Work Order Aktif</CardTitle>
+                    <CardDescription>
+                      Daftar semua pekerjaan perbaikan yang sedang menunggu atau dalam proses.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Kendaraan</TableHead>
+                            <TableHead>Pelapor</TableHead>
+                            <TableHead>Deskripsi</TableHead>
+                            <TableHead>Foto</TableHead>
+                            <TableHead>Mekanik Bertugas</TableHead>
+                            <TableHead>Target Selesai</TableHead>
+                            <TableHead>Status</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {isFetchingData ? (
+                            <TableRow>
+                              <TableCell colSpan={7} className="h-24 text-center">
+                                <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                              </TableCell>
+                            </TableRow>
+                          ) : activeTasks.length > 0 ? (
+                            activeTasks.map((task) => {
+                              const triggeringReport = reports.find(
+                                (r) => r.id === task.vehicle?.triggeringReportId
+                              );
+                              const sopir = users.find(
+                                (u) => u.id === triggeringReport?.operatorId
+                              );
+                              return (
+                                <TableRow key={task.id}>
+                                  <TableCell>
+                                    <p className="font-semibold">
+                                      {task.vehicle.hullNumber}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {task.vehicle.licensePlate}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell>
+                                    <p>{sopir?.username || 'N/A'}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {formatRelative(new Date(task.createdAt), new Date(), { locale: localeID })}
+                                    </p>
+                                  </TableCell>
+                                  <TableCell className="max-w-[200px] truncate">
+                                    {triggeringReport?.description || 'N/A'}
+                                  </TableCell>
+                                  <TableCell>
+                                    {triggeringReport?.photo && (
+                                        <Dialog>
+                                            <DialogTrigger asChild>
+                                                <Button variant="ghost" size="icon">
+                                                    <Eye className="h-5 w-5" />
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="max-w-3xl">
+                                                <DialogHeader>
+                                                    <DialogTitle>Foto Laporan Kerusakan</DialogTitle>
+                                                </DialogHeader>
+                                                <img src={Array.isArray(triggeringReport.photo) ? triggeringReport.photo[0] : triggeringReport.photo} alt="Foto Kerusakan" className="rounded-lg w-full h-auto" data-ai-hint="mechanic report broken" />
+                                            </DialogContent>
+                                        </Dialog>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    {task.mechanics.map((m) => m.name).join(', ')}
+                                  </TableCell>
+                                  <TableCell>
+                                    {format(new Date(task.vehicle.targetDate), 'dd MMM yyyy')}
+                                    {' @ '}{task.vehicle.targetTime}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Select value={task.status} onValueChange={(newStatus) => handleTaskStatusChange(task, newStatus as MechanicTask['status'])}>
+                                      <SelectTrigger className="w-36">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="PENDING">Menunggu</SelectItem>
+                                        <SelectItem value="IN_PROGRESS">Dikerjakan</SelectItem>
+                                        <SelectItem value="DELAYED">Tunda</SelectItem>
+                                        <SelectItem value="COMPLETED">Selesai</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                                Tidak ada work order yang sedang aktif.
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
         case 'Alat Rusak Berat/Karantina':
             return (
                 <Card>
@@ -953,9 +1104,14 @@ export default function KepalaMekanikPage() {
                                             </TableCell>
                                             <TableCell>{getStatusBadge('Karantina')}</TableCell>
                                             <TableCell className='text-right'>
-                                                <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
-                                                    Lepas Karantina
-                                                </Button>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <div className="space-y-1">
+                                                         <h4 className="font-semibold text-xs text-right">Karantina</h4>
+                                                         <Button size="sm" variant="outline" onClick={() => handleQuarantineRequest(alat.find(a => a.id === item.id)!)}>
+                                                            Lepas Karantina
+                                                        </Button>
+                                                    </div>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     )})) : (<TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Tidak ada alat yang dikarantina.</TableCell></TableRow>)}
@@ -966,55 +1122,7 @@ export default function KepalaMekanikPage() {
                 </Card>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
-        case 'Anggota Mekanik':
-             return (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Anggota Tim Mekanik</CardTitle>
-                        <CardDescription>
-                            Daftar semua mekanik di lokasi Anda.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                       <div className="overflow-x-auto border rounded-lg">
-                           <Table>
-                               <TableHeader>
-                                   <TableRow>
-                                       <TableHead>Nama</TableHead>
-                                       <TableHead>NIK</TableHead>
-                                       <TableHead>Tugas Aktif</TableHead>
-                                       <TableHead>Status</TableHead>
-                                   </TableRow>
-                               </TableHeader>
-                               <TableBody>
-                                 {isFetchingData ? (
-                                     <TableRow><TableCell colSpan={4} className="h-24 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" /></TableCell></TableRow>
-                                 ) : usersInLocation.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK")).length > 0 ? (
-                                     usersInLocation.filter(u => u.jabatan?.toUpperCase().includes("MEKANIK")).map(mechanic => {
-                                        const activeTask = mechanicTasks.find(task => task.status !== 'COMPLETED' && task.mechanics.some(m => m.id === mechanic.id));
-                                        return (
-                                            <TableRow key={mechanic.id}>
-                                                <TableCell className="font-medium">{mechanic.username}</TableCell>
-                                                <TableCell>{mechanic.nik}</TableCell>
-                                                <TableCell>{activeTask ? `${activeTask.vehicle.hullNumber} - ${activeTask.vehicle.repairDescription}` : '-'}</TableCell>
-                                                <TableCell>
-                                                    <Badge variant={activeTask ? 'destructive' : 'default'} className={!activeTask ? 'bg-green-600' : ''}>
-                                                        {activeTask ? 'Bertugas' : 'Standby'}
-                                                    </Badge>
-                                                </TableCell>
-                                            </TableRow>
-                                        )
-                                     })
-                                 ) : (
-                                      <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Tidak ada mekanik di lokasi ini.</TableCell></TableRow>
-                                 )}
-                               </TableBody>
-                           </Table>
-                       </div>
-                    </CardContent>
-                </Card>
-            );
+             return <HistoriContent user={userInfo} allTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
         default:
             return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>
     }
@@ -1087,8 +1195,7 @@ export default function KepalaMekanikPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Batal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleConfirmQuarantine} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : null}
+                <AlertDialogAction onClick={handleConfirmQuarantine}>
                     Ya, Konfirmasi
                 </AlertDialogAction>
             </AlertDialogFooter>
