@@ -63,9 +63,6 @@ import {
     Fingerprint,
     Briefcase,
     ShieldX,
-    UserPlus,
-    MapPin,
-    Lock,
     Construction
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -99,7 +96,6 @@ const menuItems = [
     { name: 'Alat Rusak Berat/Karantina', icon: ShieldAlert },
     { name: 'Anggota Mekanik', icon: Users },
     { name: 'Laporan Logistik', icon: Truck },
-    { name: 'Manajemen Pengguna', icon: UserPlus },
     { name: 'Manajemen Alat', icon: Construction },
     { name: 'Riwayat Penalti', icon: ShieldX },
     { name: 'Komplain dari Sopir', icon: MessageSquareWarning },
@@ -114,18 +110,11 @@ type ActiveMenu =
   | 'Alat Rusak Berat/Karantina' 
   | 'Anggota Mekanik'
   | 'Laporan Logistik'
-  | 'Manajemen Pengguna'
   | 'Manajemen Alat'
   | 'Riwayat Penalti'
   | 'Komplain dari Sopir'
   | 'Usulan / Saran dari Sopir'
   | 'Pesan Masuk';
-
-const jabatanOptions = [
-    'OPRATOR BP', 'OPRATOR CP', 'OPRATOR LOADER', 'PEKERJA BONGKAR SEMEN', 'SOPIR', 'SOPIR DT', 'ADMIN BP', 'ADMIN LOGISTIK SPARE PART',
-    'ADMIN LOGISTIK MATERIAL', 'SUPER ADMIN', 'QC', 'MARKETING', 'KEPALA MEKANIK', 'KEPALA WORKSHOP', 'OWNER', 'HRD PUSAT', 'HSE K3'
-];
-
 
 const taskFormSchema = z.object({
   mechanics: z.array(z.object({ id: z.string(), name: z.string() })).min(1, "Pilih minimal satu mekanik."),
@@ -338,7 +327,7 @@ const CompletionStatusBadge = ({ task }: { task: MechanicTask }) => {
     }
 };
 
-const HistoriContent = ({ user, mechanicTasks, users, alat, allReports }: { user: UserData | null; mechanicTasks: MechanicTask[]; users: UserData[]; alat: AlatData[], allReports: Report[] }) => {
+const HistoriContent = ({ user, mechanicTasks, users, alat, allReports, isFetchingData }: { user: UserData | null; mechanicTasks: MechanicTask[]; users: UserData[]; alat: AlatData[], allReports: Report[], isFetchingData: boolean }) => {
     const [selectedOperatorId, setSelectedOperatorId] = useState<string>("all");
     const [searchNoPol, setSearchNoPol] = useState('');
     const [date, setDate] = useState<DateRange | undefined>({
@@ -353,6 +342,9 @@ const HistoriContent = ({ user, mechanicTasks, users, alat, allReports }: { user
     }, [users, user]);
   
     const filteredTasks = useMemo(() => {
+      if (!alat || alat.length === 0 || !mechanicTasks || mechanicTasks.length === 0) {
+          return [];
+      }
       const fromDate = date?.from ? startOfDay(date.from) : null;
       const toDate = date?.to ? endOfDay(date.to) : null;
   
@@ -439,6 +431,9 @@ const HistoriContent = ({ user, mechanicTasks, users, alat, allReports }: { user
                     <Button variant="ghost" onClick={() => { setSearchNoPol(''); setSelectedOperatorId('all'); setDate({ from: subDays(new Date(), 29), to: new Date() }); }}><FilterX className="mr-2 h-4 w-4"/>Reset</Button>
                     <Button variant="outline" className="ml-auto" onClick={() => printElement('history-print-area')}><Printer className="mr-2 h-4 w-4"/>Cetak</Button>
                 </div>
+                 {isFetchingData ? (
+                        <div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>
+                    ) : (
                 <div className="border rounded-md overflow-x-auto">
                     <Table>
                     <TableHeader>
@@ -519,6 +514,7 @@ const HistoriContent = ({ user, mechanicTasks, users, alat, allReports }: { user
                     </TableBody>
                     </Table>
                 </div>
+                    )}
                 </CardContent>
             </Card>
         </>
@@ -557,16 +553,12 @@ export default function WorkshopPage() {
 
   // Delete state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<AlatData | SopirBatanganData | UserData | null>(null);
-  const [deleteType, setDeleteType] = useState<'alat' | 'pairing' | 'user' | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<AlatData | SopirBatanganData | null>(null);
+  const [deleteType, setDeleteType] = useState<'alat' | 'pairing' | null>(null);
 
   // Edit Alat state
   const [editingAlat, setEditingAlat] = useState<AlatData | null>(null);
   const [isEditingAlat, setIsEditingAlat] = useState(false);
-
-  // Edit User state
-  const [editingUser, setEditingUser] = useState<UserData | null>(null);
-  const [isEditingUser, setIsEditingUser] = useState(false);
   
   // Detail List Dialog state
   const [detailListTitle, setDetailListTitle] = useState('');
@@ -829,152 +821,80 @@ export default function WorkshopPage() {
     router.push('/login');
   };
 
-  // Sopir & Batangan Handlers
-  const handleSavePairing = async () => {
-    if (!selectedSopir || !selectedAlat || !userInfo?.lokasi) {
-        toast({ title: 'Data Tidak Lengkap', description: 'Pilih sopir dan alat terlebih dahulu.', variant: 'destructive' });
-        return;
-    }
-    setIsSubmitting(true);
+  const woList = useMemo(() => {
+    const existingTaskReportIds = new Set(mechanicTasks.map(task => task.vehicle?.triggeringReportId));
+    return reports
+      .filter(report => 
+        (report.overallStatus === 'rusak' || report.overallStatus === 'perlu perhatian') && 
+        !existingTaskReportIds.has(report.id)
+      )
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [reports, mechanicTasks]);
 
-    const pairingData: Omit<SopirBatanganData, 'id' | 'timestamp'> = {
-        userId: selectedSopir.id,
-        namaSopir: selectedSopir.username,
-        nik: selectedSopir.nik,
-        vehicleId: selectedAlat.id,
-        nomorPolisi: selectedAlat.nomorPolisi,
-        nomorLambung: selectedAlat.nomorLambung,
-        keterangan: keterangan,
-        lokasi: userInfo.lokasi,
-    };
-    
-    try {
-        if (editingPairing) {
-            const pairingDocRef = doc(db, 'sopir_batangan', editingPairing.id);
-            await updateDoc(pairingDocRef, pairingData);
-            toast({ title: "Pasangan Diperbarui" });
-        } else {
-            const finalData = { ...pairingData, timestamp: Timestamp.now() };
-            await addDoc(collection(db, 'sopir_batangan'), finalData);
-            toast({ title: 'Pasangan Disimpan' });
-        }
-        // Reset form
-        setSelectedSopir(null);
-        setSelectedAlat(null);
-        setKeterangan('');
-        setEditingPairing(null);
-    } catch (error) {
-        toast({ title: 'Gagal Menyimpan', variant: 'destructive' });
-        console.error(error);
-    } finally {
-        setIsSubmitting(false);
-    }
-  }
+  const mechanicsInLocation = useMemo(() => 
+      users.filter(u => u.jabatan?.toUpperCase().includes('MEKANIK') && u.lokasi === userInfo?.lokasi), 
+  [users, userInfo?.lokasi]);
 
-  const handleEditPairing = (pairing: SopirBatanganData) => {
-    setEditingPairing(pairing);
-    setSelectedSopir(sopirOptions.find(s => s.id === pairing.userId) || null);
-    setSelectedAlat(alat.find(a => a.id === pairing.vehicleId) || null);
-    setKeterangan(pairing.keterangan);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-
-  const handleMutasiRequest = (item: AlatData) => {
-    setMutasiTarget(item);
-    setIsMutasiDialogOpen(true);
-  }
-
-  const handleConfirmMutasi = async () => {
-    if (!mutasiTarget || !newLocationForMutasi) {
-        toast({ title: "Lokasi Tujuan harus dipilih", variant: "destructive" });
-        return;
-    }
-    setIsMutating(true);
-    try {
-        const alatRef = doc(db, 'alat', mutasiTarget.id);
-        await updateDoc(alatRef, { lokasi: newLocationForMutasi });
-        toast({ title: 'Mutasi Berhasil', description: `${mutasiTarget.nomorLambung} dipindahkan ke ${newLocationForMutasi}.` });
-        setIsMutasiDialogOpen(false);
-    } catch (error) {
-        toast({ title: 'Gagal Mutasi', variant: 'destructive' });
-    } finally {
-        setIsMutating(false);
-    }
-  }
-
-  const handleDeleteRequest = (item: AlatData | SopirBatanganData | UserData, type: 'alat' | 'pairing' | 'user') => {
-    setItemToDelete(item);
-    setDeleteType(type);
-    setIsDeleteDialogOpen(true);
-  };
+  const activeTasks = useMemo(() => {
+    return mechanicTasks.filter(task => task.status !== 'COMPLETED');
+  }, [mechanicTasks]);
   
-  const handleConfirmDelete = async () => {
-    if (!itemToDelete || !deleteType) return;
-    setIsSubmitting(true);
+  const handleTaskStatusChange = async (task: MechanicTask, newStatus: MechanicTask['status']) => {
+    const taskDocRef = doc(db, 'mechanic_tasks', task.id);
+    const updateData: Partial<MechanicTask> = { status: newStatus };
+
+    if (newStatus === 'DELAYED') {
+      const reason = prompt("Masukkan alasan menunda pekerjaan:");
+      if (reason) {
+        updateData.delayReason = reason;
+        updateData.delayStartedAt = new Date().getTime();
+        updateData.riwayatTunda = [...(task.riwayatTunda || []), { alasan: reason, waktuMulai: Timestamp.now(), waktuSelesai: null! }];
+      } else {
+        return; // User cancelled
+      }
+    }
+
+    if (newStatus === 'IN_PROGRESS' && task.status === 'PENDING' && !task.startedAt) {
+      updateData.startedAt = new Date().getTime();
+    } else if (newStatus === 'IN_PROGRESS' && task.status === 'DELAYED') {
+      const lastDelay = task.riwayatTunda?.[task.riwayatTunda.length - 1];
+      if (lastDelay && !lastDelay.waktuSelesai) {
+          lastDelay.waktuSelesai = Timestamp.now();
+          const delayDuration = lastDelay.waktuSelesai.toMillis() - lastDelay.waktuMulai.toMillis();
+          updateData.totalDelayDuration = (task.totalDelayDuration || 0) + delayDuration;
+          updateData.riwayatTunda = task.riwayatTunda;
+      }
+    }
+    
+    if (newStatus === 'COMPLETED') {
+        const repairDescription = prompt("Masukkan deskripsi perbaikan yang telah dilakukan:");
+        if (repairDescription) {
+            updateData.completedAt = new Date().getTime();
+            updateData.mechanicRepairDescription = repairDescription;
+        } else {
+            toast({ title: "Aksi Dibatalkan", description: "Deskripsi perbaikan wajib diisi untuk menyelesaikan WO.", variant: "destructive" });
+            return;
+        }
+    }
+
+
     try {
-        await deleteDoc(doc(db, deleteType === 'pairing' ? 'sopir_batangan' : deleteType, itemToDelete.id));
-        toast({ title: 'Data Dihapus' });
-    } catch (e) {
-        toast({ title: 'Gagal Menghapus', variant: 'destructive' });
-    } finally {
-        setIsSubmitting(false);
-        setIsDeleteDialogOpen(false);
-        setItemToDelete(null);
-        setDeleteType(null);
+      await updateDoc(taskDocRef, updateData as any);
+      toast({ title: `Status WO Diperbarui`, description: `Status untuk ${task.vehicle.hullNumber} diubah menjadi ${newStatus}.` });
+    } catch (error) {
+      console.error("Error updating task status:", error);
+      toast({ title: "Gagal Memperbarui Status", variant: "destructive" });
     }
   };
 
-  const handleConfirmEditAlat = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!editingAlat) return;
-    setIsEditingAlat(true);
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    
-    const updatedAlatData = {
-      nomorLambung: (formData.get('editNomorLambung') as string).toUpperCase(),
-      nomorPolisi: (formData.get('editNomorPolisi') as string).toUpperCase(),
-      jenisKendaraan: (formData.get('editJenisKendaraan') as string).toUpperCase(),
-    };
-    try {
-        const alatDocRef = doc(db, 'alat', editingAlat.id);
-        await updateDoc(alatDocRef, updatedAlatData);
-        toast({ title: 'Alat Diperbarui'});
-        setEditingAlat(null);
-    } catch (error) {
-        toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal memperbarui data alat.' });
+  const getTaskStatusBadge = (status: MechanicTask['status']) => {
+    switch (status) {
+      case 'PENDING': return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">Menunggu</Badge>;
+      case 'IN_PROGRESS': return <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-300 animate-pulse">Dikerjakan</Badge>;
+      case 'DELAYED': return <Badge variant="destructive">Tunda</Badge>;
+      default: return <Badge>{status}</Badge>;
     }
-    setIsEditingAlat(false);
-  }
-
-  const handleConfirmEditUser = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!editingUser) return;
-    setIsEditingUser(true);
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    
-    const updatedUserData: Partial<UserData> = {
-      username: (formData.get('editUsername') as string).toUpperCase(),
-      nik: (formData.get('editNik') as string).toUpperCase(),
-      jabatan: formData.get('editJabatan') as string,
-      lokasi: formData.get('editLokasi') as string,
-    };
-    const newPassword = formData.get('editPassword') as string;
-    if (newPassword) {
-      updatedUserData.password = newPassword;
-    }
-    try {
-        const userDocRef = doc(db, 'users', editingUser.id);
-        await updateDoc(userDocRef, updatedUserData);
-        toast({ title: 'Pengguna Diperbarui'});
-        setEditingUser(null);
-    } catch (error) {
-        toast({ variant: 'destructive', title: 'Gagal', description: 'Gagal memperbarui data pengguna.' });
-    }
-    setIsEditingUser(false);
-  }
-
+  };
 
   const handleQuarantineRequest = (item: AlatData) => {
       setQuarantineTarget(item);
@@ -1188,7 +1108,7 @@ export default function WorkshopPage() {
                 </main>
             );
         case 'Histori Perbaikan Alat':
-             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} />;
+             return <HistoriContent user={userInfo} mechanicTasks={mechanicTasks} users={users} alat={alat} allReports={reports} isFetchingData={isFetchingData} />;
         case 'Anggota Mekanik':
              return (
                 <Card>
@@ -1239,8 +1159,6 @@ export default function WorkshopPage() {
             );
         case 'Laporan Logistik':
              return renderLaporanLogistik();
-        case 'Manajemen Pengguna':
-            return <Card><CardContent className="p-10 text-center"><h2 className="text-xl font-semibold text-muted-foreground">Fitur Dalam Pengembangan</h2><p>Halaman untuk {activeMenu} akan segera tersedia.</p></CardContent></Card>;
         case 'Manajemen Alat':
             return (
                  <Card>
@@ -1362,51 +1280,6 @@ export default function WorkshopPage() {
                     <Button type="button" variant="outline" onClick={() => setEditingAlat(null)}>Batal</Button>
                     <Button type="submit" disabled={isEditingAlat}>
                         {isEditingAlat ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
-                    </Button>
-                </DialogFooter>
-            </form>
-        </DialogContent>
-    </Dialog>
-     <Dialog open={!!editingUser} onOpenChange={(isOpen) => !isOpen && setEditingUser(null)}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>Edit Pengguna</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleConfirmEditUser} className="space-y-4 pt-4">
-                 <div>
-                    <Label htmlFor="editUsername">Nama Pengguna</Label>
-                    <Input id="editUsername" name="editUsername" defaultValue={editingUser?.username} required style={{ textTransform: 'uppercase' }} />
-                </div>
-                <div>
-                    <Label htmlFor="editPassword">Sandi Baru (opsional)</Label>
-                    <Input id="editPassword" name="editPassword" type="password" placeholder="Kosongkan jika tidak ingin diubah" />
-                </div>
-                <div>
-                    <Label htmlFor="editNik">NIK</Label>
-                    <Input id="editNik" name="editNik" defaultValue={editingUser?.nik} required style={{ textTransform: 'uppercase' }} />
-                </div>
-                <div>
-                    <Label htmlFor="editJabatan">Jabatan</Label>
-                    <Select name="editJabatan" defaultValue={editingUser?.jabatan}>
-                        <SelectTrigger><SelectValue/></SelectTrigger>
-                        <SelectContent>
-                            {jabatanOptions.map(jabatan => <SelectItem key={jabatan} value={jabatan}>{jabatan}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
-                 <div>
-                    <Label htmlFor="editLokasi">Lokasi</Label>
-                    <Select name="editLokasi" defaultValue={editingUser?.lokasi}>
-                        <SelectTrigger><SelectValue/></SelectTrigger>
-                        <SelectContent>
-                            {locations.map(loc => <SelectItem key={loc.id} value={loc.name}>{loc.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>Batal</Button>
-                    <Button type="submit" disabled={isEditingUser}>
-                         {isEditingUser ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
                     </Button>
                 </DialogFooter>
             </form>
@@ -1538,3 +1411,4 @@ export default function WorkshopPage() {
     </>
   );
 }
+
