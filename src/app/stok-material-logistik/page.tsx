@@ -16,7 +16,7 @@ import type { UserData, LocationData, CementSiloStock, ResetHistoryEntry, SiloDa
 import { ArrowLeft, Package, Warehouse, Loader2, History, Save, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { id as localeID } from 'date-fns/locale';
-import { db, collection, getDocs, doc, setDoc, addDoc } from '@/lib/firebase';
+import { db, collection, getDocs, doc, setDoc, addDoc, onSnapshot } from '@/lib/firebase';
 
 const materialConfig = [
     { key: 'pasir', name: 'PASIR', unit: 'M³' },
@@ -102,50 +102,31 @@ export default function StokMaterialLogistikPage() {
     }, [bpUnitStocks, bufferSiloStock, bufferTankStock]);
 
 
-    const fetchAllStocks = useCallback(async (location: string) => {
-        setIsFetching(true);
+    const fetchInitialOpnameData = useCallback(async (location: string) => {
         try {
             const aggStockDoc = await getDocs(collection(db, `locations/${location}/stock`));
             let aggData: StockValues = {};
             if (!aggStockDoc.empty) {
                 aggData = aggStockDoc.docs[0].data() as StockValues;
             }
-            setAggregateStock({ ...initialStockValues, ...aggData });
             setOpnameInputs({ ...initialStockValues, ...aggData });
 
-            const unitStocks: Record<string, CementSiloStock> = {};
             const cementInputs: CementStockInput = JSON.parse(JSON.stringify(initialCementStockInput));
-
             for (const unit of unitBPs) {
                 const stockDoc = await getDocs(collection(db, `locations/${location}/stock_cement_silo_${unit}`));
-                const stockData = stockDoc.empty ? { silos: {} } : stockDoc.docs[0].data() as CementSiloStock;
-                unitStocks[unit] = stockData;
-                cementInputs[unit] = stockData.silos || {};
+                cementInputs[unit] = stockDoc.empty ? {} : (stockDoc.docs[0].data() as CementSiloStock).silos || {};
             }
-            setBpUnitStocks(unitStocks);
-
             const bufSiloDoc = await getDocs(collection(db, `locations/${location}/stock_buffer_silo`));
-            const bufSiloData = bufSiloDoc.empty ? { silos: {} } : bufSiloDoc.docs[0].data() as CementSiloStock;
-            setBufferSiloStock(bufSiloData);
-            cementInputs['Buffer Silo'] = bufSiloData.silos || {};
+            cementInputs['Buffer Silo'] = bufSiloDoc.empty ? {} : (bufSiloDoc.docs[0].data() as CementSiloStock).silos || {};
             
             const bufTankDoc = await getDocs(collection(db, `locations/${location}/stock_buffer_tank`));
-            const bufTankData = bufTankDoc.empty ? { tanks: {} } : bufTankDoc.docs[0].data() as any;
-            setBufferTankStock(bufTankData);
-            cementInputs['Buffer Tangki'] = bufTankData.tanks || {};
+            cementInputs['Buffer Tangki'] = bufTankDoc.empty ? {} : (bufTankDoc.docs[0].data() as any).tanks || {};
             
             setCementOpnameInputs(cementInputs);
-
-            const historySnap = await getDocs(collection(db, `locations/${location}/reset_history`));
-            setResetHistory(historySnap.docs.map(d => ({...d.data(), id: d.id}) as ResetHistoryEntry).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-
         } catch (e) {
-            console.error(e);
-            toast({ title: 'Gagal Memuat Data Stok', variant: 'destructive' });
-        } finally {
-            setIsFetching(false);
+            console.error("Failed to fetch opname data:", e);
         }
-    }, [toast]);
+    }, []);
 
     useEffect(() => {
         const dummyUser: UserData = JSON.parse(localStorage.getItem('user') || '{}');
@@ -156,10 +137,9 @@ export default function StokMaterialLogistikPage() {
             const locsData = locsSnap.docs.map(d => ({id: d.id, ...d.data()}) as LocationData);
             setLocations(locsData);
 
-            const locationToFetch = dummyUser.lokasi || locsData[0]?.name;
-            if (locationToFetch) {
-                setSelectedLocation(locationToFetch);
-                fetchAllStocks(locationToFetch);
+            const locationToUse = dummyUser.lokasi || locsData[0]?.name;
+            if (locationToUse) {
+                setSelectedLocation(locationToUse);
             } else {
                 setIsFetching(false);
             }
@@ -167,13 +147,72 @@ export default function StokMaterialLogistikPage() {
 
         fetchLocations();
 
-    }, [router, fetchAllStocks]);
-
+    }, [router]);
+    
     useEffect(() => {
-        if (selectedLocation) {
-            fetchAllStocks(selectedLocation);
-        }
-    }, [selectedLocation, fetchAllStocks]);
+        if (!selectedLocation) return;
+    
+        setIsFetching(true);
+        
+        // Fetch initial data for opname form once
+        fetchInitialOpnameData(selectedLocation);
+
+        const setupListener = (path: string, setter: React.Dispatch<React.SetStateAction<any>>, failureMsg: string) => {
+            const docRef = doc(db, path);
+            const unsub = onSnapshot(docRef, 
+                (docSnap) => {
+                    setter(docSnap.exists() ? docSnap.data() : null);
+                }, 
+                (error) => {
+                    console.error(`Error fetching ${path}:`, error);
+                    toast({ title: failureMsg, variant: "destructive" });
+                }
+            );
+            return unsub;
+        };
+
+        const historyUnsub = onSnapshot(collection(db, `locations/${selectedLocation}/reset_history`), (snap) => {
+             setResetHistory(snap.docs.map(d => ({...d.data(), id: d.id}) as ResetHistoryEntry).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+        });
+
+        const aggregateUnsub = setupListener(
+            `locations/${selectedLocation}/stock/aggregates`,
+            (data) => setAggregateStock({ ...initialStockValues, ...(data || {}) }),
+            "Gagal memuat stok agregat"
+        );
+
+        const bpUnitUnsubs = unitBPs.map(unit => 
+            setupListener(
+                `locations/${selectedLocation}/stock_cement_silo_${unit}/main`,
+                (data) => setBpUnitStocks(prev => ({ ...prev, [unit]: (data || { silos: {} }) })),
+                `Gagal memuat stok semen ${unit}`
+            )
+        );
+
+        const bufferSiloUnsub = setupListener(
+             `locations/${selectedLocation}/stock_buffer_silo/main`,
+             (data) => setBufferSiloStock(data),
+            "Gagal memuat stok buffer silo"
+        );
+
+        const bufferTankUnsub = setupListener(
+             `locations/${selectedLocation}/stock_buffer_tank/main`,
+             (data) => setBufferTankStock(data),
+            "Gagal memuat stok buffer tank"
+        );
+        
+        // Combine all unsubscribe functions
+        const allUnsubs = [historyUnsub, aggregateUnsub, ...bpUnitUnsubs, bufferSiloUnsub, bufferTankUnsub];
+        
+        const timer = setTimeout(() => setIsFetching(false), 1500);
+
+        return () => {
+            clearTimeout(timer);
+            allUnsubs.forEach(unsub => unsub());
+        };
+    
+    }, [selectedLocation, toast, fetchInitialOpnameData]);
+
 
     const handleOpnameInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -250,7 +289,6 @@ export default function StokMaterialLogistikPage() {
             await addDoc(historyCollectionRef, cementHistoryEntry);
 
             toast({ title: 'Semua Stok Direset', description: 'Stok semua material telah berhasil diperbarui.' });
-            fetchAllStocks(selectedLocation);
         } catch(e) {
             console.error(e);
             toast({ title: 'Gagal mereset stok', variant: 'destructive'});
