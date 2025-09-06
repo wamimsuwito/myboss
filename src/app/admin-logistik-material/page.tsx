@@ -26,6 +26,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import LaporanPemasukanPrintLayout from '@/components/laporan-pemasukan-print-layout';
 import { DateRange } from 'react-day-picker';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Textarea } from '@/components/ui/textarea';
 
 const materialConfig = [
     { key: 'semen', name: 'SEMEN' },
@@ -90,6 +91,11 @@ export default function AdminLogistikPage() {
   const [filteredPemasukan, setFilteredPemasukan] = useState<PemasukanLogEntry[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+
+  const [isTundaDialogOpen, setIsTundaDialogOpen] = useState(false);
+  const [tundaReason, setTundaReason] = useState("");
+  const [jobToTunda, setJobToTunda] = useState<Job | null>(null);
+
 
    useEffect(() => {
     const userString = localStorage.getItem('user');
@@ -191,7 +197,7 @@ export default function AdminLogistikPage() {
 
   }, [userInfo, dateRange]);
 
-  const activeJobs = useMemo(() => jobs.filter(job => job.status === 'Proses' || job.status === 'Menunggu'), [jobs]);
+  const activeJobs = useMemo(() => jobs.filter(job => job.status === 'Proses' || job.status === 'Menunggu' || job.status === 'Tunda'), [jobs]);
 
   const handleNewRencanaChange = (field: keyof RencanaPemasukan, value: any) => {
     setNewRencana(prev => ({ ...prev, [field]: value }));
@@ -309,10 +315,16 @@ export default function AdminLogistikPage() {
   };
   
   const handleJobStatusChange = async (jobId: string, newStatus: Job['status']) => {
-    const jobRef = doc(db, 'available_jobs', jobId);
     const jobData = jobs.find(j => j.id === jobId);
     if (!jobData) return;
-  
+
+    if (newStatus === 'Tunda') {
+        setJobToTunda(jobData);
+        setIsTundaDialogOpen(true);
+        return;
+    }
+
+    const jobRef = doc(db, 'available_jobs', jobId);
     let updateData: Partial<Job> = { status: newStatus };
   
     if (newStatus === 'Proses' && !jobData.jamMulai) {
@@ -342,13 +354,6 @@ export default function AdminLogistikPage() {
           toast({ title: "Pemasukan Material Dicatat", description: `${jobData.totalVolume} M³ ${jobData.material} telah dicatat.` });
         }
       }
-    } else if (newStatus === 'Tunda') {
-      const reason = prompt("Masukkan alasan menunda pekerjaan:");
-      if (reason) {
-        updateData.riwayatTunda = [...(jobData.riwayatTunda || []), { alasan: reason, waktuMulai: new Date().toISOString() }];
-      } else {
-        return; // User cancelled
-      }
     } else if (newStatus === 'Proses' && jobData.status === 'Tunda') {
       const lastTunda = jobData.riwayatTunda?.[jobData.riwayatTunda.length - 1];
       if (lastTunda && !lastTunda.waktuSelesai) {
@@ -371,6 +376,23 @@ export default function AdminLogistikPage() {
         await deleteDoc(jobRef); // Delete from active jobs
     }
   };
+
+  const handleConfirmTunda = async () => {
+    if (!jobToTunda || !tundaReason) {
+        toast({ title: 'Alasan tidak boleh kosong', variant: 'destructive' });
+        return;
+    }
+    const jobRef = doc(db, 'available_jobs', jobToTunda.id);
+    const updateData: Partial<Job> = {
+        status: 'Tunda',
+        riwayatTunda: [...(jobToTunda.riwayatTunda || []), { alasan: tundaReason, waktuMulai: new Date().toISOString() }]
+    };
+    await updateDoc(jobRef, updateData);
+    toast({ title: 'Pekerjaan Ditunda', description: `Alasan: ${tundaReason}` });
+    setIsTundaDialogOpen(false);
+    setTundaReason("");
+    setJobToTunda(null);
+  }
     
     const calculateEffectiveTime = (job: any) => {
         const start = job.jamMulai ? new Date(job.jamMulai) : (job.arrivalConfirmedAt ? new Date(job.arrivalConfirmedAt) : null);
@@ -512,6 +534,24 @@ export default function AdminLogistikPage() {
           />
         </div>
       </div>
+      <AlertDialog open={isTundaDialogOpen} onOpenChange={setIsTundaDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Konfirmasi Penundaan Pekerjaan</AlertDialogTitle>
+                <AlertDialogDescriptionComponent>
+                    Harap masukkan alasan mengapa pekerjaan ini perlu ditunda. Informasi ini akan dicatat dalam riwayat.
+                </AlertDialogDescriptionComponent>
+            </AlertDialogHeader>
+            <div className="py-4">
+                <Label htmlFor="tunda-reason">Alasan Penundaan</Label>
+                <Textarea id="tunda-reason" value={tundaReason} onChange={e => setTundaReason(e.target.value)} placeholder="Contoh: Hujan lebat, alat rusak, dll." />
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setIsTundaDialogOpen(false)}>Batal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmTunda}>Simpan & Tunda</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AlertDialog open={isConfirmArrivalOpen} onOpenChange={setIsConfirmArrivalOpen}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>Konfirmasi Kedatangan: {selectedRencana?.namaKapal}</AlertDialogTitle><AlertDialogDescriptionComponent>Pastikan kendaraan sudah tiba di lokasi sebelum melanjutkan.</AlertDialogDescriptionComponent></AlertDialogHeader>

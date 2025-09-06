@@ -365,7 +365,7 @@ export default function AdminBpPage() {
             toast({ title: 'Status Silo Diperbarui', description: `Status untuk ${siloId} di ${unit} telah diubah menjadi ${newStatus}.` });
         } catch (error) {
             console.error("Error updating silo status:", error);
-            toast({ title: "Gagal Memperbarui Status", variant: "destructive" });
+            toast({ title: "Gagal Memperbarui Status", variant: "destructive", description: "Terjadi kesalahan pada database." });
         }
     };
 

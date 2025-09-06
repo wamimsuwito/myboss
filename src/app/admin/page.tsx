@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { UserPlus, LogOut, User, Lock, Briefcase, Fingerprint, MapPin, Trash2, Users, Construction, Pencil, X, Loader2, GitCompareArrows, LocateFixed, Save } from 'lucide-react';
 import { Sidebar, SidebarProvider, SidebarTrigger, SidebarInset, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from '@/components/ui/sidebar';
 import type { UserData as AppUserData, LocationData as AppLocationData } from '@/lib/types';
-import { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from '@/lib/firebase';
+import { db, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where } from '@/lib/firebase';
 
 interface UserData extends AppUserData {
   id: string;
@@ -87,6 +87,26 @@ export default function AdminPage() {
     const fetchData = async () => {
         setIsFetching(true);
         try {
+            // Check and create default admin if necessary
+            const adminQuery = query(collection(db, 'users'), where('username', '==', 'SUPERADMIN'));
+            const adminSnapshot = await getDocs(adminQuery);
+            if (adminSnapshot.empty) {
+                const defaultAdmin = {
+                    username: 'SUPERADMIN',
+                    password: '123456',
+                    nik: '000000',
+                    jabatan: 'SUPER ADMIN',
+                    lokasi: 'PUSAT',
+                    role: 'admin',
+                };
+                await addDoc(collection(db, 'users'), defaultAdmin);
+                toast({
+                    title: 'Akun Admin Default Dibuat',
+                    description: 'Username: SUPERADMIN, Password: 123456. Segera ubah password Anda.',
+                    duration: 10000,
+                });
+            }
+
             const usersQuery = getDocs(collection(db, 'users'));
             const alatQuery = getDocs(collection(db, 'alat'));
             const locationsQuery = getDocs(collection(db, 'locations'));
@@ -542,7 +562,7 @@ export default function AdminPage() {
                                             <Pencil className="h-4 w-4 text-amber-500"/>
                                             <span className="sr-only">Edit</span>
                                         </Button>
-                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteRequest(user.id, user.username, 'user')} disabled={user.username.toLowerCase() === 'super admin'}>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteRequest(user.id, user.username, 'user')} disabled={user.username.toLowerCase() === 'superadmin'}>
                                             <Trash2 className="h-4 w-4 text-destructive"/>
                                             <span className="sr-only">Hapus</span>
                                         </Button>
