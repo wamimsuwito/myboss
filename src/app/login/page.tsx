@@ -9,13 +9,45 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, User, Lock } from 'lucide-react';
-import { db, collection, query, where, getDocs } from '@/lib/firebase';
+import { db, collection, query, where, getDocs, addDoc } from '@/lib/firebase';
 import type { UserData } from '@/lib/types';
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+
+  const ensureSuperAdminExists = async () => {
+    const adminQuery = query(collection(db, 'users'), where('username', '==', 'SUPERADMIN'));
+    const adminSnapshot = await getDocs(adminQuery);
+
+    if (adminSnapshot.empty) {
+      console.log("SUPERADMIN not found, creating one...");
+      const defaultAdmin = {
+          username: 'SUPERADMIN',
+          password: '123456',
+          nik: '000000',
+          jabatan: 'SUPER ADMIN',
+          lokasi: 'PUSAT',
+          role: 'admin',
+      };
+      try {
+        await addDoc(collection(db, 'users'), defaultAdmin);
+        toast({
+            title: 'Akun Admin Default Dibuat',
+            description: 'Silakan login dengan Username: SUPERADMIN, Password: 123456.',
+            duration: 7000,
+        });
+      } catch (error) {
+        console.error("Failed to create default admin:", error);
+        toast({
+          variant: 'destructive',
+          title: 'Gagal Membuat Admin',
+          description: 'Tidak dapat membuat akun admin default di database.',
+        });
+      }
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +68,9 @@ export default function LoginPage() {
     }
     
     try {
+        // Ensure the SUPERADMIN user exists before attempting to log in
+        await ensureSuperAdminExists();
+        
         const q = query(collection(db, "users"), where("username", "==", username.toUpperCase()));
         const querySnapshot = await getDocs(q);
 
