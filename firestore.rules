@@ -1,12 +1,27 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // WARNING: These rules are insecure and allow public access.
-    // You should secure your database before going to production.
-    // https://firebase.google.com/docs/firestore/security/get-started
+
+    // Helper function to check for admin-like roles
+    function isPrivilegedUser() {
+      return request.auth.token.admin == true || 
+             request.auth.token.kepalaMekanik == true ||
+             request.auth.token.kepalaWorkshop == true;
+    }
+
+    // Default match for all collections
     match /{document=**} {
-      allow read, write: if true;
+      // Allow read access for any authenticated user.
+      allow read: if request.auth != null;
+
+      // Allow users to create documents.
+      allow create: if request.auth != null;
+
+      // Allow users to update/delete their own documents, or if they have a privileged role.
+      allow update, delete: if request.auth != null && 
+                             (request.auth.uid == resource.data.userId || isPrivilegedUser());
     }
   }
 }
