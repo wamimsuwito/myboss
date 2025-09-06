@@ -1,3 +1,4 @@
+
 // This file is now configured for a real Firebase project.
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
