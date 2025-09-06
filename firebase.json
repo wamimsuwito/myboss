@@ -1,6 +1,7 @@
 
 {
   "hosting": {
+    "site": "mymanager",
     "ignore": [
       "firebase.json",
       "**/.*",
