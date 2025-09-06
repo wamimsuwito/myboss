@@ -1,7 +1,6 @@
 
 {
   "hosting": {
-    "site": "mymanager",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -15,6 +14,9 @@
           "region": "asia-east1"
         }
       }
-    ]
+    ],
+    "i18n": {
+      "root": "/"
+    }
   }
 }
