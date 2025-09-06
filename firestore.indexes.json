@@ -125,6 +125,23 @@
           "order": "DESCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "checklist_reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "nomorLambung", "order": "ASCENDING" },
+        { "fieldPath": "overallStatus", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "rencana_pemasukan",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "jenisMaterial", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
