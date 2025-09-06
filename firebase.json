@@ -9,8 +9,8 @@
     "rewrites": [
       {
         "source": "**",
-        "apphosting": {
-          "backendId": "nextn",
+        "run": {
+          "serviceId": "nextn",
           "region": "us-central1"
         }
       }
